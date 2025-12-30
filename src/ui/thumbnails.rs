@@ -221,6 +221,23 @@ impl ImageViewerApp {
                 if response.double_clicked() {
                     self.compare_index = Some(display_idx);
                     self.view_mode = crate::app::ViewMode::Compare;
+                    // Load the compare image if not current
+                    if display_idx != self.current_index {
+                        if let Some(path) = self.image_list.get(display_idx).cloned() {
+                            if let Some(image) = self.image_cache.get(&path) {
+                                self.set_compare_image(&path, image.clone());
+                            } else {
+                                // Load it
+                                let path_clone = path.clone();
+                                self.spawn_loader(move || {
+                                    match crate::image_loader::load_image(&path_clone) {
+                                        Ok(image) => Some(crate::app::LoaderMessage::ImageLoaded(path_clone, image)),
+                                        Err(e) => Some(crate::app::LoaderMessage::LoadError(path_clone, e.to_string())),
+                                    }
+                                });
+                            }
+                        }
+                    }
                 }
                 
                 // Context menu

@@ -74,6 +74,7 @@ pub struct ImageViewerApp {
 
     // Current image state
     pub current_texture: Option<TextureHandle>,
+    pub compare_texture: Option<TextureHandle>,
     pub current_image: Option<DynamicImage>,
     pub current_exif: Option<ExifInfo>,
     pub histogram_data: Option<Vec<Vec<u32>>>,
@@ -124,10 +125,6 @@ pub struct ImageViewerApp {
 
     // Dialogs
     pub show_settings_dialog: bool,
-    pub show_export_dialog: bool,
-    pub show_batch_rename_dialog: bool,
-    pub show_about_dialog: bool,
-    pub show_shortcuts_dialog: bool,
     pub show_go_to_dialog: bool,
     pub go_to_input: String,
     pub search_query: String,
@@ -193,6 +190,7 @@ impl ImageViewerApp {
             selected_indices: HashSet::new(),
             last_selected: None,
             current_texture: None,
+            compare_texture: None,
             current_image: None,
             current_exif: None,
             histogram_data: None,
@@ -222,10 +220,6 @@ impl ImageViewerApp {
             compare_index: None,
             lightbox_columns: 4,
             show_settings_dialog: false,
-            show_export_dialog: false,
-            show_batch_rename_dialog: false,
-            show_about_dialog: false,
-            show_shortcuts_dialog: false,
             show_go_to_dialog: false,
             go_to_input: String::new(),
             search_query: String::new(),

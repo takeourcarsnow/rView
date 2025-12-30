@@ -86,7 +86,7 @@ impl ImageViewerApp {
                 if trash::delete(&path).is_ok() {
                     self.undo_history.push(FileOperation::Delete {
                         original_path: path.clone(),
-                        trash_path: None, // TODO: Get actual trash path if possible
+                        trash_path: None,
                         metadata_backup,
                     });
                 }

@@ -16,7 +16,6 @@ pub struct Settings {
     pub thumbnail_position: ThumbnailPosition,
     pub show_exif: bool,
     pub show_histogram: bool,
-    pub show_minimap: bool,
     pub show_toolbar: bool,
     pub show_statusbar: bool,
     
@@ -34,7 +33,6 @@ pub struct Settings {
     // Slideshow
     pub slideshow_interval: f32,
     pub slideshow_loop: bool,
-    pub slideshow_random: bool,
     
     // Overlays
     pub show_focus_peaking: bool,
@@ -51,8 +49,6 @@ pub struct Settings {
     pub sort_order: SortOrder,
     pub sort_ascending: bool,
     pub include_subfolders: bool,
-    pub filter_by_rating: Option<u8>,
-    pub filter_by_color: Option<ColorLabel>,
     
     // File management
     pub recent_folders: Vec<PathBuf>,
@@ -71,11 +67,6 @@ pub struct Settings {
     pub parallel_thumbnail_threads: usize,
     
     // Export presets
-    pub export_presets: Vec<ExportPreset>,
-    pub default_export_preset: Option<String>,
-    
-    // Keyboard shortcuts
-    pub shortcuts: HashMap<String, KeyShortcut>,
     
     // Window state
     pub window_maximized: bool,
@@ -87,26 +78,10 @@ pub struct Settings {
     pub last_folder: Option<PathBuf>,
     pub last_file: Option<PathBuf>,
     
-    // Collections/Albums
-    pub collections: Vec<Collection>,
-    
-    // Bookmarks
-    pub bookmarks: Vec<Bookmark>,
-    
-    // UI Layout
-    pub panel_layout: PanelLayout,
-    pub panel_positions: HashMap<String, PanelPosition>,
-    
-    // Duplicate detection
-    pub duplicate_threshold: f32,
-    
     // Loupe
     pub loupe_size: f32,
     pub loupe_zoom: f32,
     pub loupe_enabled: bool,
-    
-    // Adjustments
-    pub show_adjustments: bool,
 }
 
 impl Default for Settings {
@@ -122,7 +97,6 @@ impl Default for Settings {
             thumbnail_position: ThumbnailPosition::Bottom,
             show_exif: true,
             show_histogram: false,
-            show_minimap: false,
             show_toolbar: true,
             show_statusbar: true,
             
@@ -137,7 +111,6 @@ impl Default for Settings {
             
             slideshow_interval: 3.0,
             slideshow_loop: true,
-            slideshow_random: false,
             
             show_focus_peaking: false,
             focus_peaking_color: FocusPeakingColor::Red,
@@ -152,8 +125,6 @@ impl Default for Settings {
             sort_order: SortOrder::Ascending,
             sort_ascending: true,
             include_subfolders: false,
-            filter_by_rating: None,
-            filter_by_color: None,
             
             recent_folders: Vec::new(),
             max_recent_folders: 20,
@@ -169,15 +140,6 @@ impl Default for Settings {
             use_embedded_thumbnails: true,
             parallel_thumbnail_threads: 4,
             
-            export_presets: vec![
-                ExportPreset::default_web(),
-                ExportPreset::default_print(),
-                ExportPreset::default_social(),
-            ],
-            default_export_preset: Some("Web".to_string()),
-            
-            shortcuts: default_shortcuts(),
-            
             window_maximized: false,
             window_size: (1400.0, 900.0),
             window_position: None,
@@ -186,18 +148,9 @@ impl Default for Settings {
             last_folder: None,
             last_file: None,
             
-            collections: Vec::new(),
-            bookmarks: Vec::new(),
-            panel_layout: PanelLayout::Classic,
-            panel_positions: default_panel_positions(),
-            
-            duplicate_threshold: 0.95,
-            
             loupe_size: 200.0,
             loupe_zoom: 2.0,
             loupe_enabled: false,
-            
-            show_adjustments: false,
         }
     }
 }
@@ -382,96 +335,6 @@ pub struct ExternalEditor {
     pub args: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportPreset {
-    pub name: String,
-    pub format: ExportFormat,
-    pub quality: u8,
-    pub max_width: Option<u32>,
-    pub max_height: Option<u32>,
-    pub suffix: String,
-}
-
-impl ExportPreset {
-    pub fn default_web() -> Self {
-        Self {
-            name: "Web".to_string(),
-            format: ExportFormat::Jpeg,
-            quality: 85,
-            max_width: Some(2048),
-            max_height: Some(2048),
-            suffix: "_web".to_string(),
-        }
-    }
-    
-    pub fn default_print() -> Self {
-        Self {
-            name: "Print".to_string(),
-            format: ExportFormat::Jpeg,
-            quality: 95,
-            max_width: None,
-            max_height: None,
-            suffix: "_print".to_string(),
-        }
-    }
-    
-    pub fn default_social() -> Self {
-        Self {
-            name: "Social".to_string(),
-            format: ExportFormat::Jpeg,
-            quality: 80,
-            max_width: Some(1080),
-            max_height: Some(1080),
-            suffix: "_social".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ExportFormat {
-    Jpeg,
-    Png,
-    WebP,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyShortcut {
-    pub key: String,
-    pub modifiers: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Collection {
-    pub id: String,
-    pub name: String,
-    pub images: Vec<PathBuf>,
-    pub created: String,
-    pub modified: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Bookmark {
-    pub id: String,
-    pub name: String,
-    pub path: PathBuf,
-    pub bookmark_type: BookmarkType,
-    pub created: String,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BookmarkType {
-    Folder,
-    Image,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PanelLayout {
-    Classic,    // Sidebar right, thumbnails bottom
-    Modern,     // Sidebar left, thumbnails right
-    Minimal,    // No sidebar, thumbnails bottom
-    Compact,    // Everything collapsed
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PanelPosition {
     Left,
@@ -479,52 +342,6 @@ pub enum PanelPosition {
     Top,
     Bottom,
     Hidden,
-}
-
-impl Collection {
-    pub fn new(name: String) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
-        Self {
-            id: uuid::Uuid::new_v4().to_string(),
-            name,
-            images: Vec::new(),
-            created: now.clone(),
-            modified: now,
-        }
-    }
-}
-
-impl Bookmark {
-    pub fn new(name: String, path: PathBuf, bookmark_type: BookmarkType) -> Self {
-        let now = chrono::Utc::now().to_rfc3339();
-        Self {
-            id: uuid::Uuid::new_v4().to_string(),
-            name,
-            path,
-            bookmark_type,
-            created: now,
-        }
-    }
-}
-
-fn default_shortcuts() -> HashMap<String, KeyShortcut> {
-    let mut shortcuts = HashMap::new();
-    
-    shortcuts.insert("next_image".to_string(), KeyShortcut { key: "Right".to_string(), modifiers: vec![] });
-    shortcuts.insert("prev_image".to_string(), KeyShortcut { key: "Left".to_string(), modifiers: vec![] });
-    shortcuts.insert("first_image".to_string(), KeyShortcut { key: "Home".to_string(), modifiers: vec![] });
-    shortcuts.insert("last_image".to_string(), KeyShortcut { key: "End".to_string(), modifiers: vec![] });
-    shortcuts.insert("zoom_in".to_string(), KeyShortcut { key: "Plus".to_string(), modifiers: vec![] });
-    shortcuts.insert("zoom_out".to_string(), KeyShortcut { key: "Minus".to_string(), modifiers: vec![] });
-    shortcuts.insert("zoom_fit".to_string(), KeyShortcut { key: "0".to_string(), modifiers: vec![] });
-    shortcuts.insert("zoom_100".to_string(), KeyShortcut { key: "1".to_string(), modifiers: vec![] });
-    shortcuts.insert("delete".to_string(), KeyShortcut { key: "Delete".to_string(), modifiers: vec![] });
-    shortcuts.insert("fullscreen".to_string(), KeyShortcut { key: "F11".to_string(), modifiers: vec![] });
-    shortcuts.insert("slideshow".to_string(), KeyShortcut { key: "Space".to_string(), modifiers: vec![] });
-    shortcuts.insert("rotate_left".to_string(), KeyShortcut { key: "L".to_string(), modifiers: vec![] });
-    shortcuts.insert("rotate_right".to_string(), KeyShortcut { key: "R".to_string(), modifiers: vec![] });
-    
-    shortcuts
 }
 
 fn default_panel_positions() -> HashMap<String, PanelPosition> {
@@ -568,21 +385,5 @@ impl Settings {
         if self.recent_folders.len() > self.max_recent_folders {
             self.recent_folders.truncate(self.max_recent_folders);
         }
-    }
-    
-    pub fn add_bookmark(&mut self, name: String, path: PathBuf, bookmark_type: BookmarkType) {
-        let now = chrono::Utc::now().to_rfc3339();
-        let bookmark = Bookmark {
-            id: uuid::Uuid::new_v4().to_string(),
-            name,
-            path,
-            bookmark_type,
-            created: now,
-        };
-        self.bookmarks.push(bookmark);
-    }
-    
-    pub fn remove_bookmark(&mut self, id: &str) {
-        self.bookmarks.retain(|b| b.id != id);
     }
 }

@@ -101,20 +101,6 @@ impl ImageViewerApp {
         for (idx, path) in self.image_list.iter().enumerate() {
             let metadata = self.metadata_db.get(path);
 
-            // Filter by rating
-            if let Some(min_rating) = self.settings.filter_by_rating {
-                if metadata.rating < min_rating {
-                    continue;
-                }
-            }
-
-            // Filter by color
-            if let Some(ref color) = self.settings.filter_by_color {
-                if &metadata.color_label != color {
-                    continue;
-                }
-            }
-
             // Filter by search query
             if !self.search_query.is_empty() {
                 let filename = path.file_name()
@@ -140,7 +126,7 @@ impl ImageViewerApp {
             .cloned()
     }
 
-    fn spawn_loader<F>(&self, f: F)
+    pub fn spawn_loader<F>(&self, f: F)
     where
         F: FnOnce() -> Option<super::LoaderMessage> + Send + 'static,
     {
@@ -258,6 +244,28 @@ impl ImageViewerApp {
 
         // Cache the image
         self.image_cache.insert(path.clone(), image);
+    }
+
+    pub fn set_compare_image(&mut self, path: &PathBuf, image: DynamicImage) {
+        let ctx = match &self.ctx {
+            Some(c) => c.clone(),
+            None => return,
+        };
+
+        // Apply adjustments if any (for compare, maybe not, or same as current?)
+        let display_image = image.clone(); // For now, no adjustments for compare
+
+        let size = [display_image.width() as usize, display_image.height() as usize];
+        let rgba = display_image.to_rgba8();
+        let pixels = rgba.as_flat_samples();
+
+        let texture = ctx.load_texture(
+            format!("compare_{}", path.display()),
+            egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+            egui::TextureOptions::LINEAR,
+        );
+
+        self.compare_texture = Some(texture);
     }
 
     pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {

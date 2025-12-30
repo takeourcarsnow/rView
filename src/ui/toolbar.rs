@@ -9,6 +9,7 @@ impl ImageViewerApp {
         let filtered_len = self.filtered_list.len();
         let zoom = self.zoom;
         let view_mode = self.view_mode;
+        let compare_index = self.compare_index;
         let is_fullscreen = self.is_fullscreen;
         let slideshow_active = self.slideshow_active;
         let show_focus_peaking = self.settings.show_focus_peaking;
@@ -74,10 +75,10 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Navigation
-                    if icon_button(ui, "<<", "First image (Home)").clicked() {
+                    if icon_button(ui, "⏮", "First image (Home)").clicked() {
                         go_first = true;
                     }
-                    if icon_button(ui, "<", "Previous image (←)").clicked() {
+                    if icon_button(ui, "⏪", "Previous image (←)").clicked() {
                         go_prev = true;
                     }
                     
@@ -95,10 +96,10 @@ impl ImageViewerApp {
                         }
                     }
                     
-                    if icon_button(ui, ">", "Next image (→)").clicked() {
+                    if icon_button(ui, "⏩", "Next image (→)").clicked() {
                         go_next = true;
                     }
-                    if icon_button(ui, ">>", "Last image (End)").clicked() {
+                    if icon_button(ui, "⏭", "Last image (End)").clicked() {
                         go_last = true;
                     }
                     
@@ -153,13 +154,13 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // View modes
-                    if toggle_button(ui, "1", "Single view", view_mode == ViewMode::Single).clicked() {
+                    if toggle_button(ui, "👁", "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
-                    if toggle_button(ui, "2", "Compare view (C)", view_mode == ViewMode::Compare).clicked() {
+                    if toggle_button_enabled(ui, "⚖", "Compare view (C)", view_mode == ViewMode::Compare, compare_index.is_some() && compare_index != Some(current_index)).clicked() {
                         toggle_compare = true;
                     }
-                    if toggle_button(ui, "G", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
+                    if toggle_button(ui, "⊞", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
                     
@@ -168,16 +169,16 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Photography tools
-                    if toggle_button(ui, "FP", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
+                    if toggle_button(ui, "🎯", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
                     }
-                    if toggle_button(ui, "ZB", "Zebras (Ctrl+Z)", show_zebras).clicked() {
+                    if toggle_button(ui, "⚡", "Zebras (Ctrl+Z)", show_zebras).clicked() {
                         toggle_zebras = true;
                     }
-                    if toggle_button(ui, "GR", "Grid overlay", show_grid_overlay).clicked() {
+                    if toggle_button(ui, "⊞", "Grid overlay", show_grid_overlay).clicked() {
                         toggle_grid = true;
                     }
-                    if toggle_button(ui, "LP", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
+                    if toggle_button(ui, "🔍", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
                     }
                     
@@ -317,6 +318,20 @@ fn toggle_button(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> 
     };
     
     ui.add(egui::Button::new(RichText::new(icon).size(16.0))
+        .fill(bg)
+        .rounding(Rounding::same(4.0))
+        .min_size(Vec2::new(28.0, 28.0)))
+        .on_hover_text(tooltip)
+}
+
+fn toggle_button_enabled(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool, enabled: bool) -> egui::Response {
+    let bg = if active {
+        Color32::from_rgb(70, 130, 255)
+    } else {
+        Color32::TRANSPARENT
+    };
+    
+    ui.add_enabled(enabled, egui::Button::new(RichText::new(icon).size(16.0))
         .fill(bg)
         .rounding(Rounding::same(4.0))
         .min_size(Vec2::new(28.0, 28.0)))

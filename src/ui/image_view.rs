@@ -167,6 +167,8 @@ impl ImageViewerApp {
         // Get the texture for this index
         let tex = if index == self.current_index {
             self.current_texture.as_ref()
+        } else if Some(index) == self.compare_index {
+            self.compare_texture.as_ref()
         } else {
             None
         };
@@ -235,10 +237,10 @@ impl ImageViewerApp {
             }
         }
         
-        // Double-click to reset or zoom to 100%
+        // Double-click to toggle between 100% and fit
         if response.double_clicked() {
             if (self.zoom - 1.0).abs() < 0.1 {
-                self.reset_view();
+                self.fit_to_window();
             } else {
                 self.zoom_to(1.0);
             }
@@ -251,7 +253,7 @@ impl ImageViewerApp {
                 ui.close_menu();
             }
             if ui.button("Fit to Window").clicked() {
-                self.reset_view();
+                self.fit_to_window();
                 ui.close_menu();
             }
             ui.separator();

@@ -397,60 +397,6 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     DynamicImage::ImageRgba8(img)
 }
 
-// Export image with preset
-pub fn export_image(
-    image: &DynamicImage,
-    output_path: &Path,
-    format: crate::settings::ExportFormat,
-    quality: u8,
-    max_width: Option<u32>,
-    max_height: Option<u32>,
-) -> Result<()> {
-    let mut img = image.clone();
-    
-    // Resize if needed
-    if let (Some(max_w), Some(max_h)) = (max_width, max_height) {
-        let (w, h) = img.dimensions();
-        if w > max_w || h > max_h {
-            img = img.resize(max_w, max_h, image::imageops::FilterType::Lanczos3);
-        }
-    } else if let Some(max_w) = max_width {
-        let (w, h) = img.dimensions();
-        if w > max_w {
-            let new_h = (h as f32 * max_w as f32 / w as f32) as u32;
-            img = img.resize(max_w, new_h, image::imageops::FilterType::Lanczos3);
-        }
-    } else if let Some(max_h) = max_height {
-        let (w, h) = img.dimensions();
-        if h > max_h {
-            let new_w = (w as f32 * max_h as f32 / h as f32) as u32;
-            img = img.resize(new_w, max_h, image::imageops::FilterType::Lanczos3);
-        }
-    }
-    
-    match format {
-        crate::settings::ExportFormat::Jpeg => {
-            let rgb = img.to_rgb8();
-            let mut output = std::fs::File::create(output_path)
-                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
-            
-            let encoder = jpeg_encoder::Encoder::new(&mut output, quality);
-            encoder.encode(&rgb, rgb.width() as u16, rgb.height() as u16, jpeg_encoder::ColorType::Rgb)
-                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
-        }
-        crate::settings::ExportFormat::Png => {
-            img.save(output_path)
-                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
-        }
-        crate::settings::ExportFormat::WebP => {
-            img.save(output_path)
-                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
-        }
-    }
-    
-    Ok(())
-}
-
 // Rotate image losslessly (for JPEG, just update EXIF, for others, actually rotate)
 pub fn rotate_image(image: &DynamicImage, degrees: i32) -> DynamicImage {
     match degrees {

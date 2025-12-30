@@ -107,9 +107,15 @@ impl ImageViewerApp {
                             crate::profiler::with_profiler(|p| p.increment_counter("images_loaded"));
                             if self.get_current_path().as_ref() == Some(&path) {
                                 self.showing_preview = false;
-                                self.set_current_image(&path, image);
+                                self.set_current_image(&path, image.clone());
                             } else {
-                                self.image_cache.insert(path, image);
+                                self.image_cache.insert(path.clone(), image.clone());
+                            }
+                            // Check if this is the compare image
+                            if let Some(compare_idx) = self.compare_index {
+                                if self.image_list.get(compare_idx) == Some(&path) {
+                                    self.set_compare_image(&path, image);
+                                }
                             }
                         }
                         LoaderMessage::PreviewLoaded(path, preview) => {
@@ -172,10 +178,6 @@ impl ImageViewerApp {
                 self.show_go_to_dialog = false;
                 return;
             }
-            if self.show_batch_rename_dialog {
-                self.show_batch_rename_dialog = false;
-                return;
-            }
             if self.slideshow_active {
                 self.slideshow_active = false;
                 return;
@@ -188,7 +190,7 @@ impl ImageViewerApp {
         
         // Don't handle other keys if a dialog is open or text input is focused
         let dialogs_open = self.show_settings_dialog || self.show_go_to_dialog || 
-                          self.show_batch_rename_dialog || self.command_palette_open;
+                          self.command_palette_open;
         
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl;

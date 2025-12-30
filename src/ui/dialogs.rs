@@ -143,7 +143,6 @@ impl ImageViewerApp {
                         });
                         
                         ui.checkbox(&mut self.settings.slideshow_loop, "Loop slideshow");
-                        ui.checkbox(&mut self.settings.slideshow_random, "Random order");
                         
                         ui.add_space(12.0);
                         ui.heading("Cache");

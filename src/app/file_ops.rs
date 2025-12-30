@@ -1,5 +1,4 @@
 use crate::image_loader::{self, SUPPORTED_EXTENSIONS, is_supported_image};
-use crate::settings::ExportFormat;
 use eframe::egui;
 use std::path::PathBuf;
 use uuid;
@@ -74,10 +73,8 @@ impl ImageViewerApp {
     pub fn toggle_compare_mode(&mut self) {
         if self.view_mode == super::ViewMode::Compare {
             self.view_mode = super::ViewMode::Single;
-            self.compare_index = None;
-        } else {
+        } else if self.compare_index.is_some() {
             self.view_mode = super::ViewMode::Compare;
-            self.compare_index = Some(self.current_index);
         }
     }
 
@@ -93,34 +90,6 @@ impl ImageViewerApp {
         self.panels_hidden = !self.panels_hidden;
         // Schedule a fit operation for the next frame after UI layout is updated
         self.pending_fit_to_window = true;
-    }
-
-    // Export
-    pub fn export_current(&mut self, preset_name: &str) {
-        if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
-            if let Some(preset) = self.settings.export_presets.iter().find(|p| p.name == preset_name) {
-                let stem = path.file_stem().unwrap_or_default().to_string_lossy();
-                let ext = match preset.format {
-                    ExportFormat::Jpeg => "jpg",
-                    ExportFormat::Png => "png",
-                    ExportFormat::WebP => "webp",
-                };
-
-                let output_name = format!("{}{}.{}", stem, preset.suffix, ext);
-                let output_path = path.parent().unwrap_or(&path).join(output_name);
-
-                if image_loader::export_image(
-                    image,
-                    &output_path,
-                    preset.format,
-                    preset.quality,
-                    preset.max_width,
-                    preset.max_height,
-                ).is_ok() {
-                    self.show_status(&format!("Exported to {}", output_path.display()));
-                }
-            }
-        }
     }
 
     // Tab management methods
