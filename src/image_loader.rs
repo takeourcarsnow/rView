@@ -34,11 +34,15 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         return Err(ViewerError::FileNotFound { path: path.to_path_buf() });
     }
 
-    if is_raw_file(path) {
+    crate::profiler::with_profiler(|p| p.start_timer("image_load"));
+    let result = if is_raw_file(path) {
         load_raw_image(path)
     } else {
         load_standard_image(path)
-    }
+    };
+    crate::profiler::with_profiler(|p| p.end_timer("image_load"));
+
+    result
 }
 
 fn load_standard_image(path: &Path) -> Result<DynamicImage> {
@@ -72,6 +76,13 @@ pub fn generate_thumbnail(image: &DynamicImage, max_size: u32) -> DynamicImage {
 }
 
 pub fn load_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImage> {
+    crate::profiler::with_profiler(|p| p.start_timer("thumbnail_load"));
+    let result = load_thumbnail_impl(path, max_size);
+    crate::profiler::with_profiler(|p| p.end_timer("thumbnail_load"));
+    result
+}
+
+fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
     // For RAW files, try to extract embedded thumbnail first (much faster)
     if is_raw_file(path) {
         if let Ok(thumb) = load_raw_embedded_thumbnail(path, max_size) {

@@ -50,17 +50,8 @@ fn main() -> eframe::Result<()> {
             if let Some(path) = initial_path {
                 if path.is_dir() {
                     app.load_folder(path);
-                } else if path.is_file() {
-                    if let Some(parent) = path.parent() {
-                        app.load_folder(parent.to_path_buf());
-                        // Find and select the specified file
-                        if let Some(idx) = app.image_list.iter().position(|p| p == &path) {
-                            if let Some(display_idx) = app.filtered_list.iter().position(|&i| i == idx) {
-                                app.current_index = display_idx;
-                                app.load_current_image();
-                            }
-                        }
-                    }
+                } else {
+                    app.load_image_file(path);
                 }
             }
             

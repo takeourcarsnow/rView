@@ -10,6 +10,8 @@ mod image_view;
 
 impl eframe::App for ImageViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        crate::profiler::with_profiler(|p| p.start_timer("ui_update"));
+        
         self.ctx = Some(ctx.clone());
         
         // Process async messages
@@ -60,6 +62,27 @@ impl eframe::App for ImageViewerApp {
                 self.render_lightbox(ctx);
             }
         }
+        
+        // Process pending navigation actions (deferred to avoid UI blocking)
+        if self.pending_navigate_prev { self.previous_image(); }
+        if self.pending_navigate_next { self.next_image(); }
+        if self.pending_navigate_first { self.go_to_first(); }
+        if self.pending_navigate_last { self.go_to_last(); }
+        if self.pending_navigate_page_up { for _ in 0..10 { self.previous_image(); } }
+        if self.pending_navigate_page_down { for _ in 0..10 { self.next_image(); } }
+        
+        // Reset pending flags
+        self.pending_navigate_prev = false;
+        self.pending_navigate_next = false;
+        self.pending_navigate_first = false;
+        self.pending_navigate_last = false;
+        self.pending_navigate_page_up = false;
+        self.pending_navigate_page_down = false;
+        
+        crate::profiler::with_profiler(|p| {
+            p.end_timer("ui_update");
+            p.increment_counter("ui_updates");
+        });
     }
     
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
@@ -70,49 +93,64 @@ impl eframe::App for ImageViewerApp {
 
 impl ImageViewerApp {
     pub fn process_loader_messages(&mut self, ctx: &egui::Context) {
-        while let Ok(msg) = self.loader_rx.try_recv() {
-            match msg {
-                LoaderMessage::ImageLoaded(path, image) => {
-                    if self.get_current_path().as_ref() == Some(&path) {
-                        self.showing_preview = false;
-                        self.set_current_image(&path, image);
-                    } else {
-                        self.image_cache.insert(path, image);
+        // Limit the number of messages processed per frame to prevent UI blocking
+        let max_messages_per_frame = 10;
+        let mut messages_processed = 0;
+        
+        while messages_processed < max_messages_per_frame {
+            match self.loader_rx.try_recv() {
+                Ok(msg) => {
+                    match msg {
+                        LoaderMessage::ImageLoaded(path, image) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("images_loaded"));
+                            if self.get_current_path().as_ref() == Some(&path) {
+                                self.showing_preview = false;
+                                self.set_current_image(&path, image);
+                            } else {
+                                self.image_cache.insert(path, image);
+                            }
+                        }
+                        LoaderMessage::PreviewLoaded(path, preview) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("previews_loaded"));
+                            // Only use preview if we're still waiting for this image and don't have the full one yet
+                            if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
+                                self.showing_preview = true;
+                                self.set_current_image(&path, preview);
+                                self.is_loading = true; // Keep loading indicator for full image
+                            }
+                        }
+                        LoaderMessage::ThumbnailLoaded(path, thumb) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("thumbnails_loaded"));
+                            let size = [thumb.width() as usize, thumb.height() as usize];
+                            let rgba = thumb.to_rgba8();
+                            let pixels = rgba.as_flat_samples();
+                            
+                            let texture = ctx.load_texture(
+                                format!("thumb_{}", path.display()),
+                                egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+                                egui::TextureOptions::LINEAR,
+                            );
+                            
+                            self.thumbnail_textures.insert(path, texture);
+                        }
+                        LoaderMessage::LoadError(path, error) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("load_errors"));
+                            log::error!("Failed to load {}: {}", path.display(), error);
+                            if self.get_current_path().as_ref() == Some(&path) {
+                                self.is_loading = false;
+                                self.load_error = Some(error);
+                            }
+                        }
+                        LoaderMessage::ExifLoaded(path, exif) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("exif_loaded"));
+                            if self.get_current_path().as_ref() == Some(&path) {
+                                self.current_exif = Some(*exif);
+                            }
+                        }
                     }
+                    messages_processed += 1;
                 }
-                LoaderMessage::PreviewLoaded(path, preview) => {
-                    // Only use preview if we're still waiting for this image and don't have the full one yet
-                    if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
-                        self.showing_preview = true;
-                        self.set_current_image(&path, preview);
-                        self.is_loading = true; // Keep loading indicator for full image
-                    }
-                }
-                LoaderMessage::ThumbnailLoaded(path, thumb) => {
-                    let size = [thumb.width() as usize, thumb.height() as usize];
-                    let rgba = thumb.to_rgba8();
-                    let pixels = rgba.as_flat_samples();
-                    
-                    let texture = ctx.load_texture(
-                        format!("thumb_{}", path.display()),
-                        egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
-                        egui::TextureOptions::LINEAR,
-                    );
-                    
-                    self.thumbnail_textures.insert(path, texture);
-                }
-                LoaderMessage::LoadError(path, error) => {
-                    log::error!("Failed to load {}: {}", path.display(), error);
-                    if self.get_current_path().as_ref() == Some(&path) {
-                        self.is_loading = false;
-                        self.load_error = Some(error);
-                    }
-                }
-                LoaderMessage::ExifLoaded(path, exif) => {
-                    if self.get_current_path().as_ref() == Some(&path) {
-                        self.current_exif = Some(*exif);
-                    }
-                }
+                Err(_) => break, // No more messages
             }
         }
     }
@@ -147,184 +185,185 @@ impl ImageViewerApp {
         }
         
         // Don't handle other keys if a dialog is open or text input is focused
-        if self.show_settings_dialog || self.show_go_to_dialog || 
-           self.show_batch_rename_dialog || self.command_palette_open {
-            return;
-        }
+        let dialogs_open = self.show_settings_dialog || self.show_go_to_dialog || 
+                          self.show_batch_rename_dialog || self.command_palette_open;
         
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl;
             let alt = i.modifiers.alt;
             let shift = i.modifiers.shift;
             
-            // Navigation
+            // Navigation keys work even when dialogs are open
             if i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::A) {
-                self.previous_image();
+                self.pending_navigate_prev = true;
             }
             if i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::D) {
-                self.next_image();
+                self.pending_navigate_next = true;
             }
             if i.key_pressed(egui::Key::Home) {
-                self.go_to_first();
+                self.pending_navigate_first = true;
             }
             if i.key_pressed(egui::Key::End) {
-                self.go_to_last();
+                self.pending_navigate_last = true;
             }
             if i.key_pressed(egui::Key::PageUp) {
-                for _ in 0..10 { self.previous_image(); }
+                self.pending_navigate_page_up = true;
             }
             if i.key_pressed(egui::Key::PageDown) {
-                for _ in 0..10 { self.next_image(); }
+                self.pending_navigate_page_down = true;
             }
             
-            // Zoom
-            if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
-                self.zoom_in();
-            }
-            if i.key_pressed(egui::Key::Minus) {
-                self.zoom_out();
-            }
-            if i.key_pressed(egui::Key::Num0) && !ctrl && !alt {
-                self.reset_view();
-            }
-            if i.key_pressed(egui::Key::Num1) && !ctrl && !alt {
-                self.zoom_to(1.0);
-            }
-            if i.key_pressed(egui::Key::Num2) && !ctrl && !alt {
-                self.zoom_to(2.0);
-            }
-            
-            // Rotation
-            if i.key_pressed(egui::Key::L) && !ctrl {
-                self.rotate_left();
-            }
-            if i.key_pressed(egui::Key::R) && !ctrl {
-                self.rotate_right();
-            }
-            
-            // Slideshow
-            if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
-                self.toggle_slideshow();
-            } else if i.key_pressed(egui::Key::Space)
-                && self.slideshow_active {
-                    self.slideshow_active = false;
+            // Other keys only work when no dialogs are open
+            if !dialogs_open {
+                // Zoom
+                if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
+                    self.zoom_in();
                 }
-            
-            // Fullscreen
-            if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
-                self.is_fullscreen = !self.is_fullscreen;
-            }
-            
-            // Delete
-            if i.key_pressed(egui::Key::Delete) {
-                self.delete_current_image();
-            }
-            
-            // Move to selected folder
-            if i.key_pressed(egui::Key::M) && !ctrl {
-                self.move_to_selected_folder();
-            }
-            
-            // Ratings (with Alt modifier)
-            if alt {
-                if i.key_pressed(egui::Key::Num0) { self.set_rating(0); }
-                if i.key_pressed(egui::Key::Num1) { self.set_rating(1); }
-                if i.key_pressed(egui::Key::Num2) { self.set_rating(2); }
-                if i.key_pressed(egui::Key::Num3) { self.set_rating(3); }
-                if i.key_pressed(egui::Key::Num4) { self.set_rating(4); }
-                if i.key_pressed(egui::Key::Num5) { self.set_rating(5); }
-            }
-            
-            // Color labels (with Ctrl modifier)
-            if ctrl {
-                if i.key_pressed(egui::Key::Num1) { self.set_color_label(ColorLabel::Red); }
-                if i.key_pressed(egui::Key::Num2) { self.set_color_label(ColorLabel::Yellow); }
-                if i.key_pressed(egui::Key::Num3) { self.set_color_label(ColorLabel::Green); }
-                if i.key_pressed(egui::Key::Num4) { self.set_color_label(ColorLabel::Blue); }
-                if i.key_pressed(egui::Key::Num5) { self.set_color_label(ColorLabel::Purple); }
-                if i.key_pressed(egui::Key::Num0) { self.set_color_label(ColorLabel::None); }
-            }
-            
-            // Toggle panels
-            if i.key_pressed(egui::Key::I) && !ctrl {
-                self.settings.show_exif = !self.settings.show_exif;
-            }
-            if i.key_pressed(egui::Key::T) && !ctrl {
-                self.settings.show_thumbnails = !self.settings.show_thumbnails;
-            }
-            if i.key_pressed(egui::Key::S) && !ctrl {
-                self.settings.show_sidebar = !self.settings.show_sidebar;
-            }
-            if i.key_pressed(egui::Key::H) && !ctrl {
-                self.settings.show_histogram = !self.settings.show_histogram;
-            }
-            if i.key_pressed(egui::Key::P) && !ctrl && !alt {
-                self.toggle_panels();
-            }
-            
-            // Focus peaking / Zebras
-            if ctrl && i.key_pressed(egui::Key::F) {
-                self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
-            }
-            if ctrl && i.key_pressed(egui::Key::Z) && !shift {
-                self.settings.show_zebras = !self.settings.show_zebras;
-            }
-            
-            // Undo
-            if ctrl && i.key_pressed(egui::Key::Z) && shift {
-                self.undo_last_operation();
-            }
-            
-            // Compare mode
-            if i.key_pressed(egui::Key::C) && !ctrl {
-                self.toggle_compare_mode();
-            }
-            
-            // Lightbox mode
-            if i.key_pressed(egui::Key::G) {
-                self.toggle_lightbox_mode();
-            }
-            
-            // Grid overlay
-            if ctrl && i.key_pressed(egui::Key::G) {
-                self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
-            }
-            
-            // Loupe
-            if ctrl && i.key_pressed(egui::Key::L) {
-                self.settings.loupe_enabled = !self.settings.loupe_enabled;
-            }
-            
-            // Before/After toggle
-            if i.key_pressed(egui::Key::Backslash) {
-                self.show_original = !self.show_original;
-                self.refresh_adjustments();
-            }
-            
-            // Command palette
-            if ctrl && i.key_pressed(egui::Key::P) {
-                self.command_palette_open = true;
-                self.command_palette_query.clear();
-            }
-            
-            // Go to image
-            if ctrl && i.key_pressed(egui::Key::G) {
-                self.show_go_to_dialog = true;
-                self.go_to_input.clear();
-            }
-            
-            // Open file/folder
-            if ctrl && i.key_pressed(egui::Key::O) {
-                if shift {
-                    self.open_folder_dialog();
-                } else {
-                    self.open_file_dialog();
+                if i.key_pressed(egui::Key::Minus) {
+                    self.zoom_out();
                 }
-            }
-            
-            // Copy path
-            if ctrl && i.key_pressed(egui::Key::C) {
-                self.copy_to_clipboard();
+                if i.key_pressed(egui::Key::Num0) && !ctrl && !alt {
+                    self.reset_view();
+                }
+                if i.key_pressed(egui::Key::Num1) && !ctrl && !alt {
+                    self.zoom_to(1.0);
+                }
+                if i.key_pressed(egui::Key::Num2) && !ctrl && !alt {
+                    self.zoom_to(2.0);
+                }
+                
+                // Rotation
+                if i.key_pressed(egui::Key::L) && !ctrl {
+                    self.rotate_left();
+                }
+                if i.key_pressed(egui::Key::R) && !ctrl {
+                    self.rotate_right();
+                }
+                
+                // Slideshow
+                if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
+                    self.toggle_slideshow();
+                } else if i.key_pressed(egui::Key::Space)
+                    && self.slideshow_active {
+                        self.slideshow_active = false;
+                    }
+                
+                // Fullscreen
+                if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
+                    self.is_fullscreen = !self.is_fullscreen;
+                }
+                
+                // Delete
+                if i.key_pressed(egui::Key::Delete) {
+                    self.delete_current_image();
+                }
+                
+                // Move to selected folder
+                if i.key_pressed(egui::Key::M) && !ctrl {
+                    self.move_to_selected_folder();
+                }
+                
+                // Ratings (with Alt modifier)
+                if alt {
+                    if i.key_pressed(egui::Key::Num0) { self.set_rating(0); }
+                    if i.key_pressed(egui::Key::Num1) { self.set_rating(1); }
+                    if i.key_pressed(egui::Key::Num2) { self.set_rating(2); }
+                    if i.key_pressed(egui::Key::Num3) { self.set_rating(3); }
+                    if i.key_pressed(egui::Key::Num4) { self.set_rating(4); }
+                    if i.key_pressed(egui::Key::Num5) { self.set_rating(5); }
+                }
+                
+                // Color labels (with Ctrl modifier)
+                if ctrl {
+                    if i.key_pressed(egui::Key::Num1) { self.set_color_label(ColorLabel::Red); }
+                    if i.key_pressed(egui::Key::Num2) { self.set_color_label(ColorLabel::Yellow); }
+                    if i.key_pressed(egui::Key::Num3) { self.set_color_label(ColorLabel::Green); }
+                    if i.key_pressed(egui::Key::Num4) { self.set_color_label(ColorLabel::Blue); }
+                    if i.key_pressed(egui::Key::Num5) { self.set_color_label(ColorLabel::Purple); }
+                    if i.key_pressed(egui::Key::Num0) { self.set_color_label(ColorLabel::None); }
+                }
+                
+                // Toggle panels
+                if i.key_pressed(egui::Key::I) && !ctrl {
+                    self.settings.show_exif = !self.settings.show_exif;
+                }
+                if i.key_pressed(egui::Key::T) && !ctrl {
+                    self.settings.show_thumbnails = !self.settings.show_thumbnails;
+                }
+                if i.key_pressed(egui::Key::S) && !ctrl {
+                    self.settings.show_sidebar = !self.settings.show_sidebar;
+                }
+                if i.key_pressed(egui::Key::H) && !ctrl {
+                    self.settings.show_histogram = !self.settings.show_histogram;
+                }
+                if i.key_pressed(egui::Key::P) && !ctrl && !alt {
+                    self.toggle_panels();
+                }
+                
+                // Focus peaking / Zebras
+                if ctrl && i.key_pressed(egui::Key::F) {
+                    self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
+                }
+                if ctrl && i.key_pressed(egui::Key::Z) && !shift {
+                    self.settings.show_zebras = !self.settings.show_zebras;
+                }
+                
+                // Undo
+                if ctrl && i.key_pressed(egui::Key::Z) && shift {
+                    self.undo_last_operation();
+                }
+                
+                // Compare mode
+                if i.key_pressed(egui::Key::C) && !ctrl {
+                    self.toggle_compare_mode();
+                }
+                
+                // Lightbox mode
+                if i.key_pressed(egui::Key::G) {
+                    self.toggle_lightbox_mode();
+                }
+                
+                // Grid overlay
+                if ctrl && i.key_pressed(egui::Key::G) {
+                    self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
+                }
+                
+                // Loupe
+                if ctrl && i.key_pressed(egui::Key::L) {
+                    self.settings.loupe_enabled = !self.settings.loupe_enabled;
+                }
+                
+                // Before/After toggle
+                if i.key_pressed(egui::Key::Backslash) {
+                    self.show_original = !self.show_original;
+                    self.refresh_adjustments();
+                }
+                
+                // Command palette
+                if ctrl && i.key_pressed(egui::Key::P) {
+                    self.command_palette_open = true;
+                    self.command_palette_query.clear();
+                }
+                
+                // Go to image
+                if ctrl && i.key_pressed(egui::Key::G) {
+                    self.show_go_to_dialog = true;
+                    self.go_to_input.clear();
+                }
+                
+                // Open file/folder
+                if ctrl && i.key_pressed(egui::Key::O) {
+                    if shift {
+                        self.open_folder_dialog();
+                    } else {
+                        self.open_file_dialog();
+                    }
+                }
+                
+                // Copy path
+                if ctrl && i.key_pressed(egui::Key::C) {
+                    self.copy_to_clipboard();
+                }
             }
         });
     }

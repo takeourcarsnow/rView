@@ -211,23 +211,25 @@ impl ImageViewerApp {
         }
         
         // Zoom with scroll
-        let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-        if scroll_delta != 0.0 {
-            let zoom_factor = 1.0 + scroll_delta * 0.001;
-            let new_zoom = (self.target_zoom * zoom_factor).clamp(0.1, 20.0);
-            
-            // Zoom towards mouse position
-            if let Some(mouse_pos) = response.hover_pos() {
-                let mouse_rel = mouse_pos - response.rect.center() - self.pan_offset;
-                let zoom_change = new_zoom / self.target_zoom;
-                self.target_pan = self.pan_offset - mouse_rel * (zoom_change - 1.0);
-            }
-            
-            self.target_zoom = new_zoom;
-            
-            if !self.settings.smooth_zoom {
-                self.zoom = self.target_zoom;
-                self.pan_offset = self.target_pan;
+        if response.hovered() {
+            let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
+            if scroll_delta != 0.0 {
+                let zoom_factor = 1.0 + scroll_delta * 0.001;
+                let new_zoom = (self.target_zoom * zoom_factor).clamp(0.1, 20.0);
+                
+                // Zoom towards mouse position
+                if let Some(mouse_pos) = response.hover_pos() {
+                    let mouse_rel = mouse_pos - response.rect.center() - self.pan_offset;
+                    let zoom_change = new_zoom / self.target_zoom;
+                    self.target_pan = self.pan_offset - mouse_rel * (zoom_change - 1.0);
+                }
+                
+                self.target_zoom = new_zoom;
+                
+                if !self.settings.smooth_zoom {
+                    self.zoom = self.target_zoom;
+                    self.pan_offset = self.target_pan;
+                }
             }
         }
         
@@ -436,37 +438,53 @@ impl ImageViewerApp {
         if let (Some(pos), Some(tex)) = (&self.loupe_position, &self.current_texture) {
             let loupe_size = self.settings.loupe_size;
             let loupe_zoom = self.settings.loupe_zoom;
-            
+
+            // Calculate image rectangle (same as in render_single_view)
+            let available = ui.available_size();
+            let rect = ui.available_rect_before_wrap();
+            let tex_size = tex.size_vec2();
+            let display_size = tex_size * self.zoom;
+
+            let image_rect = Rect::from_center_size(
+                rect.center() + self.pan_offset,
+                display_size
+            );
+
             // Loupe circle background
             let loupe_rect = Rect::from_center_size(*pos, Vec2::splat(loupe_size));
-            
+
             ui.painter().circle_filled(*pos, loupe_size / 2.0, Color32::BLACK);
-            
-            // Calculate UV coordinates for zoomed portion
-            let tex_size = tex.size_vec2();
-            let center_uv = (*pos - ui.available_rect_before_wrap().center() - self.pan_offset) / (tex_size * self.zoom);
-            let uv_radius = (loupe_size / 2.0) / (tex_size.x * self.zoom * loupe_zoom);
-            
-            let uv_min = egui::pos2(
-                (center_uv.x - uv_radius).clamp(0.0, 1.0),
-                (center_uv.y - uv_radius).clamp(0.0, 1.0)
-            );
-            let uv_max = egui::pos2(
-                (center_uv.x + uv_radius).clamp(0.0, 1.0),
-                (center_uv.y + uv_radius).clamp(0.0, 1.0)
-            );
-            
-            // Draw zoomed image portion
-            ui.painter().image(
-                tex.id(),
-                loupe_rect,
-                Rect::from_min_max(uv_min, uv_max),
-                Color32::WHITE,
-            );
-            
+
+            // Calculate UV coordinates based on mouse position relative to image
+            if image_rect.contains(*pos) {
+                // Mouse is over the image, calculate UV coordinates
+                let relative_pos = *pos - image_rect.min;
+                let uv = relative_pos / display_size;
+
+                // Calculate UV region for zoomed view
+                let uv_radius = (loupe_size / 2.0) / (display_size.x * loupe_zoom);
+
+                let uv_min = egui::pos2(
+                    (uv.x - uv_radius).clamp(0.0, 1.0),
+                    (uv.y - uv_radius).clamp(0.0, 1.0)
+                );
+                let uv_max = egui::pos2(
+                    (uv.x + uv_radius).clamp(0.0, 1.0),
+                    (uv.y + uv_radius).clamp(0.0, 1.0)
+                );
+
+                // Draw zoomed image portion
+                ui.painter().image(
+                    tex.id(),
+                    loupe_rect,
+                    Rect::from_min_max(uv_min, uv_max),
+                    Color32::WHITE,
+                );
+            }
+
             // Border
             ui.painter().circle_stroke(*pos, loupe_size / 2.0, Stroke::new(2.0, Color32::WHITE));
-            
+
             // Crosshair
             ui.painter().line_segment(
                 [egui::pos2(pos.x - 10.0, pos.y), egui::pos2(pos.x + 10.0, pos.y)],

@@ -128,6 +128,14 @@ pub struct ImageViewerApp {
     pub command_palette_open: bool,
     pub command_palette_query: String,
     
+    // Pending navigation actions (deferred to avoid UI blocking)
+    pub pending_navigate_next: bool,
+    pub pending_navigate_prev: bool,
+    pub pending_navigate_first: bool,
+    pub pending_navigate_last: bool,
+    pub pending_navigate_page_up: bool,
+    pub pending_navigate_page_down: bool,
+    
     // Batch rename
     pub rename_pattern: RenamePattern,
     
@@ -222,6 +230,12 @@ impl ImageViewerApp {
             search_query: String::new(),
             command_palette_open: false,
             command_palette_query: String::new(),
+            pending_navigate_next: false,
+            pending_navigate_prev: false,
+            pending_navigate_first: false,
+            pending_navigate_last: false,
+            pending_navigate_page_up: false,
+            pending_navigate_page_down: false,
             rename_pattern: RenamePattern::default(),
             undo_history: UndoHistory::new(50),
             loupe_position: None,
@@ -396,6 +410,22 @@ impl ImageViewerApp {
             .cloned()
     }
     
+    fn spawn_loader<F>(&self, f: F)
+    where
+        F: FnOnce() -> Option<LoaderMessage> + Send + 'static,
+    {
+        let tx = self.loader_tx.clone();
+        let ctx = self.ctx.clone();
+        thread::spawn(move || {
+            if let Some(msg) = f() {
+                let _ = tx.send(msg);
+            }
+            if let Some(ctx) = ctx {
+                ctx.request_repaint();
+            }
+        });
+    }
+    
     pub fn load_current_image(&mut self) {
         if let Some(path) = self.get_current_path() {
             self.is_loading = true;
@@ -418,51 +448,28 @@ impl ImageViewerApp {
             
             if is_raw {
                 // Load quick preview first (smaller resolution)
-                let tx = self.loader_tx.clone();
                 let path_clone = path.clone();
-                let ctx = self.ctx.clone();
-                
-                thread::spawn(move || {
-                    // Try to load a preview-sized version first
-                    if let Ok(preview) = image_loader::load_thumbnail(&path_clone, 1920) {
-                        let _ = tx.send(LoaderMessage::PreviewLoaded(path_clone.clone(), preview));
-                        if let Some(ctx) = &ctx {
-                            ctx.request_repaint();
-                        }
-                    }
+                self.spawn_loader(move || {
+                    image_loader::load_thumbnail(&path_clone, 1920)
+                        .ok()
+                        .map(|preview| LoaderMessage::PreviewLoaded(path_clone, preview))
                 });
             }
             
             // Load full image asynchronously
-            let tx = self.loader_tx.clone();
             let path_clone = path.clone();
-            let ctx = self.ctx.clone();
-            
-            thread::spawn(move || {
-                match image_loader::load_image(&path_clone) {
-                    Ok(image) => {
-                        let _ = tx.send(LoaderMessage::ImageLoaded(path_clone.clone(), image));
-                    }
-                    Err(e) => {
-                        let _ = tx.send(LoaderMessage::LoadError(path_clone, e.to_string()));
-                    }
-                }
-                if let Some(ctx) = ctx {
-                    ctx.request_repaint();
-                }
+            self.spawn_loader(move || {
+                Some(match image_loader::load_image(&path_clone) {
+                    Ok(image) => LoaderMessage::ImageLoaded(path_clone, image),
+                    Err(e) => LoaderMessage::LoadError(path_clone, e.to_string()),
+                })
             });
             
             // Load EXIF data asynchronously
-            let tx = self.loader_tx.clone();
             let path_clone = path.clone();
-            let ctx = self.ctx.clone();
-            
-            thread::spawn(move || {
+            self.spawn_loader(move || {
                 let exif = ExifInfo::from_file(&path_clone);
-                let _ = tx.send(LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
-                if let Some(ctx) = ctx {
-                    ctx.request_repaint();
-                }
+                Some(LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
             });
             
             self.preload_adjacent();
@@ -479,7 +486,10 @@ impl ImageViewerApp {
         
         // Apply adjustments if any
         let display_image = if !self.adjustments.is_default() && !self.show_original {
-            image_loader::apply_adjustments(&image, &self.adjustments)
+            crate::profiler::with_profiler(|p| p.start_timer("apply_adjustments"));
+            let adjusted = image_loader::apply_adjustments(&image, &self.adjustments);
+            crate::profiler::with_profiler(|p| p.end_timer("apply_adjustments"));
+            adjusted
         } else {
             image.clone()
         };
@@ -488,19 +498,16 @@ impl ImageViewerApp {
         let rgba = display_image.to_rgba8();
         let pixels = rgba.as_flat_samples();
         
+        crate::profiler::with_profiler(|p| p.start_timer("texture_load"));
         let texture = ctx.load_texture(
             path.to_string_lossy(),
             egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
             egui::TextureOptions::LINEAR,
         );
+        crate::profiler::with_profiler(|p| p.end_timer("texture_load"));
         
         self.current_texture = Some(texture);
         self.is_loading = false;
-        
-        // Always fit to window when loading a new image (unless maintaining zoom)
-        if !self.settings.maintain_zoom_on_navigate {
-            self.fit_to_window_internal();
-        }
         
         if !self.settings.maintain_pan_on_navigate {
             self.pan_offset = Vec2::ZERO;
@@ -596,23 +603,33 @@ impl ImageViewerApp {
         let cache = Arc::clone(&self.image_cache);
         
         thread::spawn(move || {
-            if let Some(thumb) = cache.get_thumbnail(&path) {
+            crate::profiler::with_profiler(|p| p.start_timer("thumbnail_cache_lookup"));
+            let cache_hit = cache.get_thumbnail(&path).is_some();
+            crate::profiler::with_profiler(|p| p.end_timer("thumbnail_cache_lookup"));
+            
+            if cache_hit {
+                let thumb = cache.get_thumbnail(&path).unwrap();
                 let _ = tx.send(LoaderMessage::ThumbnailLoaded(path, thumb));
                 ctx.request_repaint();
                 return;
             }
             
+            crate::profiler::with_profiler(|p| p.start_timer("thumbnail_generation"));
             if let Ok(thumb) = image_loader::load_thumbnail(&path, size) {
                 cache.insert_thumbnail(path.clone(), thumb.clone());
                 let _ = tx.send(LoaderMessage::ThumbnailLoaded(path, thumb));
                 ctx.request_repaint();
             }
+            crate::profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
         });
     }
     
     pub fn reset_view(&mut self) {
-        // Always fit to window by default
-        self.fit_to_window_internal();
+        // Reset to 100% zoom and center the image
+        self.target_zoom = 1.0;
+        self.zoom = 1.0;
+        self.pan_offset = Vec2::ZERO;
+        self.target_pan = Vec2::ZERO;
     }
     
     fn fit_to_window_internal(&mut self) {
@@ -653,20 +670,8 @@ impl ImageViewerApp {
             return;
         }
         
-        let saved_zoom = self.zoom;
-        let saved_pan = self.pan_offset;
-        
-        self.current_index = (self.current_index + 1) % self.filtered_list.len();
-        self.load_current_image();
-        
-        if self.settings.maintain_zoom_on_navigate {
-            self.zoom = saved_zoom;
-            self.target_zoom = saved_zoom;
-        }
-        if self.settings.maintain_pan_on_navigate {
-            self.pan_offset = saved_pan;
-            self.target_pan = saved_pan;
-        }
+        let new_index = (self.current_index + 1) % self.filtered_list.len();
+        self.navigate_to_index(new_index);
     }
     
     pub fn previous_image(&mut self) {
@@ -674,14 +679,35 @@ impl ImageViewerApp {
             return;
         }
         
-        let saved_zoom = self.zoom;
-        let saved_pan = self.pan_offset;
-        
-        self.current_index = if self.current_index == 0 {
+        let new_index = if self.current_index == 0 {
             self.filtered_list.len() - 1
         } else {
             self.current_index - 1
         };
+        self.navigate_to_index(new_index);
+    }
+    
+    pub fn go_to_first(&mut self) {
+        if !self.filtered_list.is_empty() {
+            self.navigate_to_index(0);
+        }
+    }
+    
+    pub fn go_to_last(&mut self) {
+        if !self.filtered_list.is_empty() {
+            self.navigate_to_index(self.filtered_list.len() - 1);
+        }
+    }
+    
+    fn navigate_to_index(&mut self, index: usize) {
+        if index >= self.filtered_list.len() {
+            return;
+        }
+        
+        let saved_zoom = self.zoom;
+        let saved_pan = self.pan_offset;
+        
+        self.current_index = index;
         self.load_current_image();
         
         if self.settings.maintain_zoom_on_navigate {
@@ -694,56 +720,25 @@ impl ImageViewerApp {
         }
     }
     
-    pub fn go_to_first(&mut self) {
-        if !self.filtered_list.is_empty() {
-            self.current_index = 0;
-            self.load_current_image();
-        }
-    }
-    
-    pub fn go_to_last(&mut self) {
-        if !self.filtered_list.is_empty() {
-            self.current_index = self.filtered_list.len() - 1;
-            self.load_current_image();
-        }
-    }
-    
     pub fn go_to_index(&mut self, index: usize) {
-        if index < self.filtered_list.len() {
-            let saved_zoom = self.zoom;
-            let saved_pan = self.pan_offset;
-            
-            self.current_index = index;
-            self.load_current_image();
-            
-            if self.settings.maintain_zoom_on_navigate {
-                self.zoom = saved_zoom;
-                self.target_zoom = saved_zoom;
-            }
-            if self.settings.maintain_pan_on_navigate {
-                self.pan_offset = saved_pan;
-                self.target_pan = saved_pan;
-            }
-        }
+        self.navigate_to_index(index);
     }
     
     // Zoom
     pub fn zoom_in(&mut self) {
-        self.target_zoom = (self.target_zoom * 1.25).min(32.0);
-        if !self.settings.smooth_zoom {
-            self.zoom = self.target_zoom;
-        }
+        self.set_zoom(self.target_zoom * 1.25);
     }
     
     pub fn zoom_out(&mut self) {
-        self.target_zoom = (self.target_zoom / 1.25).max(0.05);
-        if !self.settings.smooth_zoom {
-            self.zoom = self.target_zoom;
-        }
+        self.set_zoom(self.target_zoom / 1.25);
     }
     
     pub fn zoom_to(&mut self, level: f32) {
-        self.target_zoom = level.clamp(0.05, 32.0);
+        self.set_zoom(level.clamp(0.05, 32.0));
+    }
+    
+    fn set_zoom(&mut self, target: f32) {
+        self.target_zoom = target;
         if !self.settings.smooth_zoom {
             self.zoom = self.target_zoom;
         }
@@ -790,24 +785,20 @@ impl ImageViewerApp {
     
     // Rotation
     pub fn rotate_left(&mut self) {
-        if let Some(path) = self.get_current_path() {
-            let previous_rotation = self.rotation;
-            self.rotation = (self.rotation - 90.0) % 360.0;
-            self.undo_history.push(FileOperation::Rotate {
-                path: path.clone(),
-                degrees: -90,
-                previous_rotation,
-            });
-        }
+        self.rotate_by(-90.0);
     }
     
     pub fn rotate_right(&mut self) {
+        self.rotate_by(90.0);
+    }
+    
+    fn rotate_by(&mut self, degrees: f32) {
         if let Some(path) = self.get_current_path() {
             let previous_rotation = self.rotation;
-            self.rotation = (self.rotation + 90.0) % 360.0;
+            self.rotation = (self.rotation + degrees) % 360.0;
             self.undo_history.push(FileOperation::Rotate {
                 path: path.clone(),
-                degrees: 90,
+                degrees: degrees as i32,
                 previous_rotation,
             });
         }
