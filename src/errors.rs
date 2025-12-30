@@ -19,6 +19,9 @@ pub enum ViewerError {
     
     #[error("Image decoding error: {0}")]
     DecodingError(String),
+    
+    #[error("Export error: {0}")]
+    ExportError(String),
 }
 
 pub type Result<T> = std::result::Result<T, ViewerError>;

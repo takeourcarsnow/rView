@@ -20,38 +20,38 @@ pub struct ExifInfo {
     pub white_balance: Option<String>,
     pub metering_mode: Option<String>,
     pub exposure_program: Option<String>,
-    pub gps_coordinates: Option<String>,
+    pub gps_latitude: Option<f64>,
+    pub gps_longitude: Option<f64>,
     pub orientation: Option<u32>,
+    pub copyright: Option<String>,
+    pub artist: Option<String>,
+    pub software: Option<String>,
 }
 
 impl ExifInfo {
     pub fn from_file(path: &Path) -> Self {
         let mut info = ExifInfo::default();
         
-        // Get file size
         if let Ok(metadata) = std::fs::metadata(path) {
             let size = metadata.len();
             info.file_size = Some(format_file_size(size));
         }
         
-        // Try to read EXIF data
         if let Ok(file) = File::open(path) {
-            let _reader = BufReader::new(file);
-            if let Ok(exif) = Reader::new().read_from_container(&mut BufReader::new(std::fs::File::open(path).unwrap())) {
-                // Camera info
+            let mut bufreader = BufReader::new(file);
+            if let Ok(exif) = Reader::new().read_from_container(&mut bufreader) {
                 if let Some(field) = exif.get_field(Tag::Make, In::PRIMARY) {
-                    info.camera_make = Some(field.display_value().to_string().trim_matches('"').to_string());
+                    info.camera_make = Some(clean_string(&field.display_value().to_string()));
                 }
                 
                 if let Some(field) = exif.get_field(Tag::Model, In::PRIMARY) {
-                    info.camera_model = Some(field.display_value().to_string().trim_matches('"').to_string());
+                    info.camera_model = Some(clean_string(&field.display_value().to_string()));
                 }
                 
                 if let Some(field) = exif.get_field(Tag::LensModel, In::PRIMARY) {
-                    info.lens = Some(field.display_value().to_string().trim_matches('"').to_string());
+                    info.lens = Some(clean_string(&field.display_value().to_string()));
                 }
                 
-                // Exposure info
                 if let Some(field) = exif.get_field(Tag::FocalLength, In::PRIMARY) {
                     info.focal_length = Some(field.display_value().to_string());
                 }
@@ -69,7 +69,7 @@ impl ExifInfo {
                 }
                 
                 if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
-                    info.date_taken = Some(field.display_value().to_string().trim_matches('"').to_string());
+                    info.date_taken = Some(clean_string(&field.display_value().to_string()));
                 }
                 
                 if let Some(field) = exif.get_field(Tag::ExposureBiasValue, In::PRIMARY) {
@@ -92,7 +92,18 @@ impl ExifInfo {
                     info.exposure_program = Some(field.display_value().to_string());
                 }
                 
-                // Image dimensions from EXIF
+                if let Some(field) = exif.get_field(Tag::Copyright, In::PRIMARY) {
+                    info.copyright = Some(clean_string(&field.display_value().to_string()));
+                }
+                
+                if let Some(field) = exif.get_field(Tag::Artist, In::PRIMARY) {
+                    info.artist = Some(clean_string(&field.display_value().to_string()));
+                }
+                
+                if let Some(field) = exif.get_field(Tag::Software, In::PRIMARY) {
+                    info.software = Some(clean_string(&field.display_value().to_string()));
+                }
+                
                 let width = exif.get_field(Tag::PixelXDimension, In::PRIMARY)
                     .or_else(|| exif.get_field(Tag::ImageWidth, In::PRIMARY));
                 let height = exif.get_field(Tag::PixelYDimension, In::PRIMARY)
@@ -102,20 +113,12 @@ impl ExifInfo {
                     info.dimensions = Some(format!("{} × {}", w.display_value(), h.display_value()));
                 }
                 
-                // Orientation
                 if let Some(field) = exif.get_field(Tag::Orientation, In::PRIMARY) {
                     if let exif::Value::Short(ref v) = field.value {
                         if !v.is_empty() {
                             info.orientation = Some(v[0] as u32);
                         }
                     }
-                }
-                
-                // GPS coordinates
-                let lat = exif.get_field(Tag::GPSLatitude, In::PRIMARY);
-                let lon = exif.get_field(Tag::GPSLongitude, In::PRIMARY);
-                if lat.is_some() && lon.is_some() {
-                    info.gps_coordinates = Some("Available".to_string());
                 }
             }
         }
@@ -131,6 +134,14 @@ impl ExifInfo {
         self.shutter_speed.is_some() ||
         self.iso.is_some()
     }
+    
+    pub fn has_gps(&self) -> bool {
+        self.gps_latitude.is_some() && self.gps_longitude.is_some()
+    }
+}
+
+fn clean_string(s: &str) -> String {
+    s.trim_matches('"').trim().to_string()
 }
 
 fn format_file_size(bytes: u64) -> String {

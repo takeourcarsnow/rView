@@ -1,0 +1,530 @@
+use crate::app::{ImageViewerApp, ViewMode, LoaderMessage};
+use crate::settings::{BackgroundColor, FitMode, SortMode, Theme, ThumbnailPosition, ColorLabel, GridType, FocusPeakingColor, SortOrder};
+use egui::{self, Color32, RichText, Stroke, Vec2, Rounding, Margin, Rect};
+
+mod toolbar;
+mod sidebar;
+mod thumbnails;
+mod dialogs;
+mod image_view;
+
+impl eframe::App for ImageViewerApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.ctx = Some(ctx.clone());
+        
+        // Process async messages
+        self.process_loader_messages(ctx);
+        
+        // Handle keyboard input
+        self.handle_keyboard(ctx);
+        
+        // Update slideshow
+        self.update_slideshow(ctx);
+        
+        // Animate zoom/pan
+        self.animate_view(ctx);
+        
+        // Apply theme
+        apply_theme(ctx, &self.settings);
+        
+        // Handle dropped files
+        self.handle_dropped_files(ctx);
+        
+        // Render dialogs
+        self.render_dialogs(ctx);
+        
+        // Render UI based on view mode
+        match self.view_mode {
+            ViewMode::Single | ViewMode::Compare => {
+                if self.settings.show_toolbar {
+                    self.render_toolbar(ctx);
+                }
+                self.render_sidebar(ctx);
+                self.render_thumbnail_bar(ctx);
+                if self.settings.show_statusbar {
+                    self.render_statusbar(ctx);
+                }
+                self.render_main_view(ctx);
+            }
+            ViewMode::Lightbox => {
+                if self.settings.show_toolbar {
+                    self.render_toolbar(ctx);
+                }
+                self.render_lightbox(ctx);
+            }
+        }
+    }
+    
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.settings.save();
+        self.metadata_db.save();
+    }
+}
+
+impl ImageViewerApp {
+    pub fn process_loader_messages(&mut self, ctx: &egui::Context) {
+        while let Ok(msg) = self.loader_rx.try_recv() {
+            match msg {
+                LoaderMessage::ImageLoaded(path, image) => {
+                    if self.get_current_path().as_ref() == Some(&path) {
+                        self.set_current_image(&path, image);
+                    } else {
+                        self.image_cache.insert(path, image);
+                    }
+                }
+                LoaderMessage::ThumbnailLoaded(path, thumb) => {
+                    let size = [thumb.width() as usize, thumb.height() as usize];
+                    let rgba = thumb.to_rgba8();
+                    let pixels = rgba.as_flat_samples();
+                    
+                    let texture = ctx.load_texture(
+                        format!("thumb_{}", path.display()),
+                        egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+                        egui::TextureOptions::LINEAR,
+                    );
+                    
+                    self.thumbnail_textures.insert(path, texture.id());
+                }
+                LoaderMessage::LoadError(path, error) => {
+                    log::error!("Failed to load {}: {}", path.display(), error);
+                    if self.get_current_path().as_ref() == Some(&path) {
+                        self.is_loading = false;
+                        self.load_error = Some(error);
+                    }
+                }
+                LoaderMessage::ExifLoaded(path, exif) => {
+                    if self.get_current_path().as_ref() == Some(&path) {
+                        self.current_exif = Some(exif);
+                    }
+                }
+            }
+        }
+    }
+    
+    pub fn handle_keyboard(&mut self, ctx: &egui::Context) {
+        // Don't handle keys if a dialog is open or text input is focused
+        if self.show_settings_dialog || self.show_go_to_dialog || 
+           self.show_batch_rename_dialog || self.command_palette_open {
+            return;
+        }
+        
+        ctx.input(|i| {
+            let ctrl = i.modifiers.ctrl;
+            let alt = i.modifiers.alt;
+            let shift = i.modifiers.shift;
+            
+            // Navigation
+            if i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::A) {
+                self.previous_image();
+            }
+            if i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::D) {
+                self.next_image();
+            }
+            if i.key_pressed(egui::Key::Home) {
+                self.go_to_first();
+            }
+            if i.key_pressed(egui::Key::End) {
+                self.go_to_last();
+            }
+            if i.key_pressed(egui::Key::PageUp) {
+                for _ in 0..10 { self.previous_image(); }
+            }
+            if i.key_pressed(egui::Key::PageDown) {
+                for _ in 0..10 { self.next_image(); }
+            }
+            
+            // Zoom
+            if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
+                self.zoom_in();
+            }
+            if i.key_pressed(egui::Key::Minus) {
+                self.zoom_out();
+            }
+            if i.key_pressed(egui::Key::Num0) && !ctrl && !alt {
+                self.reset_view();
+            }
+            if i.key_pressed(egui::Key::Num1) && !ctrl && !alt {
+                self.zoom_to(1.0);
+            }
+            if i.key_pressed(egui::Key::Num2) && !ctrl && !alt {
+                self.zoom_to(2.0);
+            }
+            
+            // Rotation
+            if i.key_pressed(egui::Key::L) && !ctrl {
+                self.rotate_left();
+            }
+            if i.key_pressed(egui::Key::R) && !ctrl {
+                self.rotate_right();
+            }
+            
+            // Slideshow
+            if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
+                self.toggle_slideshow();
+            } else if i.key_pressed(egui::Key::Space) || i.key_pressed(egui::Key::Escape) {
+                if self.slideshow_active {
+                    self.slideshow_active = false;
+                }
+            }
+            
+            // Fullscreen
+            if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
+                self.is_fullscreen = !self.is_fullscreen;
+            }
+            if i.key_pressed(egui::Key::Escape) {
+                if self.is_fullscreen {
+                    self.is_fullscreen = false;
+                }
+            }
+            
+            // Delete
+            if i.key_pressed(egui::Key::Delete) {
+                self.delete_current_image();
+            }
+            
+            // Ratings (with Alt modifier)
+            if alt {
+                if i.key_pressed(egui::Key::Num0) { self.set_rating(0); }
+                if i.key_pressed(egui::Key::Num1) { self.set_rating(1); }
+                if i.key_pressed(egui::Key::Num2) { self.set_rating(2); }
+                if i.key_pressed(egui::Key::Num3) { self.set_rating(3); }
+                if i.key_pressed(egui::Key::Num4) { self.set_rating(4); }
+                if i.key_pressed(egui::Key::Num5) { self.set_rating(5); }
+            }
+            
+            // Color labels (with Ctrl modifier)
+            if ctrl {
+                if i.key_pressed(egui::Key::Num1) { self.set_color_label(ColorLabel::Red); }
+                if i.key_pressed(egui::Key::Num2) { self.set_color_label(ColorLabel::Yellow); }
+                if i.key_pressed(egui::Key::Num3) { self.set_color_label(ColorLabel::Green); }
+                if i.key_pressed(egui::Key::Num4) { self.set_color_label(ColorLabel::Blue); }
+                if i.key_pressed(egui::Key::Num5) { self.set_color_label(ColorLabel::Purple); }
+                if i.key_pressed(egui::Key::Num0) { self.set_color_label(ColorLabel::None); }
+            }
+            
+            // Toggle panels
+            if i.key_pressed(egui::Key::I) && !ctrl {
+                self.settings.show_exif = !self.settings.show_exif;
+            }
+            if i.key_pressed(egui::Key::T) && !ctrl {
+                self.settings.show_thumbnails = !self.settings.show_thumbnails;
+            }
+            if i.key_pressed(egui::Key::S) && !ctrl {
+                self.settings.show_sidebar = !self.settings.show_sidebar;
+            }
+            if i.key_pressed(egui::Key::H) && !ctrl {
+                self.settings.show_histogram = !self.settings.show_histogram;
+            }
+            
+            // Focus peaking / Zebras
+            if ctrl && i.key_pressed(egui::Key::F) {
+                self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
+            }
+            if ctrl && i.key_pressed(egui::Key::Z) && !shift {
+                self.settings.show_zebras = !self.settings.show_zebras;
+            }
+            
+            // Undo
+            if ctrl && i.key_pressed(egui::Key::Z) && shift {
+                self.undo_last_operation();
+            }
+            
+            // Compare mode
+            if i.key_pressed(egui::Key::C) && !ctrl {
+                self.toggle_compare_mode();
+            }
+            
+            // Lightbox mode
+            if i.key_pressed(egui::Key::G) {
+                self.toggle_lightbox_mode();
+            }
+            
+            // Grid overlay
+            if ctrl && i.key_pressed(egui::Key::G) {
+                self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
+            }
+            
+            // Loupe
+            if ctrl && i.key_pressed(egui::Key::L) {
+                self.settings.loupe_enabled = !self.settings.loupe_enabled;
+            }
+            
+            // Before/After toggle
+            if i.key_pressed(egui::Key::Backslash) {
+                self.show_original = !self.show_original;
+                self.refresh_adjustments();
+            }
+            
+            // Command palette
+            if ctrl && i.key_pressed(egui::Key::P) {
+                self.command_palette_open = true;
+                self.command_palette_query.clear();
+            }
+            
+            // Go to image
+            if ctrl && i.key_pressed(egui::Key::G) {
+                self.show_go_to_dialog = true;
+                self.go_to_input.clear();
+            }
+            
+            // Open file/folder
+            if ctrl && i.key_pressed(egui::Key::O) {
+                if shift {
+                    self.open_folder_dialog();
+                } else {
+                    self.open_file_dialog();
+                }
+            }
+            
+            // Copy path
+            if ctrl && i.key_pressed(egui::Key::C) {
+                self.copy_to_clipboard();
+            }
+        });
+    }
+    
+    pub fn update_slideshow(&mut self, ctx: &egui::Context) {
+        if self.slideshow_active {
+            self.slideshow_timer += ctx.input(|i| i.stable_dt);
+            
+            if self.slideshow_timer >= self.settings.slideshow_interval {
+                self.slideshow_timer = 0.0;
+                
+                if self.settings.slideshow_loop || self.current_index < self.filtered_list.len() - 1 {
+                    self.next_image();
+                } else {
+                    self.slideshow_active = false;
+                }
+            }
+            
+            ctx.request_repaint();
+        }
+    }
+    
+    pub fn animate_view(&mut self, ctx: &egui::Context) {
+        if self.settings.smooth_zoom {
+            let dt = ctx.input(|i| i.stable_dt);
+            let speed = self.settings.zoom_animation_speed;
+            
+            // Smooth zoom
+            if (self.zoom - self.target_zoom).abs() > 0.001 {
+                self.zoom += (self.target_zoom - self.zoom) * speed * dt;
+                ctx.request_repaint();
+            } else {
+                self.zoom = self.target_zoom;
+            }
+            
+            // Smooth pan
+            let pan_diff = self.target_pan - self.pan_offset;
+            if pan_diff.length() > 0.1 {
+                self.pan_offset += pan_diff * speed * dt;
+                ctx.request_repaint();
+            } else {
+                self.pan_offset = self.target_pan;
+            }
+        }
+    }
+    
+    fn render_statusbar(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::bottom("statusbar")
+            .frame(egui::Frame::none()
+                .fill(Color32::from_rgb(25, 25, 28))
+                .inner_margin(Margin::symmetric(12.0, 4.0)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    // Image info
+                    if let Some(path) = self.get_current_path() {
+                        let filename = path.file_name()
+                            .map(|n| n.to_string_lossy().to_string())
+                            .unwrap_or_default();
+                        ui.label(RichText::new(&filename).color(Color32::WHITE).size(12.0));
+                        
+                        // Dimensions
+                        if let Some(tex) = &self.current_texture {
+                            let size = tex.size_vec2();
+                            ui.label(RichText::new(format!("{}×{}", size.x as u32, size.y as u32))
+                                .color(Color32::GRAY).size(11.0));
+                        }
+                        
+                        // Rating
+                        let metadata = self.metadata_db.get(&path);
+                        if metadata.rating > 0 {
+                            ui.label(RichText::new("★".repeat(metadata.rating as usize))
+                                .color(Color32::from_rgb(255, 200, 50)).size(11.0));
+                        }
+                        
+                        // Color label
+                        if metadata.color_label != ColorLabel::None {
+                            let (rect, _) = ui.allocate_exact_size(Vec2::new(12.0, 12.0), egui::Sense::hover());
+                            ui.painter().circle_filled(rect.center(), 5.0, metadata.color_label.to_color());
+                        }
+                    }
+                    
+                    // Spacer
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Status message
+                        if let Some((msg, time)) = &self.status_message {
+                            if time.elapsed().as_secs() < 3 {
+                                ui.label(RichText::new(msg).color(Color32::from_rgb(100, 200, 100)).size(11.0));
+                            }
+                        }
+                        
+                        // Zoom level
+                        ui.label(RichText::new(format!("{:.0}%", self.zoom * 100.0))
+                            .color(Color32::GRAY).size(11.0));
+                        
+                        // Image counter
+                        if !self.filtered_list.is_empty() {
+                            ui.label(RichText::new(format!("{} / {}", self.current_index + 1, self.filtered_list.len()))
+                                .color(Color32::GRAY).size(11.0));
+                        }
+                    });
+                });
+            });
+    }
+    
+    fn render_lightbox(&mut self, ctx: &egui::Context) {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none()
+                .fill(self.settings.background_color.to_color()))
+            .show(ctx, |ui| {
+                let available = ui.available_size();
+                let thumb_size = 150.0;
+                let padding = 8.0;
+                let cols = ((available.x - padding) / (thumb_size + padding)) as usize;
+                
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.spacing_mut().item_spacing = Vec2::splat(padding);
+                            
+                            // Collect data first to avoid borrow conflicts
+                            let items: Vec<(usize, usize, std::path::PathBuf)> = self.filtered_list.iter()
+                                .enumerate()
+                                .filter_map(|(display_idx, &real_idx)| {
+                                    self.image_list.get(real_idx).map(|p| (display_idx, real_idx, p.clone()))
+                                })
+                                .collect();
+                            
+                            let mut thumbnails_needed: Vec<std::path::PathBuf> = Vec::new();
+                            let mut clicked_index: Option<(usize, bool)> = None; // (index, ctrl held)
+                            let mut double_clicked_index: Option<usize> = None;
+                            
+                            for (display_idx, _real_idx, path) in &items {
+                                let is_selected = self.selected_indices.contains(display_idx) || *display_idx == self.current_index;
+                                
+                                let (response, painter) = ui.allocate_painter(
+                                    Vec2::splat(thumb_size),
+                                    egui::Sense::click()
+                                );
+                                
+                                let rect = response.rect;
+                                
+                                // Background
+                                let bg_color = if is_selected {
+                                    Color32::from_rgb(70, 130, 255)
+                                } else if response.hovered() {
+                                    Color32::from_rgb(50, 50, 55)
+                                } else {
+                                    Color32::from_rgb(35, 35, 40)
+                                };
+                                
+                                painter.rect_filled(rect, Rounding::same(6.0), bg_color);
+                                
+                                // Thumbnail
+                                if let Some(tex_id) = self.thumbnail_textures.get(path) {
+                                    let inner_rect = rect.shrink(4.0);
+                                    painter.image(
+                                        *tex_id,
+                                        inner_rect,
+                                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                        Color32::WHITE,
+                                    );
+                                } else {
+                                    thumbnails_needed.push(path.clone());
+                                }
+                                
+                                // Rating stars
+                                let metadata = self.metadata_db.get(path);
+                                if metadata.rating > 0 {
+                                    painter.text(
+                                        rect.left_bottom() + Vec2::new(4.0, -4.0),
+                                        egui::Align2::LEFT_BOTTOM,
+                                        "★".repeat(metadata.rating as usize),
+                                        egui::FontId::proportional(10.0),
+                                        Color32::from_rgb(255, 200, 50),
+                                    );
+                                }
+                                
+                                // Color label
+                                if metadata.color_label != ColorLabel::None {
+                                    painter.circle_filled(
+                                        rect.right_top() + Vec2::new(-8.0, 8.0),
+                                        5.0,
+                                        metadata.color_label.to_color(),
+                                    );
+                                }
+                                
+                                // Click handling
+                                if response.clicked() {
+                                    let ctrl = ui.input(|i| i.modifiers.ctrl);
+                                    clicked_index = Some((*display_idx, ctrl));
+                                }
+                                
+                                // Double click to view
+                                if response.double_clicked() {
+                                    double_clicked_index = Some(*display_idx);
+                                }
+                            }
+                            
+                            // Now apply state changes after the UI loop
+                            for path in thumbnails_needed {
+                                self.request_thumbnail(path, ctx.clone());
+                            }
+                            
+                            if let Some((idx, ctrl)) = clicked_index {
+                                if ctrl {
+                                    if self.selected_indices.contains(&idx) {
+                                        self.selected_indices.remove(&idx);
+                                    } else {
+                                        self.selected_indices.insert(idx);
+                                    }
+                                } else {
+                                    self.selected_indices.clear();
+                                    self.current_index = idx;
+                                    self.load_current_image();
+                                }
+                            }
+                            
+                            if let Some(idx) = double_clicked_index {
+                                self.current_index = idx;
+                                self.load_current_image();
+                                self.view_mode = ViewMode::Single;
+                            }
+                        });
+                    });
+            });
+    }
+}
+
+fn apply_theme(ctx: &egui::Context, settings: &crate::settings::Settings) {
+    match settings.theme {
+        Theme::Dark => {
+            ctx.set_visuals(egui::Visuals::dark());
+        }
+        Theme::Light => {
+            ctx.set_visuals(egui::Visuals::light());
+        }
+        Theme::OLED => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.panel_fill = Color32::BLACK;
+            visuals.window_fill = Color32::BLACK;
+            visuals.extreme_bg_color = Color32::BLACK;
+            ctx.set_visuals(visuals);
+        }
+        Theme::System => {
+            ctx.set_visuals(egui::Visuals::dark());
+        }
+    }
+}

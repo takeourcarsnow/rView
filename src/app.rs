@@ -1,97 +1,206 @@
 use crate::image_cache::ImageCache;
-use crate::image_loader::{self, is_supported_image, SUPPORTED_EXTENSIONS};
-use crate::settings::{FitMode, Settings, SortMode};
+use crate::image_loader::{self, is_supported_image, ImageAdjustments, SUPPORTED_EXTENSIONS};
+use crate::settings::{ColorLabel, FitMode, Settings, SortMode, ThumbnailPosition};
 use crate::exif_data::ExifInfo;
+use crate::metadata::{MetadataDb, UndoHistory, FileOperation, RenamePattern};
 
 use eframe::egui::{self, Color32, TextureHandle, Vec2};
 use image::DynamicImage;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 use std::thread;
+use walkdir::WalkDir;
 
-// Message types for async image loading
 pub enum LoaderMessage {
     ImageLoaded(PathBuf, DynamicImage),
     ThumbnailLoaded(PathBuf, DynamicImage),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, ExifInfo),
-    HistogramCalculated(PathBuf, Vec<Vec<u32>>),
 }
 
 pub struct ImageViewerApp {
     // Settings
     pub settings: Settings,
     
+    // Metadata database
+    pub metadata_db: MetadataDb,
+    
     // Image list and navigation
     pub image_list: Vec<PathBuf>,
+    pub filtered_list: Vec<usize>, // Indices into image_list
     pub current_index: usize,
     pub current_folder: Option<PathBuf>,
     
+    // Multi-selection
+    pub selected_indices: HashSet<usize>,
+    pub last_selected: Option<usize>,
+    
     // Current image state
     pub current_texture: Option<TextureHandle>,
+    pub current_image: Option<DynamicImage>,
     pub current_exif: Option<ExifInfo>,
     pub histogram_data: Option<Vec<Vec<u32>>>,
     pub is_loading: bool,
+    pub load_error: Option<String>,
+    
+    // Overlays
+    pub focus_peaking_texture: Option<TextureHandle>,
+    pub zebra_texture: Option<TextureHandle>,
     
     // View state
     pub zoom: f32,
+    pub target_zoom: f32,
     pub pan_offset: Vec2,
+    pub target_pan: Vec2,
     pub rotation: f32,
+    
+    // Adjustments
+    pub adjustments: ImageAdjustments,
+    pub show_original: bool, // Before/After toggle
     
     // Cached data
     pub image_cache: Arc<ImageCache>,
     pub thumbnail_textures: HashMap<PathBuf, egui::TextureId>,
-    thumbnail_requests: std::collections::HashSet<PathBuf>,
+    thumbnail_requests: HashSet<PathBuf>,
     
     // Async loading
     loader_tx: Sender<LoaderMessage>,
-    loader_rx: Receiver<LoaderMessage>,
+    pub loader_rx: Receiver<LoaderMessage>,
     
     // Slideshow
     pub slideshow_active: bool,
-    slideshow_timer: f32,
+    pub slideshow_timer: f32,
     
     // Fullscreen
-    is_fullscreen: bool,
+    pub is_fullscreen: bool,
+    
+    // View modes
+    pub view_mode: ViewMode,
+    pub compare_index: Option<usize>,
+    pub lightbox_columns: usize,
+    
+    // Dialogs
+    pub show_settings_dialog: bool,
+    pub show_export_dialog: bool,
+    pub show_batch_rename_dialog: bool,
+    pub show_about_dialog: bool,
+    pub show_shortcuts_dialog: bool,
+    pub show_go_to_dialog: bool,
+    pub go_to_input: String,
+    pub search_query: String,
+    pub command_palette_open: bool,
+    pub command_palette_query: String,
+    
+    // Batch rename
+    pub rename_pattern: RenamePattern,
+    
+    // Undo history
+    pub undo_history: UndoHistory,
+    
+    // Mouse state
+    pub loupe_position: Option<egui::Pos2>,
+    pub color_picker_position: Option<egui::Pos2>,
+    pub picked_color: Option<(u8, u8, u8)>,
     
     // Context for repaint requests
-    ctx: Option<egui::Context>,
+    pub ctx: Option<egui::Context>,
+    
+    // Status message
+    pub status_message: Option<(String, std::time::Instant)>,
+    
+    // File watcher (for auto-refresh)
+    pub watch_folder: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    Single,
+    Compare,
+    Lightbox,
 }
 
 impl ImageViewerApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Configure fonts and styling
         configure_style(&cc.egui_ctx);
         
-        // Create async channel
         let (tx, rx) = channel();
         
+        let settings = Settings::load();
+        let metadata_db = MetadataDb::load();
+        
         let mut app = Self {
-            settings: Settings::default(),
+            settings,
+            metadata_db,
             image_list: Vec::new(),
+            filtered_list: Vec::new(),
             current_index: 0,
             current_folder: None,
+            selected_indices: HashSet::new(),
+            last_selected: None,
             current_texture: None,
+            current_image: None,
             current_exif: None,
             histogram_data: None,
             is_loading: false,
+            load_error: None,
+            focus_peaking_texture: None,
+            zebra_texture: None,
             zoom: 1.0,
+            target_zoom: 1.0,
             pan_offset: Vec2::ZERO,
+            target_pan: Vec2::ZERO,
             rotation: 0.0,
-            image_cache: Arc::new(ImageCache::new(512)),
+            adjustments: ImageAdjustments::default(),
+            show_original: false,
+            image_cache: Arc::new(ImageCache::new(1024)),
             thumbnail_textures: HashMap::new(),
-            thumbnail_requests: std::collections::HashSet::new(),
+            thumbnail_requests: HashSet::new(),
             loader_tx: tx,
             loader_rx: rx,
             slideshow_active: false,
             slideshow_timer: 0.0,
             is_fullscreen: false,
+            view_mode: ViewMode::Single,
+            compare_index: None,
+            lightbox_columns: 4,
+            show_settings_dialog: false,
+            show_export_dialog: false,
+            show_batch_rename_dialog: false,
+            show_about_dialog: false,
+            show_shortcuts_dialog: false,
+            show_go_to_dialog: false,
+            go_to_input: String::new(),
+            search_query: String::new(),
+            command_palette_open: false,
+            command_palette_query: String::new(),
+            rename_pattern: RenamePattern::default(),
+            undo_history: UndoHistory::new(50),
+            loupe_position: None,
+            color_picker_position: None,
+            picked_color: None,
             ctx: Some(cc.egui_ctx.clone()),
+            status_message: None,
+            watch_folder: false,
         };
         
-        // Check command line arguments for file/folder
+        // Restore session
+        if app.settings.restore_session {
+            if let Some(ref folder) = app.settings.last_folder.clone() {
+                if folder.exists() {
+                    app.load_folder(folder.clone());
+                    if let Some(ref file) = app.settings.last_file.clone() {
+                        if let Some(idx) = app.image_list.iter().position(|p| p == file) {
+                            app.current_index = idx;
+                            app.load_current_image();
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Check command line arguments
         let args: Vec<String> = std::env::args().collect();
         if args.len() > 1 {
             let path = PathBuf::from(&args[1]);
@@ -109,7 +218,6 @@ impl ImageViewerApp {
         if let Some(parent) = path.parent() {
             self.load_folder(parent.to_path_buf());
             
-            // Find and select the specific file
             if let Some(idx) = self.image_list.iter().position(|p| p == &path) {
                 self.current_index = idx;
                 self.load_current_image();
@@ -120,29 +228,47 @@ impl ImageViewerApp {
     pub fn load_folder(&mut self, folder: PathBuf) {
         self.current_folder = Some(folder.clone());
         self.settings.add_recent_folder(folder.clone());
+        self.settings.last_folder = Some(folder.clone());
         
-        // Collect all images in the folder
         self.image_list.clear();
+        self.thumbnail_textures.clear();
+        self.thumbnail_requests.clear();
         
-        if let Ok(entries) = std::fs::read_dir(&folder) {
-            for entry in entries.flatten() {
-                let path = entry.path();
+        if self.settings.include_subfolders {
+            for entry in WalkDir::new(&folder)
+                .follow_links(true)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                let path = entry.path().to_path_buf();
                 if path.is_file() && is_supported_image(&path) {
                     self.image_list.push(path);
+                }
+            }
+        } else {
+            if let Ok(entries) = std::fs::read_dir(&folder) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && is_supported_image(&path) {
+                        self.image_list.push(path);
+                    }
                 }
             }
         }
         
         self.sort_images();
+        self.apply_filter();
         
-        if !self.image_list.is_empty() {
+        if !self.filtered_list.is_empty() {
             self.current_index = 0;
             self.load_current_image();
         }
+        
+        self.show_status(&format!("Loaded {} images", self.image_list.len()));
     }
     
     pub fn sort_images(&mut self) {
-        let current_path = self.image_list.get(self.current_index).cloned();
+        let current_path = self.get_current_path();
         
         match self.settings.sort_mode {
             SortMode::Name => {
@@ -153,6 +279,14 @@ impl ImageViewerApp {
                 });
             }
             SortMode::Date => {
+                self.image_list.sort_by(|a, b| {
+                    let a_time = a.metadata().and_then(|m| m.modified()).ok();
+                    let b_time = b.metadata().and_then(|m| m.modified()).ok();
+                    a_time.cmp(&b_time)
+                });
+            }
+            SortMode::DateTaken => {
+                // Would need EXIF data cached - fall back to file date for now
                 self.image_list.sort_by(|a, b| {
                     let a_time = a.metadata().and_then(|m| m.modified()).ok();
                     let b_time = b.metadata().and_then(|m| m.modified()).ok();
@@ -170,8 +304,24 @@ impl ImageViewerApp {
                 self.image_list.sort_by(|a, b| {
                     let a_ext = a.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
                     let b_ext = b.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    a_ext.cmp(&b_ext)
+                    a_ext.cmp(&b_ext).then_with(|| {
+                        let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                        let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                        natord::compare(&a_name, &b_name)
+                    })
                 });
+            }
+            SortMode::Rating => {
+                self.image_list.sort_by(|a, b| {
+                    let a_rating = self.metadata_db.get(a).rating;
+                    let b_rating = self.metadata_db.get(b).rating;
+                    b_rating.cmp(&a_rating) // Descending
+                });
+            }
+            SortMode::Random => {
+                use rand::seq::SliceRandom;
+                let mut rng = rand::thread_rng();
+                self.image_list.shuffle(&mut rng);
             }
         }
         
@@ -187,11 +337,60 @@ impl ImageViewerApp {
         }
     }
     
-    fn load_current_image(&mut self) {
-        if let Some(path) = self.image_list.get(self.current_index).cloned() {
+    pub fn apply_filter(&mut self) {
+        self.filtered_list.clear();
+        
+        for (idx, path) in self.image_list.iter().enumerate() {
+            let metadata = self.metadata_db.get(path);
+            
+            // Filter by rating
+            if let Some(min_rating) = self.settings.filter_by_rating {
+                if metadata.rating < min_rating {
+                    continue;
+                }
+            }
+            
+            // Filter by color
+            if let Some(ref color) = self.settings.filter_by_color {
+                if &metadata.color_label != color {
+                    continue;
+                }
+            }
+            
+            // Filter by search query
+            if !self.search_query.is_empty() {
+                let filename = path.file_name()
+                    .map(|n| n.to_string_lossy().to_lowercase())
+                    .unwrap_or_default();
+                if !filename.contains(&self.search_query.to_lowercase()) {
+                    continue;
+                }
+            }
+            
+            self.filtered_list.push(idx);
+        }
+        
+        // Ensure current_index is valid
+        if self.current_index >= self.filtered_list.len() {
+            self.current_index = self.filtered_list.len().saturating_sub(1);
+        }
+    }
+    
+    pub fn get_current_path(&self) -> Option<PathBuf> {
+        self.filtered_list.get(self.current_index)
+            .and_then(|&idx| self.image_list.get(idx))
+            .cloned()
+    }
+    
+    pub fn load_current_image(&mut self) {
+        if let Some(path) = self.get_current_path() {
             self.is_loading = true;
+            self.load_error = None;
             self.current_exif = None;
             self.histogram_data = None;
+            self.focus_peaking_texture = None;
+            self.zebra_texture = None;
+            self.settings.last_file = Some(path.clone());
             
             // Check cache first
             if let Some(image) = self.image_cache.get(&path) {
@@ -231,55 +430,99 @@ impl ImageViewerApp {
                 }
             });
             
-            // Preload adjacent images
             self.preload_adjacent();
         }
     }
     
-    fn set_current_image(&mut self, path: &PathBuf, image: DynamicImage) {
-        if let Some(ctx) = &self.ctx {
-            // Convert to texture
-            let size = [image.width() as usize, image.height() as usize];
-            let rgba = image.to_rgba8();
-            let pixels = rgba.as_flat_samples();
-            
-            let texture = ctx.load_texture(
-                path.to_string_lossy(),
-                egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
-                egui::TextureOptions::LINEAR,
-            );
-            
-            self.current_texture = Some(texture);
-            self.is_loading = false;
-            
-            // Apply fit mode (unless maintaining zoom)
-            if !self.settings.maintain_zoom_on_navigate {
-                self.reset_view();
-            }
-            
-            if !self.settings.maintain_pan_on_navigate {
-                self.pan_offset = Vec2::ZERO;
-            }
-            
-            // Calculate histogram
-            self.calculate_histogram(&image);
-            
-            // Cache the image
-            self.image_cache.insert(path.clone(), image);
+    pub fn set_current_image(&mut self, path: &PathBuf, image: DynamicImage) {
+        let ctx = match &self.ctx {
+            Some(c) => c.clone(),
+            None => return,
+        };
+        
+        self.current_image = Some(image.clone());
+        
+        // Apply adjustments if any
+        let display_image = if !self.adjustments.is_default() && !self.show_original {
+            image_loader::apply_adjustments(&image, &self.adjustments)
+        } else {
+            image.clone()
+        };
+        
+        let size = [display_image.width() as usize, display_image.height() as usize];
+        let rgba = display_image.to_rgba8();
+        let pixels = rgba.as_flat_samples();
+        
+        let texture = ctx.load_texture(
+            path.to_string_lossy(),
+            egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+            egui::TextureOptions::LINEAR,
+        );
+        
+        self.current_texture = Some(texture);
+        self.is_loading = false;
+        
+        // Apply fit mode (unless maintaining zoom)
+        if !self.settings.maintain_zoom_on_navigate {
+            self.reset_view();
         }
+        
+        if !self.settings.maintain_pan_on_navigate {
+            self.pan_offset = Vec2::ZERO;
+            self.target_pan = Vec2::ZERO;
+        }
+        
+        // Calculate histogram
+        self.histogram_data = Some(image_loader::calculate_histogram(&image));
+        
+        // Generate overlays if enabled
+        if self.settings.show_focus_peaking {
+            self.generate_focus_peaking_overlay(&image, &ctx);
+        }
+        
+        if self.settings.show_zebras {
+            self.generate_zebra_overlay(&image, &ctx);
+        }
+        
+        // Cache the image
+        self.image_cache.insert(path.clone(), image);
     }
     
-    fn calculate_histogram(&mut self, image: &DynamicImage) {
-        let rgb = image.to_rgb8();
-        let mut histogram = vec![vec![0u32; 256]; 3];
+    pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
+        let overlay = image_loader::generate_focus_peaking_overlay(
+            image, 
+            self.settings.focus_peaking_threshold
+        );
         
-        for pixel in rgb.pixels() {
-            histogram[0][pixel[0] as usize] += 1;
-            histogram[1][pixel[1] as usize] += 1;
-            histogram[2][pixel[2] as usize] += 1;
-        }
+        let size = [overlay.width() as usize, overlay.height() as usize];
+        let pixels: Vec<u8> = overlay.into_raw();
         
-        self.histogram_data = Some(histogram);
+        let texture = ctx.load_texture(
+            "focus_peaking",
+            egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+            egui::TextureOptions::LINEAR,
+        );
+        
+        self.focus_peaking_texture = Some(texture);
+    }
+    
+    pub fn generate_zebra_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
+        let overlay = image_loader::generate_zebra_overlay(
+            image,
+            self.settings.zebra_high_threshold,
+            self.settings.zebra_low_threshold
+        );
+        
+        let size = [overlay.width() as usize, overlay.height() as usize];
+        let pixels: Vec<u8> = overlay.into_raw();
+        
+        let texture = ctx.load_texture(
+            "zebra",
+            egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+            egui::TextureOptions::LINEAR,
+        );
+        
+        self.zebra_texture = Some(texture);
     }
     
     fn preload_adjacent(&self) {
@@ -287,11 +530,19 @@ impl ImageViewerApp {
         let mut paths = Vec::new();
         
         for i in 1..=count {
-            if self.current_index + i < self.image_list.len() {
-                paths.push(self.image_list[self.current_index + i].clone());
+            if self.current_index + i < self.filtered_list.len() {
+                if let Some(&idx) = self.filtered_list.get(self.current_index + i) {
+                    if let Some(path) = self.image_list.get(idx) {
+                        paths.push(path.clone());
+                    }
+                }
             }
             if self.current_index >= i {
-                paths.push(self.image_list[self.current_index - i].clone());
+                if let Some(&idx) = self.filtered_list.get(self.current_index - i) {
+                    if let Some(path) = self.image_list.get(idx) {
+                        paths.push(path.clone());
+                    }
+                }
             }
         }
         
@@ -310,14 +561,12 @@ impl ImageViewerApp {
         let cache = Arc::clone(&self.image_cache);
         
         thread::spawn(move || {
-            // Check cache first
             if let Some(thumb) = cache.get_thumbnail(&path) {
                 let _ = tx.send(LoaderMessage::ThumbnailLoaded(path, thumb));
                 ctx.request_repaint();
                 return;
             }
             
-            // Load thumbnail
             if let Ok(thumb) = image_loader::load_thumbnail(&path, size) {
                 cache.insert_thumbnail(path.clone(), thumb.clone());
                 let _ = tx.send(LoaderMessage::ThumbnailLoaded(path, thumb));
@@ -329,11 +578,9 @@ impl ImageViewerApp {
     pub fn reset_view(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
-            
-            // Get approximate available size (will be refined in render)
             let available = Vec2::new(1200.0, 700.0);
             
-            self.zoom = match self.settings.fit_mode {
+            self.target_zoom = match self.settings.fit_mode {
                 FitMode::Fit => {
                     let scale_x = available.x / image_size.x;
                     let scale_y = available.y / image_size.y;
@@ -348,35 +595,45 @@ impl ImageViewerApp {
                 FitMode::FitWidth => (available.x / image_size.x).min(1.0),
                 FitMode::FitHeight => (available.y / image_size.y).min(1.0),
             };
+            
+            if !self.settings.smooth_zoom {
+                self.zoom = self.target_zoom;
+            }
         } else {
+            self.target_zoom = 1.0;
             self.zoom = 1.0;
         }
         
-        self.pan_offset = Vec2::ZERO;
+        self.target_pan = Vec2::ZERO;
+        if !self.settings.smooth_zoom {
+            self.pan_offset = Vec2::ZERO;
+        }
     }
     
-    // Navigation functions
+    // Navigation
     pub fn next_image(&mut self) {
-        if self.image_list.is_empty() {
+        if self.filtered_list.is_empty() {
             return;
         }
         
         let saved_zoom = self.zoom;
         let saved_pan = self.pan_offset;
         
-        self.current_index = (self.current_index + 1) % self.image_list.len();
+        self.current_index = (self.current_index + 1) % self.filtered_list.len();
         self.load_current_image();
         
         if self.settings.maintain_zoom_on_navigate {
             self.zoom = saved_zoom;
+            self.target_zoom = saved_zoom;
         }
         if self.settings.maintain_pan_on_navigate {
             self.pan_offset = saved_pan;
+            self.target_pan = saved_pan;
         }
     }
     
     pub fn previous_image(&mut self) {
-        if self.image_list.is_empty() {
+        if self.filtered_list.is_empty() {
             return;
         }
         
@@ -384,7 +641,7 @@ impl ImageViewerApp {
         let saved_pan = self.pan_offset;
         
         self.current_index = if self.current_index == 0 {
-            self.image_list.len() - 1
+            self.filtered_list.len() - 1
         } else {
             self.current_index - 1
         };
@@ -392,28 +649,30 @@ impl ImageViewerApp {
         
         if self.settings.maintain_zoom_on_navigate {
             self.zoom = saved_zoom;
+            self.target_zoom = saved_zoom;
         }
         if self.settings.maintain_pan_on_navigate {
             self.pan_offset = saved_pan;
+            self.target_pan = saved_pan;
         }
     }
     
     pub fn go_to_first(&mut self) {
-        if !self.image_list.is_empty() {
+        if !self.filtered_list.is_empty() {
             self.current_index = 0;
             self.load_current_image();
         }
     }
     
     pub fn go_to_last(&mut self) {
-        if !self.image_list.is_empty() {
-            self.current_index = self.image_list.len() - 1;
+        if !self.filtered_list.is_empty() {
+            self.current_index = self.filtered_list.len() - 1;
             self.load_current_image();
         }
     }
     
     pub fn go_to_index(&mut self, index: usize) {
-        if index < self.image_list.len() {
+        if index < self.filtered_list.len() {
             let saved_zoom = self.zoom;
             let saved_pan = self.pan_offset;
             
@@ -422,23 +681,77 @@ impl ImageViewerApp {
             
             if self.settings.maintain_zoom_on_navigate {
                 self.zoom = saved_zoom;
+                self.target_zoom = saved_zoom;
             }
             if self.settings.maintain_pan_on_navigate {
                 self.pan_offset = saved_pan;
+                self.target_pan = saved_pan;
             }
         }
     }
     
-    // Zoom functions
+    // Zoom
     pub fn zoom_in(&mut self) {
-        self.zoom = (self.zoom * 1.2).min(20.0);
+        self.target_zoom = (self.target_zoom * 1.25).min(32.0);
+        if !self.settings.smooth_zoom {
+            self.zoom = self.target_zoom;
+        }
     }
     
     pub fn zoom_out(&mut self) {
-        self.zoom = (self.zoom / 1.2).max(0.1);
+        self.target_zoom = (self.target_zoom / 1.25).max(0.05);
+        if !self.settings.smooth_zoom {
+            self.zoom = self.target_zoom;
+        }
     }
     
-    // Rotation functions
+    pub fn zoom_to(&mut self, level: f32) {
+        self.target_zoom = level.clamp(0.05, 32.0);
+        if !self.settings.smooth_zoom {
+            self.zoom = self.target_zoom;
+        }
+    }
+    
+    pub fn fit_to_window(&mut self) {
+        if let Some(texture) = &self.current_texture {
+            let image_size = texture.size_vec2();
+            let available = Vec2::new(1200.0, 700.0); // Approximate available space
+            
+            let scale_x = available.x / image_size.x;
+            let scale_y = available.y / image_size.y;
+            self.target_zoom = scale_x.min(scale_y).min(1.0);
+            
+            if !self.settings.smooth_zoom {
+                self.zoom = self.target_zoom;
+            }
+        }
+        self.target_pan = Vec2::ZERO;
+        self.pan_offset = Vec2::ZERO;
+    }
+    
+    pub fn fill_window(&mut self) {
+        if let Some(texture) = &self.current_texture {
+            let image_size = texture.size_vec2();
+            let available = Vec2::new(1200.0, 700.0); // Approximate available space
+            
+            let scale_x = available.x / image_size.x;
+            let scale_y = available.y / image_size.y;
+            self.target_zoom = scale_x.max(scale_y);
+            
+            if !self.settings.smooth_zoom {
+                self.zoom = self.target_zoom;
+            }
+        }
+        self.target_pan = Vec2::ZERO;
+        self.pan_offset = Vec2::ZERO;
+    }
+    
+    pub fn sort_file_list(&mut self) {
+        self.sort_images();
+        self.apply_filter();
+    }
+    
+    // Rotation
     pub fn rotate_left(&mut self) {
         self.rotation = (self.rotation - 90.0) % 360.0;
     }
@@ -453,13 +766,133 @@ impl ImageViewerApp {
         self.slideshow_timer = 0.0;
     }
     
+    // Ratings
+    pub fn set_rating(&mut self, rating: u8) {
+        if let Some(path) = self.get_current_path() {
+            self.metadata_db.set_rating(path, rating);
+            self.metadata_db.save();
+            self.show_status(&format!("Rating: {}", "★".repeat(rating as usize)));
+        }
+    }
+    
+    // Color labels
+    pub fn set_color_label(&mut self, color: ColorLabel) {
+        if let Some(path) = self.get_current_path() {
+            self.metadata_db.set_color_label(path, color);
+            self.metadata_db.save();
+        }
+    }
+    
+    // File operations
+    pub fn delete_current_image(&mut self) {
+        if let Some(path) = self.get_current_path() {
+            if self.settings.delete_to_trash {
+                if let Ok(_) = trash::delete(&path) {
+                    self.undo_history.push(FileOperation::Delete {
+                        original_path: path.clone(),
+                        trash_path: None,
+                    });
+                }
+            } else {
+                let _ = std::fs::remove_file(&path);
+            }
+            
+            if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                self.image_list.remove(idx);
+            }
+            self.image_cache.remove(&path);
+            self.thumbnail_textures.remove(&path);
+            
+            self.apply_filter();
+            
+            if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
+                self.current_index = self.filtered_list.len() - 1;
+            }
+            
+            if !self.filtered_list.is_empty() {
+                self.load_current_image();
+            } else {
+                self.current_texture = None;
+                self.current_image = None;
+            }
+            
+            self.show_status("Image deleted");
+        }
+    }
+    
+    pub fn move_to_folder(&mut self, dest_folder: PathBuf) {
+        if let Some(path) = self.get_current_path() {
+            let filename = path.file_name().unwrap_or_default();
+            let dest_path = dest_folder.join(filename);
+            
+            if let Ok(_) = std::fs::rename(&path, &dest_path) {
+                self.undo_history.push(FileOperation::Move {
+                    from: path.clone(),
+                    to: dest_path,
+                });
+                
+                if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                    self.image_list.remove(idx);
+                }
+                self.apply_filter();
+                
+                if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
+                    self.current_index = self.filtered_list.len() - 1;
+                }
+                
+                if !self.filtered_list.is_empty() {
+                    self.load_current_image();
+                }
+                
+                self.show_status(&format!("Moved to {}", dest_folder.display()));
+            }
+        }
+    }
+    
+    pub fn copy_to_folder(&mut self, dest_folder: PathBuf) {
+        if let Some(path) = self.get_current_path() {
+            let filename = path.file_name().unwrap_or_default();
+            let dest_path = dest_folder.join(filename);
+            
+            if let Ok(_) = std::fs::copy(&path, &dest_path) {
+                self.show_status(&format!("Copied to {}", dest_folder.display()));
+            }
+        }
+    }
+    
+    pub fn undo_last_operation(&mut self) {
+        if let Some(op) = self.undo_history.pop() {
+            match op {
+                FileOperation::Delete { original_path, trash_path: _ } => {
+                    // Can't easily undo trash, but show message
+                    self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                }
+                FileOperation::Move { from, to } => {
+                    if let Ok(_) = std::fs::rename(&to, &from) {
+                        self.image_list.push(from);
+                        self.sort_images();
+                        self.apply_filter();
+                        self.show_status("Undo: Move reverted");
+                    }
+                }
+                FileOperation::Rename { from, to } => {
+                    if let Ok(_) = std::fs::rename(&to, &from) {
+                        if let Some(pos) = self.image_list.iter().position(|p| p == &to) {
+                            self.image_list[pos] = from;
+                        }
+                        self.show_status("Undo: Rename reverted");
+                    }
+                }
+            }
+        }
+    }
+    
     // File dialogs
     pub fn open_file_dialog(&mut self) {
-        let filter_name = "Images";
         let extensions: Vec<&str> = SUPPORTED_EXTENSIONS.to_vec();
         
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter(filter_name, &extensions)
+            .add_filter("Images", &extensions)
             .pick_file()
         {
             self.load_image_file(path);
@@ -489,210 +922,112 @@ impl ImageViewerApp {
     }
     
     pub fn open_in_file_manager(&self) {
-        if let Some(path) = self.image_list.get(self.current_index) {
-            let _ = open::that(path.parent().unwrap_or(path));
+        if let Some(path) = self.get_current_path() {
+            let _ = open::that(path.parent().unwrap_or(&path));
         }
     }
     
-    pub fn delete_current_image(&mut self) {
-        if let Some(path) = self.image_list.get(self.current_index).cloned() {
-            // Move to trash instead of permanent delete
-            if let Err(_) = trash::delete(&path) {
-                // Fallback: try permanent delete
-                let _ = std::fs::remove_file(&path);
-            }
-            
-            self.image_list.remove(self.current_index);
-            self.image_cache.remove(&path);
-            self.thumbnail_textures.remove(&path);
-            
-            if self.current_index >= self.image_list.len() && !self.image_list.is_empty() {
-                self.current_index = self.image_list.len() - 1;
-            }
-            
-            if !self.image_list.is_empty() {
-                self.load_current_image();
-            } else {
-                self.current_texture = None;
+    pub fn open_in_external_editor(&self, editor_path: &PathBuf) {
+        if let Some(path) = self.get_current_path() {
+            let _ = std::process::Command::new(editor_path)
+                .arg(&path)
+                .spawn();
+        }
+    }
+    
+    pub fn set_as_wallpaper(&self) {
+        if let Some(path) = self.get_current_path() {
+            let _ = wallpaper::set_from_path(path.to_string_lossy().as_ref());
+            // self.show_status("Set as wallpaper");
+        }
+    }
+    
+    pub fn copy_to_clipboard(&self) {
+        if let Some(path) = self.get_current_path() {
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                let _ = clipboard.set_text(path.display().to_string());
             }
         }
     }
     
-    fn handle_keyboard(&mut self, ctx: &egui::Context) {
-        ctx.input(|i| {
-            // Navigation
-            if i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::A) {
-                self.previous_image();
-            }
-            if i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::D) {
-                self.next_image();
-            }
-            if i.key_pressed(egui::Key::Home) {
-                self.go_to_first();
-            }
-            if i.key_pressed(egui::Key::End) {
-                self.go_to_last();
-            }
-            if i.key_pressed(egui::Key::PageUp) {
-                for _ in 0..10 {
-                    self.previous_image();
-                }
-            }
-            if i.key_pressed(egui::Key::PageDown) {
-                for _ in 0..10 {
-                    self.next_image();
-                }
-            }
-            
-            // Zoom
-            if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
-                self.zoom_in();
-            }
-            if i.key_pressed(egui::Key::Minus) {
-                self.zoom_out();
-            }
-            if i.key_pressed(egui::Key::Num0) {
-                self.reset_view();
-            }
-            if i.key_pressed(egui::Key::Num1) {
-                self.zoom = 1.0;
-                self.pan_offset = Vec2::ZERO;
-            }
-            
-            // Rotation
-            if i.key_pressed(egui::Key::L) {
-                self.rotate_left();
-            }
-            if i.key_pressed(egui::Key::R) {
-                self.rotate_right();
-            }
-            
-            // Slideshow
-            if i.key_pressed(egui::Key::Space) {
-                self.toggle_slideshow();
-            }
-            
-            // Fullscreen
-            if i.key_pressed(egui::Key::F11) || i.key_pressed(egui::Key::F) {
-                self.is_fullscreen = !self.is_fullscreen;
-            }
-            if i.key_pressed(egui::Key::Escape) {
-                if self.is_fullscreen {
-                    self.is_fullscreen = false;
-                } else if self.slideshow_active {
-                    self.slideshow_active = false;
-                }
-            }
-            
-            // Delete
-            if i.key_pressed(egui::Key::Delete) {
-                self.delete_current_image();
-            }
-            
-            // Toggle panels
-            if i.key_pressed(egui::Key::I) {
-                self.settings.show_exif = !self.settings.show_exif;
-            }
-            if i.key_pressed(egui::Key::T) {
-                self.settings.show_thumbnails = !self.settings.show_thumbnails;
-            }
-            if i.key_pressed(egui::Key::S) && !i.modifiers.ctrl {
-                self.settings.show_sidebar = !self.settings.show_sidebar;
-            }
-        });
+    pub fn show_status(&mut self, message: &str) {
+        self.status_message = Some((message.to_string(), std::time::Instant::now()));
     }
     
-    fn process_loader_messages(&mut self, ctx: &egui::Context) {
-        while let Ok(msg) = self.loader_rx.try_recv() {
-            match msg {
-                LoaderMessage::ImageLoaded(path, image) => {
-                    if self.image_list.get(self.current_index) == Some(&path) {
-                        self.set_current_image(&path, image);
-                    } else {
-                        self.image_cache.insert(path, image);
-                    }
-                }
-                LoaderMessage::ThumbnailLoaded(path, thumb) => {
-                    // Convert to texture
-                    let size = [thumb.width() as usize, thumb.height() as usize];
-                    let rgba = thumb.to_rgba8();
-                    let pixels = rgba.as_flat_samples();
-                    
-                    let texture = ctx.load_texture(
-                        format!("thumb_{}", path.display()),
-                        egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
-                        egui::TextureOptions::LINEAR,
-                    );
-                    
-                    self.thumbnail_textures.insert(path, texture.id());
-                }
-                LoaderMessage::LoadError(path, error) => {
-                    log::error!("Failed to load {}: {}", path.display(), error);
-                    if self.image_list.get(self.current_index) == Some(&path) {
-                        self.is_loading = false;
-                    }
-                }
-                LoaderMessage::ExifLoaded(path, exif) => {
-                    if self.image_list.get(self.current_index) == Some(&path) {
-                        self.current_exif = Some(exif);
-                    }
-                }
-                LoaderMessage::HistogramCalculated(path, histogram) => {
-                    if self.image_list.get(self.current_index) == Some(&path) {
-                        self.histogram_data = Some(histogram);
-                    }
+    pub fn toggle_compare_mode(&mut self) {
+        if self.view_mode == ViewMode::Compare {
+            self.view_mode = ViewMode::Single;
+            self.compare_index = None;
+        } else {
+            self.view_mode = ViewMode::Compare;
+            self.compare_index = Some(self.current_index);
+        }
+    }
+    
+    pub fn toggle_lightbox_mode(&mut self) {
+        if self.view_mode == ViewMode::Lightbox {
+            self.view_mode = ViewMode::Single;
+        } else {
+            self.view_mode = ViewMode::Lightbox;
+        }
+    }
+    
+    // Export
+    pub fn export_current(&mut self, preset_name: &str) {
+        if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
+            if let Some(preset) = self.settings.export_presets.iter().find(|p| p.name == preset_name) {
+                let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+                let ext = match preset.format {
+                    crate::settings::ExportFormat::Jpeg => "jpg",
+                    crate::settings::ExportFormat::Png => "png",
+                    crate::settings::ExportFormat::WebP => "webp",
+                };
+                
+                let output_name = format!("{}{}.{}", stem, preset.suffix, ext);
+                let output_path = path.parent().unwrap_or(&path).join(output_name);
+                
+                if let Ok(_) = image_loader::export_image(
+                    image,
+                    &output_path,
+                    preset.format,
+                    preset.quality,
+                    preset.max_width,
+                    preset.max_height,
+                ) {
+                    self.show_status(&format!("Exported to {}", output_path.display()));
                 }
             }
         }
     }
     
-    fn update_slideshow(&mut self, ctx: &egui::Context) {
-        if self.slideshow_active {
-            self.slideshow_timer += ctx.input(|i| i.stable_dt);
-            
-            if self.slideshow_timer >= self.settings.slideshow_interval {
-                self.slideshow_timer = 0.0;
-                self.next_image();
+    pub fn refresh_adjustments(&mut self) {
+        if let (Some(image), Some(path)) = (self.current_image.clone(), self.get_current_path()) {
+            if let Some(ctx) = &self.ctx {
+                let display_image = if !self.adjustments.is_default() && !self.show_original {
+                    image_loader::apply_adjustments(&image, &self.adjustments)
+                } else {
+                    image
+                };
+                
+                let size = [display_image.width() as usize, display_image.height() as usize];
+                let rgba = display_image.to_rgba8();
+                let pixels = rgba.as_flat_samples();
+                
+                let texture = ctx.load_texture(
+                    path.to_string_lossy(),
+                    egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+                    egui::TextureOptions::LINEAR,
+                );
+                
+                self.current_texture = Some(texture);
             }
-            
-            ctx.request_repaint();
         }
-    }
-}
-
-impl eframe::App for ImageViewerApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Store context for repaint requests
-        self.ctx = Some(ctx.clone());
-        
-        // Process async messages
-        self.process_loader_messages(ctx);
-        
-        // Handle keyboard input
-        self.handle_keyboard(ctx);
-        
-        // Update slideshow
-        self.update_slideshow(ctx);
-        
-        // Apply theme
-        apply_theme(ctx, &self.settings);
-        
-        // Render UI
-        self.render_top_bar(ctx);
-        self.render_sidebar(ctx);
-        self.render_thumbnail_bar(ctx);
-        self.render_main_view(ctx);
-    }
-    
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        self.settings.save();
     }
 }
 
 fn configure_style(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
     
-    // Modern rounded corners
     style.visuals.window_rounding = egui::Rounding::same(8.0);
     style.visuals.menu_rounding = egui::Rounding::same(6.0);
     style.visuals.popup_shadow = egui::epaint::Shadow {
@@ -702,29 +1037,12 @@ fn configure_style(ctx: &egui::Context) {
         color: Color32::from_black_alpha(60),
     };
     
-    // Button styling
     style.visuals.widgets.inactive.rounding = egui::Rounding::same(4.0);
     style.visuals.widgets.hovered.rounding = egui::Rounding::same(4.0);
     style.visuals.widgets.active.rounding = egui::Rounding::same(4.0);
     
-    // Spacing
     style.spacing.item_spacing = egui::vec2(8.0, 6.0);
     style.spacing.button_padding = egui::vec2(8.0, 4.0);
     
     ctx.set_style(style);
-}
-
-fn apply_theme(ctx: &egui::Context, settings: &Settings) {
-    match settings.theme {
-        crate::settings::Theme::Dark => {
-            ctx.set_visuals(egui::Visuals::dark());
-        }
-        crate::settings::Theme::Light => {
-            ctx.set_visuals(egui::Visuals::light());
-        }
-        crate::settings::Theme::System => {
-            // Default to dark for now
-            ctx.set_visuals(egui::Visuals::dark());
-        }
-    }
 }
