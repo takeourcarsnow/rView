@@ -8,6 +8,12 @@ A modern, cross-platform image viewer built with Rust. Supports standard image f
 
 ## ✨ Features
 
+### 🆕 Recent Updates (v2.0.0)
+- **Panel Hiding**: Press 'H' to hide/show all UI panels for distraction-free viewing
+- **Move to Selected Folder**: Press 'M' to organize images into a 'selected' subfolder with undo support
+- **Enhanced Undo/Redo**: Improved operation history for file management
+- **Performance Optimizations**: Release build with optimized caching and async loading
+
 ### Core Features
 - **Cross-platform**: Works on Windows, macOS, and Linux
 - **Standard formats**: JPEG, PNG, GIF, BMP, TIFF, WebP, ICO, PNM
@@ -28,6 +34,7 @@ A modern, cross-platform image viewer built with Rust. Supports standard image f
 - **Rotation**: Rotate images without modifying files
 - **Multiple fit modes**: Fit, Fill, 1:1, Fit Width, Fit Height
 - **Slideshow**: Auto-advance with configurable interval
+- **Undo/Redo**: Full operation history for file operations (delete, move, rotate, etc.)
 
 ### User Experience
 - **Modern dark UI**: Clean, distraction-free interface
@@ -35,6 +42,8 @@ A modern, cross-platform image viewer built with Rust. Supports standard image f
 - **Keyboard shortcuts**: Full keyboard navigation
 - **Smart caching**: Preloads adjacent images for instant switching
 - **Custom backgrounds**: Dark, Light, Gray, or Checkered
+- **Panel hiding**: Press 'H' to hide/show all UI panels for distraction-free viewing
+- **Move to selected folder**: Press 'M' to move current image to 'selected' subfolder with undo support
 
 ## 🚀 Installation
 
@@ -58,6 +67,16 @@ A modern, cross-platform image viewer built with Rust. Supports standard image f
    ```
 
    Or find the binary in `target/release/image_viewer`
+
+   **✅ Tested and verified**: The application successfully builds and runs with JPEG and RAW image support.
+
+### Quick Test
+
+Test files are included in the `testfiles/` directory:
+- `_MG_6741.CR2` (Canon RAW format)
+- `_MG_7957.jpg` (JPEG format)
+
+Use these to test loading performance and features.
 
 ### Platform-Specific Notes
 
@@ -99,6 +118,8 @@ sudo pacman -S gtk3
 | `I` | Toggle EXIF info |
 | `T` | Toggle thumbnail bar |
 | `S` | Toggle sidebar |
+| `H` | Toggle panel visibility |
+| `M` | Move image to 'selected' folder |
 
 ## 🖱️ Mouse Controls
 
