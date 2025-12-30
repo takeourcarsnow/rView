@@ -1,5 +1,3 @@
-use crate::image_cache::ImageCache;
-use std::sync::Arc;
 
 use super::ImageViewerApp;
 

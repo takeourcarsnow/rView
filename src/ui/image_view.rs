@@ -19,6 +19,7 @@ impl ImageViewerApp {
     
     fn render_single_view(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         let available = ui.available_size();
+        self.available_view_size = available; // Store for fit functions
         let response = ui.allocate_response(available, egui::Sense::click_and_drag());
         let rect = response.rect;
         
@@ -114,6 +115,7 @@ impl ImageViewerApp {
     
     fn render_compare_view(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         let available = ui.available_size();
+        self.available_view_size = available; // Store for fit functions
         let half_width = available.x / 2.0 - 2.0;
         
         ui.horizontal(|ui| {
@@ -440,7 +442,7 @@ impl ImageViewerApp {
             let loupe_zoom = self.settings.loupe_zoom;
 
             // Calculate image rectangle (same as in render_single_view)
-            let available = ui.available_size();
+            let _available = ui.available_size();
             let rect = ui.available_rect_before_wrap();
             let tex_size = tex.size_vec2();
             let display_size = tex_size * self.zoom;

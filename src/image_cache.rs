@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use rayon::prelude::*;
 use directories;
 

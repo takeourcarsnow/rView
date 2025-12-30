@@ -1,6 +1,10 @@
 # Build and run script for Image Viewer on Windows
 # This script temporarily adds mingw64 to PATH and runs the application
 
+param(
+    [string]$Command = "run"
+)
+
 $mingwPath = "C:\msys64\mingw64\bin"
 if (-not (Test-Path $mingwPath)) {
     Write-Host "MSYS2 mingw64 not found at $mingwPath. Please install MSYS2 first."
@@ -11,5 +15,5 @@ if (-not (Test-Path $mingwPath)) {
 # Add mingw to PATH
 $env:PATH = "$mingwPath;$env:PATH"
 
-# Run the application
-cargo run
+# Run the specified command
+cargo $Command

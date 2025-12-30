@@ -5,7 +5,7 @@ use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory, RenamePattern};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
 
-use eframe::egui::{self, Color32, TextureHandle, Vec2};
+use eframe::egui::{self, TextureHandle, Vec2};
 use image::DynamicImage;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -92,6 +92,7 @@ pub struct ImageViewerApp {
     pub pan_offset: Vec2,
     pub target_pan: Vec2,
     pub rotation: f32,
+    pub available_view_size: Vec2, // Available space for image display
 
     // Adjustments
     pub adjustments: ImageAdjustments,
@@ -140,6 +141,7 @@ pub struct ImageViewerApp {
     pub pending_navigate_last: bool,
     pub pending_navigate_page_up: bool,
     pub pending_navigate_page_down: bool,
+    pub pending_fit_to_window: bool,
 
     // Batch rename
     pub rename_pattern: RenamePattern,
@@ -204,6 +206,7 @@ impl ImageViewerApp {
             pan_offset: Vec2::ZERO,
             target_pan: Vec2::ZERO,
             rotation: 0.0,
+            available_view_size: Vec2::new(800.0, 600.0), // Default fallback
             adjustments: ImageAdjustments::default(),
             show_original: false,
             image_cache: Arc::new(ImageCache::new(1024)),
@@ -234,6 +237,7 @@ impl ImageViewerApp {
             pending_navigate_last: false,
             pending_navigate_page_up: false,
             pending_navigate_page_down: false,
+            pending_fit_to_window: false,
             rename_pattern: RenamePattern::default(),
             undo_history: UndoHistory::new(50),
             loupe_position: None,

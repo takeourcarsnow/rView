@@ -91,8 +91,8 @@ impl ImageViewerApp {
 
     pub fn toggle_panels(&mut self) {
         self.panels_hidden = !self.panels_hidden;
-        // Refit the image when panels are toggled
-        self.fit_to_window_internal();
+        // Schedule a fit operation for the next frame after UI layout is updated
+        self.pending_fit_to_window = true;
     }
 
     // Export

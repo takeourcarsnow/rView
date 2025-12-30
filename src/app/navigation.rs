@@ -365,16 +365,8 @@ impl ImageViewerApp {
     pub fn fit_to_window_internal(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
-            // Estimate available space based on panel visibility
-            let (width_est, height_est) = if self.panels_hidden {
-                // More space available when panels are hidden
-                (1800.0, 1000.0)
-            } else {
-                // Less space when panels are visible
-                (1200.0, 700.0)
-            };
-
-            let available = Vec2::new(width_est, height_est);
+            // Use the actual available view size from the UI
+            let available = self.available_view_size;
 
             let scale_x = available.x / image_size.x;
             let scale_y = available.y / image_size.y;
@@ -477,7 +469,7 @@ impl ImageViewerApp {
     pub fn fit_to_window(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
-            let available = Vec2::new(1200.0, 700.0); // Approximate available space
+            let available = self.available_view_size;
 
             let scale_x = available.x / image_size.x;
             let scale_y = available.y / image_size.y;
@@ -494,7 +486,7 @@ impl ImageViewerApp {
     pub fn fill_window(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
-            let available = Vec2::new(1200.0, 700.0); // Approximate available space
+            let available = self.available_view_size;
 
             let scale_x = available.x / image_size.x;
             let scale_y = available.y / image_size.y;

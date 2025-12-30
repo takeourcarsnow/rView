@@ -70,6 +70,7 @@ impl eframe::App for ImageViewerApp {
         if self.pending_navigate_last { self.go_to_last(); }
         if self.pending_navigate_page_up { for _ in 0..10 { self.previous_image(); } }
         if self.pending_navigate_page_down { for _ in 0..10 { self.next_image(); } }
+        if self.pending_fit_to_window { self.fit_to_window_internal(); }
         
         // Reset pending flags
         self.pending_navigate_prev = false;
@@ -78,6 +79,7 @@ impl eframe::App for ImageViewerApp {
         self.pending_navigate_last = false;
         self.pending_navigate_page_up = false;
         self.pending_navigate_page_down = false;
+        self.pending_fit_to_window = false;
         
         crate::profiler::with_profiler(|p| {
             p.end_timer("ui_update");

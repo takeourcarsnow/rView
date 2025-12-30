@@ -1,9 +1,6 @@
 use crate::errors::{Result, ViewerError};
 use image::{DynamicImage, ImageBuffer, RgbImage, GenericImageView, Rgba, RgbaImage};
 use std::path::Path;
-use std::sync::Arc;
-use tokio::runtime::Runtime;
-use tokio::task;
 use rayon::ThreadPoolBuilder;
 
 lazy_static::lazy_static! {

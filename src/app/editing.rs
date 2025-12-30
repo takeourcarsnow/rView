@@ -1,7 +1,6 @@
 use crate::image_loader;
-use crate::metadata::{FileOperation, RenamePattern};
+use crate::metadata::FileOperation;
 use crate::settings::ColorLabel;
-use eframe::egui;
 use std::path::PathBuf;
 
 use super::ImageViewerApp;
