@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{Theme, BackgroundColor, ThumbnailPosition, FocusPeakingColor, GridType};
-use egui::{self, Color32, Vec2, Rounding, Margin};
+use egui::{self, Color32, Vec2, Rounding, Margin, RichText};
 
 impl ImageViewerApp {
     pub fn render_dialogs(&mut self, ctx: &egui::Context) {
@@ -167,6 +167,74 @@ impl ImageViewerApp {
                         
                         if ui.button("Clear Cache").clicked() {
                             self.image_cache.clear();
+                        }
+                        
+                        ui.add_space(12.0);
+                        ui.heading("Performance & Diagnostics");
+                        ui.add_space(4.0);
+                        
+                        ui.checkbox(&mut self.profiler_enabled, "Enable performance profiling");
+                        
+                        if self.profiler_enabled {
+                            ui.add_space(8.0);
+                            
+                            // Cache statistics
+                            ui.label(RichText::new("Cache Statistics").strong());
+                            ui.add_space(2.0);
+                            
+                            let cache_stats = &self.cache_stats;
+                            ui.label(format!("Images cached: {} / {} ({:.1}%)", 
+                                cache_stats.cached_images, 
+                                cache_stats.total_images,
+                                if cache_stats.total_images > 0 {
+                                    (cache_stats.cached_images as f64 / cache_stats.total_images as f64) * 100.0
+                                } else { 0.0 }));
+                            ui.label(format!("Cache hit rate: {:.1}%", cache_stats.hit_rate() * 100.0));
+                            ui.label(format!("Memory usage: {:.1} MB", cache_stats.memory_usage_mb()));
+                            ui.label(format!("Evictions: {}", cache_stats.eviction_count));
+                            
+                            ui.add_space(8.0);
+                            
+                            // Loading diagnostics
+                            ui.label(RichText::new("Loading Performance").strong());
+                            ui.add_space(2.0);
+                            
+                            let diag = &self.loading_diagnostics;
+                            ui.label(format!("Total load time: {:.2}s", diag.total_load_time.as_secs_f64()));
+                            ui.label(format!("Average load time: {:.2}s", diag.average_load_time().as_secs_f64()));
+                            ui.label(format!("Images loaded: {}", diag.images_loaded));
+                            ui.label(format!("Thumbnails generated: {}", diag.thumbnails_generated));
+                            ui.label(format!("Errors encountered: {}", diag.errors_encountered));
+                            
+                            if !diag.bottlenecks.is_empty() {
+                                ui.add_space(4.0);
+                                ui.label(RichText::new("Bottlenecks:").color(Color32::YELLOW));
+                                for bottleneck in &diag.bottlenecks {
+                                    ui.label(format!("• {}", bottleneck));
+                                }
+                            }
+                            
+                            ui.add_space(8.0);
+                            
+                            // Profiler stats
+                            ui.label(RichText::new("Performance Timers").strong());
+                            ui.add_space(2.0);
+                            
+                            let profiler_stats = crate::profiler::get_profiler().get_stats();
+                            for (name, stats) in &profiler_stats.measurements {
+                                ui.label(format!("{}: {:.2}ms avg ({} samples)", 
+                                    name, 
+                                    stats.average_time.as_millis(),
+                                    stats.count));
+                            }
+                            
+                            for (name, count) in &profiler_stats.counters {
+                                ui.label(format!("{}: {} times", name, count));
+                            }
+                            
+                            if ui.button("Reset Profiler").clicked() {
+                                crate::profiler::get_profiler().reset();
+                            }
                         }
                     });
                 

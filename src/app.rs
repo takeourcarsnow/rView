@@ -3,6 +3,7 @@ use crate::image_loader::{self, is_supported_image, ImageAdjustments, SUPPORTED_
 use crate::settings::{ColorLabel, Settings, SortMode};
 use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory, FileOperation, RenamePattern};
+use crate::profiler::{self, CacheStats, LoadingDiagnostics};
 
 use eframe::egui::{self, Color32, TextureHandle, Vec2};
 use image::DynamicImage;
@@ -22,6 +23,29 @@ pub enum LoaderMessage {
     PreviewLoaded(PathBuf, DynamicImage),
 }
 
+#[derive(Debug, Clone)]
+pub struct ImageTab {
+    pub id: String,
+    pub name: String,
+    pub folder_path: PathBuf,
+    pub image_list: Vec<PathBuf>,
+    pub filtered_list: Vec<usize>,
+    pub current_index: usize,
+    pub zoom: f32,
+    pub target_zoom: f32,
+    pub pan_offset: Vec2,
+    pub target_pan: Vec2,
+    pub rotation: f32,
+    pub adjustments: ImageAdjustments,
+    pub show_original: bool,
+    pub view_mode: ViewMode,
+    pub compare_index: Option<usize>,
+    pub lightbox_columns: usize,
+    pub selected_indices: HashSet<usize>,
+    pub last_selected: Option<usize>,
+    pub search_query: String,
+}
+
 pub struct ImageViewerApp {
     // Settings
     pub settings: Settings,
@@ -29,7 +53,11 @@ pub struct ImageViewerApp {
     // Metadata database
     pub metadata_db: MetadataDb,
     
-    // Image list and navigation
+    // Tabs - multiple open folders
+    pub tabs: Vec<ImageTab>,
+    pub current_tab: usize,
+    
+    // Current tab's data (for backward compatibility)
     pub image_list: Vec<PathBuf>,
     pub filtered_list: Vec<usize>, // Indices into image_list
     pub current_index: usize,
@@ -116,6 +144,14 @@ pub struct ImageViewerApp {
     
     // File watcher (for auto-refresh)
     pub watch_folder: bool,
+    
+    // Profiler and diagnostics
+    pub profiler_enabled: bool,
+    pub cache_stats: CacheStats,
+    pub loading_diagnostics: LoadingDiagnostics,
+    
+    // Panel visibility
+    pub panels_hidden: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,6 +173,8 @@ impl ImageViewerApp {
         let mut app = Self {
             settings,
             metadata_db,
+            tabs: Vec::new(),
+            current_tab: 0,
             image_list: Vec::new(),
             filtered_list: Vec::new(),
             current_index: 0,
@@ -188,6 +226,10 @@ impl ImageViewerApp {
             ctx: Some(cc.egui_ctx.clone()),
             status_message: None,
             watch_folder: false,
+            profiler_enabled: cfg!(debug_assertions), // Enabled in debug mode
+            cache_stats: CacheStats::default(),
+            loading_diagnostics: LoadingDiagnostics::default(),
+            panels_hidden: false,
         };
         
         // Restore session
@@ -231,45 +273,8 @@ impl ImageViewerApp {
     }
     
     pub fn load_folder(&mut self, folder: PathBuf) {
-        self.current_folder = Some(folder.clone());
-        self.settings.add_recent_folder(folder.clone());
-        self.settings.last_folder = Some(folder.clone());
-        
-        self.image_list.clear();
-        self.thumbnail_textures.clear();
-        self.thumbnail_requests.clear();
-        
-        if self.settings.include_subfolders {
-            for entry in WalkDir::new(&folder)
-                .follow_links(true)
-                .into_iter()
-                .filter_map(|e| e.ok())
-            {
-                let path = entry.path().to_path_buf();
-                if path.is_file() && is_supported_image(&path) {
-                    self.image_list.push(path);
-                }
-            }
-        } else {
-            if let Ok(entries) = std::fs::read_dir(&folder) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file() && is_supported_image(&path) {
-                        self.image_list.push(path);
-                    }
-                }
-            }
-        }
-        
-        self.sort_images();
-        self.apply_filter();
-        
-        if !self.filtered_list.is_empty() {
-            self.current_index = 0;
-            self.load_current_image();
-        }
-        
-        self.show_status(&format!("Loaded {} images", self.image_list.len()));
+        // Create a new tab for the folder
+        self.create_tab(folder);
     }
     
     pub fn sort_images(&mut self) {
@@ -609,8 +614,16 @@ impl ImageViewerApp {
     fn fit_to_window_internal(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
-            // Use a reasonable estimate of available space (will be recalculated properly in render)
-            let available = Vec2::new(1200.0, 700.0);
+            // Estimate available space based on panel visibility
+            let (width_est, height_est) = if self.panels_hidden {
+                // More space available when panels are hidden
+                (1800.0, 1000.0)
+            } else {
+                // Less space when panels are visible
+                (1200.0, 700.0)
+            };
+            
+            let available = Vec2::new(width_est, height_est);
             
             let scale_x = available.x / image_size.x;
             let scale_y = available.y / image_size.y;
@@ -773,11 +786,27 @@ impl ImageViewerApp {
     
     // Rotation
     pub fn rotate_left(&mut self) {
-        self.rotation = (self.rotation - 90.0) % 360.0;
+        if let Some(path) = self.get_current_path() {
+            let previous_rotation = self.rotation;
+            self.rotation = (self.rotation - 90.0) % 360.0;
+            self.undo_history.push(FileOperation::Rotate {
+                path: path.clone(),
+                degrees: -90,
+                previous_rotation,
+            });
+        }
     }
     
     pub fn rotate_right(&mut self) {
-        self.rotation = (self.rotation + 90.0) % 360.0;
+        if let Some(path) = self.get_current_path() {
+            let previous_rotation = self.rotation;
+            self.rotation = (self.rotation + 90.0) % 360.0;
+            self.undo_history.push(FileOperation::Rotate {
+                path: path.clone(),
+                degrees: 90,
+                previous_rotation,
+            });
+        }
     }
     
     // Slideshow
@@ -789,8 +818,16 @@ impl ImageViewerApp {
     // Ratings
     pub fn set_rating(&mut self, rating: u8) {
         if let Some(path) = self.get_current_path() {
-            self.metadata_db.set_rating(path, rating);
+            let previous_rating = self.metadata_db.get(&path).rating;
+            self.metadata_db.set_rating(path.clone(), rating);
             self.metadata_db.save();
+            
+            self.undo_history.push(FileOperation::Rate {
+                path: path.clone(),
+                rating,
+                previous_rating,
+            });
+            
             self.show_status(&format!("Rating: {}", "★".repeat(rating as usize)));
         }
     }
@@ -798,19 +835,34 @@ impl ImageViewerApp {
     // Color labels
     pub fn set_color_label(&mut self, color: ColorLabel) {
         if let Some(path) = self.get_current_path() {
-            self.metadata_db.set_color_label(path, color);
+            let previous_color_label = self.metadata_db.get(&path).color_label;
+            self.metadata_db.set_color_label(path.clone(), color);
             self.metadata_db.save();
+            
+            self.undo_history.push(FileOperation::Label {
+                path: path.clone(),
+                color_label: color,
+                previous_color_label,
+            });
         }
     }
     
     // File operations
     pub fn delete_current_image(&mut self) {
         if let Some(path) = self.get_current_path() {
+            // Backup metadata before deletion
+            let metadata_backup = if let Ok(json) = serde_json::to_string(&self.metadata_db.get(&path)) {
+                Some(json)
+            } else {
+                None
+            };
+
             if self.settings.delete_to_trash {
                 if let Ok(_) = trash::delete(&path) {
                     self.undo_history.push(FileOperation::Delete {
                         original_path: path.clone(),
-                        trash_path: None,
+                        trash_path: None, // TODO: Get actual trash path if possible
+                        metadata_backup,
                     });
                 }
             } else {
@@ -880,16 +932,83 @@ impl ImageViewerApp {
         }
     }
     
+    pub fn move_to_selected_folder(&mut self) {
+        if let Some(path) = self.get_current_path() {
+            if let Some(parent) = path.parent() {
+                let selected_folder = parent.join("selected");
+                
+                // Create the selected folder if it doesn't exist
+                if let Err(e) = std::fs::create_dir_all(&selected_folder) {
+                    self.show_status(&format!("Failed to create selected folder: {}", e));
+                    return;
+                }
+                
+                let filename = path.file_name().unwrap_or_default();
+                let dest_path = selected_folder.join(filename);
+                
+                if let Ok(_) = std::fs::rename(&path, &dest_path) {
+                    self.undo_history.push(FileOperation::Move {
+                        from: path.clone(),
+                        to: dest_path,
+                    });
+                    
+                    if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                        self.image_list.remove(idx);
+                    }
+                    self.image_cache.remove(&path);
+                    self.thumbnail_textures.remove(&path);
+                    
+                    self.apply_filter();
+                    
+                    if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
+                        self.current_index = self.filtered_list.len() - 1;
+                    }
+                    
+                    if !self.filtered_list.is_empty() {
+                        self.load_current_image();
+                    } else {
+                        self.current_texture = None;
+                        self.current_image = None;
+                    }
+                    
+                    self.show_status(&format!("Moved to {}", selected_folder.display()));
+                } else {
+                    self.show_status("Failed to move file");
+                }
+            }
+        }
+    }
+    
     pub fn undo_last_operation(&mut self) {
-        if let Some(op) = self.undo_history.pop() {
+        let current_path = self.get_current_path();
+        let op = self.undo_history.undo().cloned();
+        
+        if let Some(op) = op {
             match op {
-                FileOperation::Delete { original_path, trash_path: _ } => {
-                    // Can't easily undo trash, but show message
-                    self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                FileOperation::Delete { original_path, trash_path, metadata_backup } => {
+                    // Try to restore from trash or show message
+                    if let Some(trash_path) = trash_path {
+                        if let Ok(_) = std::fs::rename(trash_path, &original_path) {
+                            // Restore metadata if available
+                            if let Some(metadata_json) = metadata_backup {
+                                if let Ok(metadata) = serde_json::from_str::<crate::metadata::ImageMetadata>(&metadata_json) {
+                                    self.metadata_db.restore_metadata(original_path.clone(), metadata);
+                                }
+                            }
+                            self.image_list.push(original_path.clone());
+                            self.sort_images();
+                            self.apply_filter();
+                            self.show_status("Undo: File restored");
+                        } else {
+                            self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                        }
+                    } else {
+                        self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                    }
                 }
                 FileOperation::Move { from, to } => {
                     if let Ok(_) = std::fs::rename(&to, &from) {
-                        self.image_list.push(from);
+                        self.image_list.push(from.clone());
                         self.sort_images();
                         self.apply_filter();
                         self.show_status("Undo: Move reverted");
@@ -897,11 +1016,95 @@ impl ImageViewerApp {
                 }
                 FileOperation::Rename { from, to } => {
                     if let Ok(_) = std::fs::rename(&to, &from) {
-                        if let Some(pos) = self.image_list.iter().position(|p| p == &to) {
-                            self.image_list[pos] = from;
+                        if let Some(pos) = self.image_list.iter().position(|p| p == &*to) {
+                            self.image_list[pos] = from.clone();
                         }
                         self.show_status("Undo: Rename reverted");
                     }
+                }
+                FileOperation::Rotate { path, degrees, previous_rotation } => {
+                    if current_path.as_ref() == Some(&path) {
+                        self.rotation = previous_rotation;
+                        self.refresh_adjustments();
+                    }
+                    self.show_status(&format!("Undo: Rotation reverted"));
+                }
+                FileOperation::Adjust { path, previous_adjustments, .. } => {
+                    if current_path.as_ref() == Some(&path) {
+                        self.adjustments = previous_adjustments.clone();
+                        self.refresh_adjustments();
+                    }
+                    self.show_status("Undo: Adjustments reverted");
+                }
+                FileOperation::Rate { path, previous_rating, .. } => {
+                    self.metadata_db.set_rating(path.clone(), previous_rating);
+                    self.metadata_db.save();
+                    self.show_status("Undo: Rating reverted");
+                }
+                FileOperation::Label { path, previous_color_label, .. } => {
+                    self.metadata_db.set_color_label(path.clone(), previous_color_label);
+                    self.metadata_db.save();
+                    self.show_status("Undo: Label reverted");
+                }
+            }
+        }
+    }
+
+    pub fn redo_last_operation(&mut self) {
+        let current_path = self.get_current_path();
+        let op = self.undo_history.redo().cloned();
+        
+        if let Some(op) = op {
+            match op {
+                FileOperation::Delete { original_path, .. } => {
+                    // Re-delete the file
+                    if let Ok(_) = trash::delete(&original_path) {
+                        if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                            self.image_list.remove(idx);
+                        }
+                        self.apply_filter();
+                        self.show_status("Redo: File deleted again");
+                    }
+                }
+                FileOperation::Move { from, to } => {
+                    if let Ok(_) = std::fs::rename(&to, &from) {
+                        if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
+                            self.image_list[pos] = from.clone();
+                        }
+                        self.show_status("Redo: Move reapplied");
+                    }
+                }
+                FileOperation::Rename { from, to } => {
+                    if let Ok(_) = std::fs::rename(&from, &to) {
+                        if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
+                            self.image_list[pos] = to.clone();
+                        }
+                        self.show_status("Redo: Rename reapplied");
+                    }
+                }
+                FileOperation::Rotate { path, degrees, .. } => {
+                    if current_path.as_ref() == Some(&path) {
+                        self.rotation = (self.rotation + degrees as f32) % 360.0;
+                        self.refresh_adjustments();
+                    }
+                    self.show_status(&format!("Redo: Rotation reapplied"));
+                }
+                FileOperation::Adjust { path, adjustments, .. } => {
+                    if current_path.as_ref() == Some(&path) {
+                        self.adjustments = adjustments.clone();
+                        self.refresh_adjustments();
+                    }
+                    self.show_status("Redo: Adjustments reapplied");
+                }
+                FileOperation::Rate { path, rating, .. } => {
+                    self.metadata_db.set_rating(path.clone(), rating);
+                    self.metadata_db.save();
+                    self.show_status("Redo: Rating reapplied");
+                }
+                FileOperation::Label { path, color_label, .. } => {
+                    self.metadata_db.set_color_label(path.clone(), color_label);
+                    self.metadata_db.save();
+                    self.show_status("Redo: Label reapplied");
                 }
             }
         }
@@ -992,6 +1195,12 @@ impl ImageViewerApp {
         }
     }
     
+    pub fn toggle_panels(&mut self) {
+        self.panels_hidden = !self.panels_hidden;
+        // Refit the image when panels are toggled
+        self.fit_to_window_internal();
+    }
+    
     // Export
     pub fn export_current(&mut self, preset_name: &str) {
         if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
@@ -1042,6 +1251,156 @@ impl ImageViewerApp {
                 self.current_texture = Some(texture);
             }
         }
+    }
+
+    // Tab management methods
+    pub fn create_tab(&mut self, folder_path: PathBuf) {
+        let tab_name = folder_path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "New Tab".to_string());
+        
+        let tab = ImageTab {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: tab_name,
+            folder_path: folder_path.clone(),
+            image_list: Vec::new(),
+            filtered_list: Vec::new(),
+            current_index: 0,
+            zoom: 1.0,
+            target_zoom: 1.0,
+            pan_offset: Vec2::ZERO,
+            target_pan: Vec2::ZERO,
+            rotation: 0.0,
+            adjustments: ImageAdjustments::default(),
+            show_original: false,
+            view_mode: ViewMode::Single,
+            compare_index: None,
+            lightbox_columns: 4,
+            selected_indices: HashSet::new(),
+            last_selected: None,
+            search_query: String::new(),
+        };
+        
+        self.tabs.push(tab);
+        self.current_tab = self.tabs.len() - 1;
+        
+        // Load the folder for the new tab
+        self.load_folder_for_current_tab(folder_path);
+    }
+    
+    pub fn switch_to_tab(&mut self, tab_index: usize) {
+        if tab_index < self.tabs.len() {
+            // Save current tab state
+            if let Some(current_tab) = self.tabs.get_mut(self.current_tab) {
+                current_tab.image_list = self.image_list.clone();
+                current_tab.filtered_list = self.filtered_list.clone();
+                current_tab.current_index = self.current_index;
+                current_tab.zoom = self.zoom;
+                current_tab.target_zoom = self.target_zoom;
+                current_tab.pan_offset = self.pan_offset;
+                current_tab.target_pan = self.target_pan;
+                current_tab.rotation = self.rotation;
+                current_tab.adjustments = self.adjustments.clone();
+                current_tab.show_original = self.show_original;
+                current_tab.view_mode = self.view_mode;
+                current_tab.compare_index = self.compare_index;
+                current_tab.lightbox_columns = self.lightbox_columns;
+                current_tab.selected_indices = self.selected_indices.clone();
+                current_tab.last_selected = self.last_selected;
+                current_tab.search_query = self.search_query.clone();
+            }
+            
+            // Switch to new tab
+            self.current_tab = tab_index;
+            let tab = &self.tabs[tab_index];
+            
+            // Restore tab state
+            self.image_list = tab.image_list.clone();
+            self.filtered_list = tab.filtered_list.clone();
+            self.current_index = tab.current_index;
+            self.zoom = tab.zoom;
+            self.target_zoom = tab.target_zoom;
+            self.pan_offset = tab.pan_offset;
+            self.target_pan = tab.target_pan;
+            self.rotation = tab.rotation;
+            self.adjustments = tab.adjustments.clone();
+            self.show_original = tab.show_original;
+            self.view_mode = tab.view_mode;
+            self.compare_index = tab.compare_index;
+            self.lightbox_columns = tab.lightbox_columns;
+            self.selected_indices = tab.selected_indices.clone();
+            self.last_selected = tab.last_selected;
+            self.search_query = tab.search_query.clone();
+            self.current_folder = Some(tab.folder_path.clone());
+            
+            // Load current image
+            self.load_current_image();
+        }
+    }
+    
+    pub fn close_tab(&mut self, tab_index: usize) {
+        if self.tabs.len() > 1 && tab_index < self.tabs.len() {
+            self.tabs.remove(tab_index);
+            
+            if self.current_tab >= tab_index && self.current_tab > 0 {
+                self.current_tab -= 1;
+            } else if self.tabs.is_empty() {
+                self.current_tab = 0;
+            }
+            
+            // Switch to the current tab
+            if !self.tabs.is_empty() {
+                self.switch_to_tab(self.current_tab);
+            }
+        }
+    }
+    
+    pub fn load_folder_for_current_tab(&mut self, folder: PathBuf) {
+        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
+            tab.folder_path = folder.clone();
+            tab.name = folder.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| "New Tab".to_string());
+        }
+        
+        self.current_folder = Some(folder.clone());
+        self.settings.add_recent_folder(folder.clone());
+        
+        self.image_list.clear();
+        self.thumbnail_textures.clear();
+        self.thumbnail_requests.clear();
+        
+        if self.settings.include_subfolders {
+            for entry in WalkDir::new(&folder)
+                .follow_links(true)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                let path = entry.path().to_path_buf();
+                if path.is_file() && is_supported_image(&path) {
+                    self.image_list.push(path);
+                }
+            }
+        } else {
+            if let Ok(entries) = std::fs::read_dir(&folder) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && is_supported_image(&path) {
+                        self.image_list.push(path);
+                    }
+                }
+            }
+        }
+        
+        self.sort_images();
+        self.apply_filter();
+        
+        if !self.filtered_list.is_empty() {
+            self.current_index = 0;
+            self.load_current_image();
+        }
+        
+        self.show_status(&format!("Loaded {} images", self.image_list.len()));
     }
 }
 

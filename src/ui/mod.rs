@@ -33,14 +33,21 @@ impl eframe::App for ImageViewerApp {
         // Render dialogs
         self.render_dialogs(ctx);
         
+        // Render tab bar if we have multiple tabs
+        if self.tabs.len() > 1 {
+            self.render_tab_bar(ctx);
+        }
+        
         // Render UI based on view mode
         match self.view_mode {
             ViewMode::Single | ViewMode::Compare => {
                 if self.settings.show_toolbar {
                     self.render_toolbar(ctx);
                 }
-                self.render_sidebar(ctx);
-                self.render_thumbnail_bar(ctx);
+                if !self.panels_hidden {
+                    self.render_sidebar(ctx);
+                    self.render_thumbnail_bar(ctx);
+                }
                 if self.settings.show_statusbar {
                     self.render_statusbar(ctx);
                 }
@@ -214,6 +221,11 @@ impl ImageViewerApp {
                 self.delete_current_image();
             }
             
+            // Move to selected folder
+            if i.key_pressed(egui::Key::M) && !ctrl {
+                self.move_to_selected_folder();
+            }
+            
             // Ratings (with Alt modifier)
             if alt {
                 if i.key_pressed(egui::Key::Num0) { self.set_rating(0); }
@@ -246,6 +258,9 @@ impl ImageViewerApp {
             }
             if i.key_pressed(egui::Key::H) && !ctrl {
                 self.settings.show_histogram = !self.settings.show_histogram;
+            }
+            if i.key_pressed(egui::Key::P) && !ctrl && !alt {
+                self.toggle_panels();
             }
             
             // Focus peaking / Zebras
@@ -433,7 +448,7 @@ impl ImageViewerApp {
             .frame(egui::Frame::none()
                 .fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
-                let available = ui.available_size();
+                let _available = ui.available_size();
                 let thumb_size = 150.0;
                 let padding = 8.0;
 
@@ -552,23 +567,154 @@ impl ImageViewerApp {
     }
 }
 
+impl ImageViewerApp {
+    fn render_tab_bar(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("tab_bar")
+            .frame(egui::Frame::none()
+                .fill(Color32::from_rgb(25, 25, 28))
+                .inner_margin(Margin::symmetric(8.0, 4.0)))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
+                    
+                    let tab_indices: Vec<usize> = (0..self.tabs.len()).collect();
+                    
+                    for &i in &tab_indices {
+                        if i >= self.tabs.len() {
+                            continue; // Tab was removed
+                        }
+                        
+                        let tab = &self.tabs[i];
+                        let is_active = i == self.current_tab;
+                        
+                        let response = ui.add(
+                            egui::Button::new(RichText::new(&tab.name).size(12.0))
+                                .fill(if is_active {
+                                    self.settings.accent_color.to_color()
+                                } else {
+                                    Color32::from_rgb(45, 45, 50)
+                                })
+                                .stroke(if is_active {
+                                    egui::Stroke::new(1.0, Color32::WHITE)
+                                } else {
+                                    egui::Stroke::NONE
+                                })
+                        );
+                        
+                        if response.clicked() {
+                            self.switch_to_tab(i);
+                        }
+                        
+                        // Close button
+                        let close_response = ui.add(
+                            egui::Button::new("×")
+                                .fill(Color32::TRANSPARENT)
+                                .stroke(egui::Stroke::NONE)
+                                .frame(false)
+                        );
+                        
+                        if close_response.clicked() {
+                            self.close_tab(i);
+                            break; // Exit loop since tabs changed
+                        }
+                    }
+                    
+                    // Add new tab button
+                    if ui.button("+").clicked() {
+                        self.open_folder_dialog();
+                    }
+                });
+            });
+    }
+}
+
 fn apply_theme(ctx: &egui::Context, settings: &crate::settings::Settings) {
-    match settings.theme {
-        Theme::Dark => {
-            ctx.set_visuals(egui::Visuals::dark());
-        }
-        Theme::Light => {
-            ctx.set_visuals(egui::Visuals::light());
-        }
+    let mut visuals = match settings.theme {
+        Theme::Dark => egui::Visuals::dark(),
+        Theme::Light => egui::Visuals::light(),
         Theme::OLED => {
             let mut visuals = egui::Visuals::dark();
             visuals.panel_fill = Color32::BLACK;
             visuals.window_fill = Color32::BLACK;
             visuals.extreme_bg_color = Color32::BLACK;
-            ctx.set_visuals(visuals);
+            visuals
         }
-        Theme::System => {
-            ctx.set_visuals(egui::Visuals::dark());
+        Theme::System => egui::Visuals::dark(),
+        Theme::SolarizedDark => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.panel_fill = Color32::from_rgb(0, 43, 54);
+            visuals.window_fill = Color32::from_rgb(7, 54, 66);
+            visuals.widgets.inactive.bg_fill = Color32::from_rgb(7, 54, 66);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(88, 110, 117);
+            visuals.widgets.active.bg_fill = Color32::from_rgb(38, 139, 210);
+            visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(131, 148, 150);
+            visuals
         }
-    }
+        Theme::SolarizedLight => {
+            let mut visuals = egui::Visuals::light();
+            visuals.panel_fill = Color32::from_rgb(238, 232, 213);
+            visuals.window_fill = Color32::from_rgb(253, 246, 227);
+            visuals.widgets.inactive.bg_fill = Color32::from_rgb(253, 246, 227);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(238, 232, 213);
+            visuals.widgets.active.bg_fill = Color32::from_rgb(133, 153, 0);
+            visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(101, 123, 131);
+            visuals
+        }
+        Theme::HighContrast => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.widgets.inactive.fg_stroke.color = Color32::WHITE;
+            visuals.widgets.hovered.fg_stroke.color = Color32::YELLOW;
+            visuals.widgets.active.fg_stroke.color = Color32::from_rgb(255, 255, 0);
+            visuals.widgets.inactive.bg_stroke.color = Color32::WHITE;
+            visuals.widgets.hovered.bg_stroke.color = Color32::YELLOW;
+            visuals.widgets.active.bg_stroke.color = Color32::from_rgb(255, 255, 0);
+            visuals.widgets.inactive.bg_stroke.width = 2.0;
+            visuals.widgets.hovered.bg_stroke.width = 3.0;
+            visuals.widgets.active.bg_stroke.width = 4.0;
+            visuals
+        }
+        Theme::Blue => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.widgets.active.bg_fill = Color32::from_rgb(70, 130, 255);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(100, 150, 255);
+            visuals.widgets.active.fg_stroke.color = Color32::WHITE;
+            visuals
+        }
+        Theme::Purple => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.widgets.active.bg_fill = Color32::from_rgb(160, 90, 255);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(180, 110, 255);
+            visuals.widgets.active.fg_stroke.color = Color32::WHITE;
+            visuals
+        }
+        Theme::Green => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.widgets.active.bg_fill = Color32::from_rgb(50, 205, 100);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(70, 225, 120);
+            visuals.widgets.active.fg_stroke.color = Color32::WHITE;
+            visuals
+        }
+        Theme::Warm => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.panel_fill = Color32::from_rgb(30, 25, 20);
+            visuals.widgets.active.bg_fill = Color32::from_rgb(255, 150, 50);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(255, 170, 70);
+            visuals.widgets.active.fg_stroke.color = Color32::from_rgb(30, 25, 20);
+            visuals
+        }
+        Theme::Cool => {
+            let mut visuals = egui::Visuals::dark();
+            visuals.panel_fill = Color32::from_rgb(20, 25, 35);
+            visuals.widgets.active.bg_fill = Color32::from_rgb(50, 200, 220);
+            visuals.widgets.hovered.bg_fill = Color32::from_rgb(70, 220, 240);
+            visuals.widgets.active.fg_stroke.color = Color32::from_rgb(20, 25, 35);
+            visuals
+        }
+    };
+
+    // Apply accent color to active elements
+    visuals.widgets.active.bg_fill = settings.accent_color.to_color();
+    visuals.selection.bg_fill = settings.accent_color.to_color().linear_multiply(0.5);
+
+    ctx.set_visuals(visuals);
 }

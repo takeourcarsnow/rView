@@ -90,6 +90,13 @@ pub struct Settings {
     // Collections/Albums
     pub collections: Vec<Collection>,
     
+    // Bookmarks
+    pub bookmarks: Vec<Bookmark>,
+    
+    // UI Layout
+    pub panel_layout: PanelLayout,
+    pub panel_positions: HashMap<String, PanelPosition>,
+    
     // Duplicate detection
     pub duplicate_threshold: f32,
     
@@ -180,6 +187,9 @@ impl Default for Settings {
             last_file: None,
             
             collections: Vec::new(),
+            bookmarks: Vec::new(),
+            panel_layout: PanelLayout::Classic,
+            panel_positions: default_panel_positions(),
             
             duplicate_threshold: 0.95,
             
@@ -198,6 +208,14 @@ pub enum Theme {
     Light,
     OLED,
     System,
+    SolarizedDark,
+    SolarizedLight,
+    HighContrast,
+    Blue,
+    Purple,
+    Green,
+    Warm,
+    Cool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -334,6 +352,17 @@ impl ColorLabel {
         }
     }
     
+    pub fn name(&self) -> &'static str {
+        match self {
+            ColorLabel::None => "None",
+            ColorLabel::Red => "Red",
+            ColorLabel::Yellow => "Yellow",
+            ColorLabel::Green => "Green",
+            ColorLabel::Blue => "Blue",
+            ColorLabel::Purple => "Purple",
+        }
+    }
+    
     pub fn all() -> &'static [ColorLabel] {
         &[
             ColorLabel::None,
@@ -420,6 +449,38 @@ pub struct Collection {
     pub modified: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bookmark {
+    pub id: String,
+    pub name: String,
+    pub path: PathBuf,
+    pub bookmark_type: BookmarkType,
+    pub created: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BookmarkType {
+    Folder,
+    Image,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PanelLayout {
+    Classic,    // Sidebar right, thumbnails bottom
+    Modern,     // Sidebar left, thumbnails right
+    Minimal,    // No sidebar, thumbnails bottom
+    Compact,    // Everything collapsed
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PanelPosition {
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Hidden,
+}
+
 impl Collection {
     pub fn new(name: String) -> Self {
         let now = chrono::Utc::now().to_rfc3339();
@@ -429,6 +490,19 @@ impl Collection {
             images: Vec::new(),
             created: now.clone(),
             modified: now,
+        }
+    }
+}
+
+impl Bookmark {
+    pub fn new(name: String, path: PathBuf, bookmark_type: BookmarkType) -> Self {
+        let now = chrono::Utc::now().to_rfc3339();
+        Self {
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            path,
+            bookmark_type,
+            created: now,
         }
     }
 }
@@ -451,6 +525,15 @@ fn default_shortcuts() -> HashMap<String, KeyShortcut> {
     shortcuts.insert("rotate_right".to_string(), KeyShortcut { key: "R".to_string(), modifiers: vec![] });
     
     shortcuts
+}
+
+fn default_panel_positions() -> HashMap<String, PanelPosition> {
+    let mut positions = HashMap::new();
+    positions.insert("sidebar".to_string(), PanelPosition::Right);
+    positions.insert("thumbnails".to_string(), PanelPosition::Bottom);
+    positions.insert("toolbar".to_string(), PanelPosition::Top);
+    positions.insert("statusbar".to_string(), PanelPosition::Bottom);
+    positions
 }
 
 impl Settings {
@@ -485,5 +568,21 @@ impl Settings {
         if self.recent_folders.len() > self.max_recent_folders {
             self.recent_folders.truncate(self.max_recent_folders);
         }
+    }
+    
+    pub fn add_bookmark(&mut self, name: String, path: PathBuf, bookmark_type: BookmarkType) {
+        let now = chrono::Utc::now().to_rfc3339();
+        let bookmark = Bookmark {
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            path,
+            bookmark_type,
+            created: now,
+        };
+        self.bookmarks.push(bookmark);
+    }
+    
+    pub fn remove_bookmark(&mut self, id: &str) {
+        self.bookmarks.retain(|b| b.id != id);
     }
 }

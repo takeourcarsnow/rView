@@ -44,6 +44,7 @@ impl ImageViewerApp {
         let mut toggle_loupe = false;
     let mut toggle_exif = false;
     let mut toggle_sidebar = false;
+        let mut toggle_panels = false;
         let mut toggle_fullscreen = false;
         let mut toggle_slideshow = false;
         let mut show_settings = false;
@@ -192,6 +193,9 @@ impl ImageViewerApp {
                     if toggle_button(ui, "☰", "Sidebar (S)", show_sidebar).clicked() {
                         toggle_sidebar = true;
                     }
+                    if toggle_button(ui, "⊞", "Toggle all panels (P)", self.panels_hidden).clicked() {
+                        toggle_panels = true;
+                    }
                     
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -279,6 +283,7 @@ impl ImageViewerApp {
         if toggle_loupe { self.settings.loupe_enabled = !self.settings.loupe_enabled; }
         if toggle_exif { self.settings.show_exif = !self.settings.show_exif; }
         if toggle_sidebar { self.settings.show_sidebar = !self.settings.show_sidebar; }
+        if toggle_panels { self.toggle_panels(); }
         if toggle_fullscreen { self.is_fullscreen = !self.is_fullscreen; }
         if toggle_slideshow { self.toggle_slideshow(); }
         if show_settings { self.show_settings_dialog = true; }

@@ -81,20 +81,55 @@ impl MetadataDb {
         let entry = self.images.entry(path).or_default();
         entry.tags.retain(|t| t != tag);
     }
+    
+    pub fn restore_metadata(&mut self, path: PathBuf, metadata: ImageMetadata) {
+        self.images.insert(path, metadata);
+    }
 }
 
 /// Undo/Redo history for file operations
 #[derive(Debug, Clone)]
 pub enum FileOperation {
-    Delete { original_path: PathBuf, trash_path: Option<PathBuf> },
-    Move { from: PathBuf, to: PathBuf },
-    Rename { from: PathBuf, to: PathBuf },
+    Delete {
+        original_path: PathBuf,
+        trash_path: Option<PathBuf>,
+        metadata_backup: Option<String>, // JSON serialized metadata
+    },
+    Move {
+        from: PathBuf,
+        to: PathBuf,
+    },
+    Rename {
+        from: PathBuf,
+        to: PathBuf,
+    },
+    Rotate {
+        path: PathBuf,
+        degrees: i32,
+        previous_rotation: f32,
+    },
+    Adjust {
+        path: PathBuf,
+        adjustments: crate::image_loader::ImageAdjustments,
+        previous_adjustments: crate::image_loader::ImageAdjustments,
+    },
+    Rate {
+        path: PathBuf,
+        rating: u8,
+        previous_rating: u8,
+    },
+    Label {
+        path: PathBuf,
+        color_label: crate::settings::ColorLabel,
+        previous_color_label: crate::settings::ColorLabel,
+    },
 }
 
 #[derive(Debug, Default)]
 pub struct UndoHistory {
     operations: Vec<FileOperation>,
     max_size: usize,
+    current_index: usize, // For redo support
 }
 
 impl UndoHistory {
@@ -102,40 +137,87 @@ impl UndoHistory {
         Self {
             operations: Vec::new(),
             max_size,
+            current_index: 0,
         }
     }
-    
+
     pub fn push(&mut self, op: FileOperation) {
+        // Remove any operations after current index (for when user does new operation after undo)
+        self.operations.truncate(self.current_index);
+
         self.operations.push(op);
+        self.current_index = self.operations.len();
+
         if self.operations.len() > self.max_size {
             self.operations.remove(0);
+            self.current_index = self.current_index.saturating_sub(1);
         }
     }
-    
-    pub fn pop(&mut self) -> Option<FileOperation> {
-        self.operations.pop()
+
+    pub fn undo(&mut self) -> Option<&FileOperation> {
+        if self.current_index > 0 {
+            self.current_index -= 1;
+            self.operations.get(self.current_index)
+        } else {
+            None
+        }
     }
-    
+
+    pub fn redo(&mut self) -> Option<&FileOperation> {
+        if self.current_index < self.operations.len() {
+            let op = self.operations.get(self.current_index);
+            self.current_index += 1;
+            op
+        } else {
+            None
+        }
+    }
+
     pub fn can_undo(&self) -> bool {
-        !self.operations.is_empty()
+        self.current_index > 0
     }
-    
+
+    pub fn can_redo(&self) -> bool {
+        self.current_index < self.operations.len()
+    }
+
     pub fn last_operation_description(&self) -> Option<String> {
-        self.operations.last().map(|op| match op {
-            FileOperation::Delete { original_path, .. } => {
-                format!("Delete {}", original_path.file_name().unwrap_or_default().to_string_lossy())
-            }
-            FileOperation::Move { from, to } => {
-                format!("Move {} to {}", 
-                    from.file_name().unwrap_or_default().to_string_lossy(),
-                    to.parent().unwrap_or(to).display())
-            }
-            FileOperation::Rename { from, to } => {
-                format!("Rename {} to {}", 
-                    from.file_name().unwrap_or_default().to_string_lossy(),
-                    to.file_name().unwrap_or_default().to_string_lossy())
-            }
-        })
+        if self.current_index > 0 {
+            self.operations.get(self.current_index - 1).map(|op| match op {
+                FileOperation::Delete { original_path, .. } => {
+                    format!("Delete {}", original_path.file_name().unwrap_or_default().to_string_lossy())
+                }
+                FileOperation::Move { from, to } => {
+                    format!("Move {} to {}",
+                        from.file_name().unwrap_or_default().to_string_lossy(),
+                        to.parent().unwrap_or(to).display())
+                }
+                FileOperation::Rename { from, to } => {
+                    format!("Rename {} to {}",
+                        from.file_name().unwrap_or_default().to_string_lossy(),
+                        to.file_name().unwrap_or_default().to_string_lossy())
+                }
+                FileOperation::Rotate { path, degrees, .. } => {
+                    format!("Rotate {} by {}°", path.file_name().unwrap_or_default().to_string_lossy(), degrees)
+                }
+                FileOperation::Adjust { path, .. } => {
+                    format!("Adjust {}", path.file_name().unwrap_or_default().to_string_lossy())
+                }
+                FileOperation::Rate { path, rating, .. } => {
+                    format!("Rate {} with {} stars", path.file_name().unwrap_or_default().to_string_lossy(), rating)
+                }
+                FileOperation::Label { path, color_label, .. } => {
+                    format!("Label {} with {}", path.file_name().unwrap_or_default().to_string_lossy(), color_label.name())
+                }
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.operations.clear();
+        self.current_index = 0;
     }
 }
 

@@ -200,6 +200,9 @@ impl ImageViewerApp {
     }
     
     fn handle_image_input(&mut self, response: &egui::Response, ui: &egui::Ui) {
+        // Handle touch gestures
+        self.handle_touch_gestures(response, ui);
+        
         // Pan with drag
         if response.dragged() {
             let delta = response.drag_delta();
@@ -291,8 +294,44 @@ impl ImageViewerApp {
             }
         }
     }
-    
-    fn draw_overlays(&self, ui: &mut egui::Ui, image_rect: Rect) {
+        fn handle_touch_gestures(&mut self, response: &egui::Response, ui: &egui::Ui) {
+        let input = ui.input(|i| i.clone());
+        
+        // Pinch-to-zoom gesture
+        if let Some(multi_touch) = input.multi_touch() {
+            if multi_touch.zoom_delta > 1.0 {
+                // Calculate zoom factor from pinch
+                let zoom_factor = multi_touch.zoom_delta;
+                let new_zoom = (self.target_zoom * zoom_factor).clamp(0.1, 20.0);
+                
+                // Zoom towards the center of the touch points
+                let touch_center = multi_touch.start_pos;
+                let touch_rel = touch_center - response.rect.center() - self.pan_offset;
+                let zoom_change = new_zoom / self.target_zoom;
+                self.target_pan = self.pan_offset - touch_rel * (zoom_change - 1.0);
+                
+                self.target_zoom = new_zoom;
+                
+                if !self.settings.smooth_zoom {
+                    self.zoom = self.target_zoom;
+                    self.pan_offset = self.target_pan;
+                }
+            }
+        }
+        
+        // Swipe navigation (two-finger swipe)
+        if input.pointer.secondary_down() && input.pointer.primary_down() {
+            let delta = input.pointer.delta();
+            if delta.x.abs() > 50.0 { // Threshold for swipe
+                if delta.x > 0.0 {
+                    self.previous_image();
+                } else {
+                    self.next_image();
+                }
+            }
+        }
+    }
+        fn draw_overlays(&self, ui: &mut egui::Ui, image_rect: Rect) {
         // Focus peaking overlay
         if self.settings.show_focus_peaking {
             if let Some(tex) = &self.focus_peaking_texture {

@@ -2,6 +2,7 @@ use crate::app::ImageViewerApp;
 use crate::image_loader::ImageAdjustments;
 use crate::settings::ColorLabel;
 use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Rect};
+use std::path::PathBuf;
 
 impl ImageViewerApp {
     pub fn render_sidebar(&mut self, ctx: &egui::Context) {
@@ -21,6 +22,14 @@ impl ImageViewerApp {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
+                        // Folder tree
+                        self.render_folder_tree(ui);
+                        ui.add_space(12.0);
+                        
+                        // Recent files
+                        self.render_recent_files(ui);
+                        ui.add_space(12.0);
+                        
                         // Histogram
                         if self.settings.show_histogram {
                             self.render_histogram_panel(ui);
@@ -46,6 +55,144 @@ impl ImageViewerApp {
                         // Adjustments
                         if self.settings.show_adjustments {
                             self.render_adjustments_panel(ui);
+                        }
+                    });
+            });
+    }
+
+    fn render_folder_tree(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Folders").size(14.0).color(Color32::WHITE));
+        ui.add_space(4.0);
+        
+        egui::Frame::none()
+            .fill(Color32::from_rgb(25, 25, 30))
+            .rounding(Rounding::same(4.0))
+            .inner_margin(Margin::same(8.0))
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("folder_tree")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Recent folders
+                        if !self.settings.recent_folders.is_empty() {
+                            ui.label(RichText::new("Recent").size(12.0).color(Color32::GRAY));
+                            ui.add_space(2.0);
+                            
+                            let recent_folders: Vec<PathBuf> = self.settings.recent_folders.clone();
+                            
+                            for folder in &recent_folders {
+                                let is_current = self.current_folder.as_ref() == Some(folder);
+                                let folder_name = folder.file_name()
+                                    .map(|n| n.to_string_lossy().to_string())
+                                    .unwrap_or_else(|| folder.display().to_string());
+                                
+                                let response = ui.add(
+                                    egui::Button::new(RichText::new(&folder_name).size(11.0))
+                                        .fill(if is_current {
+                                            self.settings.accent_color.to_color().linear_multiply(0.3)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        })
+                                        .stroke(egui::Stroke::NONE)
+                                        .wrap()
+                                );
+                                
+                                if response.clicked() {
+                                    self.load_folder(folder.clone());
+                                }
+                            }
+                            
+                            ui.add_space(8.0);
+                        }
+                        
+                        // Bookmarks
+                        if !self.settings.bookmarks.is_empty() {
+                            ui.label(RichText::new("Bookmarks").size(12.0).color(Color32::GRAY));
+                            ui.add_space(2.0);
+                            
+                            let bookmarks: Vec<crate::settings::Bookmark> = self.settings.bookmarks.clone();
+                            
+                            for bookmark in &bookmarks {
+                                let is_current = match bookmark.bookmark_type {
+                                    crate::settings::BookmarkType::Folder => {
+                                        self.current_folder.as_ref() == Some(&bookmark.path)
+                                    }
+                                    crate::settings::BookmarkType::Image => {
+                                        self.get_current_path().as_ref() == Some(&bookmark.path)
+                                    }
+                                };
+                                
+                                let response = ui.add(
+                                    egui::Button::new(RichText::new(&bookmark.name).size(11.0))
+                                        .fill(if is_current {
+                                            self.settings.accent_color.to_color().linear_multiply(0.3)
+                                        } else {
+                                            Color32::TRANSPARENT
+                                        })
+                                        .stroke(egui::Stroke::NONE)
+                                        .wrap()
+                                );
+                                
+                                if response.clicked() {
+                                    match bookmark.bookmark_type {
+                                        crate::settings::BookmarkType::Folder => {
+                                            self.load_folder(bookmark.path.clone());
+                                        }
+                                        crate::settings::BookmarkType::Image => {
+                                            self.load_image_file(bookmark.path.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+            });
+    }
+    
+    fn render_recent_files(&mut self, ui: &mut egui::Ui) {
+        ui.label(RichText::new("Recent Files").size(14.0).color(Color32::WHITE));
+        ui.add_space(4.0);
+        
+        egui::Frame::none()
+            .fill(Color32::from_rgb(25, 25, 30))
+            .rounding(Rounding::same(4.0))
+            .inner_margin(Margin::same(8.0))
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("recent_files")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Get recent files from settings (we'll need to add this)
+                        // For now, show some example recent files
+                        let recent_files = vec![
+                            ("IMG_1234.jpg", "2 hours ago"),
+                            ("DSC_5678.CR2", "Yesterday"),
+                            ("photo_001.png", "3 days ago"),
+                        ];
+                        
+                        for (filename, time) in recent_files {
+                            ui.horizontal(|ui| {
+                                // Thumbnail placeholder
+                                let (rect, _) = ui.allocate_exact_size(Vec2::new(40.0, 40.0), egui::Sense::click());
+                                ui.painter().rect_filled(rect, Rounding::same(2.0), Color32::from_rgb(50, 50, 55));
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "📷",
+                                    egui::FontId::proportional(16.0),
+                                    Color32::GRAY,
+                                );
+                                
+                                ui.vertical(|ui| {
+                                    ui.add_space(2.0);
+                                    ui.label(RichText::new(filename).size(11.0).color(Color32::WHITE));
+                                    ui.label(RichText::new(time).size(10.0).color(Color32::GRAY));
+                                });
+                            });
+                            
+                            if ui.input(|i| i.pointer.primary_clicked()) {
+                                // Would load the file here
+                            }
                         }
                     });
             });

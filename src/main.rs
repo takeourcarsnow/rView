@@ -6,7 +6,9 @@ mod exif_data;
 mod image_cache;
 mod image_loader;
 mod metadata;
+mod profiler;
 mod settings;
+mod tests;
 mod ui;
 
 use app::ImageViewerApp;

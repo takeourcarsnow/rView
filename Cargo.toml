@@ -32,6 +32,10 @@ notify-rust = "4"
 log = "0.4"
 env_logger = "0.11"
 
+# Tracing for performance profiling
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
 # Serialization for settings
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

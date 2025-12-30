@@ -31,7 +31,7 @@ pub fn is_raw_file(path: &Path) -> bool {
 
 pub fn load_image(path: &Path) -> Result<DynamicImage> {
     if !path.exists() {
-        return Err(ViewerError::FileNotFound(path.display().to_string()));
+        return Err(ViewerError::FileNotFound { path: path.to_path_buf() });
     }
 
     if is_raw_file(path) {
@@ -43,26 +43,26 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
 
 fn load_standard_image(path: &Path) -> Result<DynamicImage> {
     image::open(path)
-        .map_err(|e| ViewerError::ImageLoadError(format!("{}: {}", path.display(), e)))
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })
 }
 
 fn load_raw_image(path: &Path) -> Result<DynamicImage> {
     let raw = rawloader::decode_file(path)
-        .map_err(|e| ViewerError::RawProcessingError(format!("{}: {}", path.display(), e)))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
     
     let source = imagepipe::ImageSource::Raw(raw);
     let mut pipeline = imagepipe::Pipeline::new_from_source(source)
-        .map_err(|e| ViewerError::RawProcessingError(format!("Pipeline error: {}", e)))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Pipeline error: {}", e) })?;
     
     let srgb = pipeline.output_8bit(None)
-        .map_err(|e| ViewerError::RawProcessingError(format!("Processing error: {}", e)))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Processing error: {}", e) })?;
     
     let width = srgb.width;
     let height = srgb.height;
     let pixels = srgb.data;
     
     let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
-        .ok_or_else(|| ViewerError::RawProcessingError("Failed to create image buffer".to_string()))?;
+        .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create image buffer".to_string() })?;
     
     Ok(DynamicImage::ImageRgb8(img))
 }
@@ -89,7 +89,7 @@ fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImag
     use std::fs::File;
     
     let file = File::open(path)
-        .map_err(|e| ViewerError::ImageLoadError(e.to_string()))?;
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
     let mut bufreader = BufReader::new(file);
     
     // Try to read EXIF data which may contain embedded thumbnail
@@ -105,23 +105,23 @@ fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImag
     
     // Use rawloader to get the embedded thumbnail
     let raw = rawloader::decode_file(path)
-        .map_err(|e| ViewerError::RawProcessingError(e.to_string()))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
     
     // Create a quick preview by processing at reduced resolution
     let source = imagepipe::ImageSource::Raw(raw);
     let mut pipeline = imagepipe::Pipeline::new_from_source(source)
-        .map_err(|e| ViewerError::RawProcessingError(e.to_string()))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
     
     // Get output - we can't pass size directly, so just get full output and resize
     let srgb = pipeline.output_8bit(None)
-        .map_err(|e| ViewerError::RawProcessingError(e.to_string()))?;
+        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
     
     let width = srgb.width;
     let height = srgb.height;
     let pixels = srgb.data;
     
     let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
-        .ok_or_else(|| ViewerError::RawProcessingError("Failed to create thumbnail buffer".to_string()))?;
+        .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create thumbnail buffer".to_string() })?;
     
     Ok(DynamicImage::ImageRgb8(img).thumbnail(max_size, max_size))
 }
@@ -357,19 +357,19 @@ pub fn export_image(
         crate::settings::ExportFormat::Jpeg => {
             let rgb = img.to_rgb8();
             let mut output = std::fs::File::create(output_path)
-                .map_err(|e| ViewerError::ExportError(e.to_string()))?;
+                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
             
             let encoder = jpeg_encoder::Encoder::new(&mut output, quality);
             encoder.encode(&rgb, rgb.width() as u16, rgb.height() as u16, jpeg_encoder::ColorType::Rgb)
-                .map_err(|e| ViewerError::ExportError(e.to_string()))?;
+                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
         }
         crate::settings::ExportFormat::Png => {
             img.save(output_path)
-                .map_err(|e| ViewerError::ExportError(e.to_string()))?;
+                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
         }
         crate::settings::ExportFormat::WebP => {
             img.save(output_path)
-                .map_err(|e| ViewerError::ExportError(e.to_string()))?;
+                .map_err(|e| ViewerError::ExportError { path: output_path.to_path_buf(), message: e.to_string() })?;
         }
     }
     
