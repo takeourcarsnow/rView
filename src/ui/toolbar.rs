@@ -15,6 +15,8 @@ impl ImageViewerApp {
         let show_zebras = self.settings.show_zebras;
         let show_grid_overlay = self.settings.show_grid_overlay;
         let loupe_enabled = self.settings.loupe_enabled;
+        let show_exif = self.settings.show_exif;
+        let show_sidebar = self.settings.show_sidebar;
         let sort_mode = self.settings.sort_mode;
         let sort_order = self.settings.sort_order;
         
@@ -40,6 +42,8 @@ impl ImageViewerApp {
         let mut toggle_zebras = false;
         let mut toggle_grid = false;
         let mut toggle_loupe = false;
+    let mut toggle_exif = false;
+    let mut toggle_sidebar = false;
         let mut toggle_fullscreen = false;
         let mut toggle_slideshow = false;
         let mut show_settings = false;
@@ -56,10 +60,10 @@ impl ImageViewerApp {
                     ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                     
                     // File operations
-                    if icon_button(ui, "📁", "Open folder (Ctrl+Shift+O)").clicked() {
+                    if icon_button(ui, "\u{1F4C2}", "Open folder (Ctrl+Shift+O)").clicked() {
                         open_folder = true;
                     }
-                    if icon_button(ui, "📄", "Open file (Ctrl+O)").clicked() {
+                    if icon_button(ui, "\u{1F4C4}", "Open file (Ctrl+O)").clicked() {
                         open_file = true;
                     }
                     
@@ -68,10 +72,10 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Navigation
-                    if icon_button(ui, "⏮", "First image (Home)").clicked() {
+                    if icon_button(ui, "|◄", "First image (Home)").clicked() {
                         go_first = true;
                     }
-                    if icon_button(ui, "◀", "Previous image (←)").clicked() {
+                    if icon_button(ui, "◄", "Previous image (←)").clicked() {
                         go_prev = true;
                     }
                     
@@ -89,10 +93,10 @@ impl ImageViewerApp {
                         }
                     }
                     
-                    if icon_button(ui, "▶", "Next image (→)").clicked() {
+                    if icon_button(ui, "►", "Next image (→)").clicked() {
                         go_next = true;
                     }
-                    if icon_button(ui, "⏭", "Last image (End)").clicked() {
+                    if icon_button(ui, "►|", "Last image (End)").clicked() {
                         go_last = true;
                     }
                     
@@ -101,7 +105,7 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Zoom controls
-                    if icon_button(ui, "➖", "Zoom out (-)").clicked() {
+                    if icon_button(ui, "−", "Zoom out (-)").clicked() {
                         zoom_out = true;
                     }
                     
@@ -113,7 +117,7 @@ impl ImageViewerApp {
                         new_zoom = Some(zoom_pct as f32 / 100.0);
                     }
                     
-                    if icon_button(ui, "➕", "Zoom in (+)").clicked() {
+                    if icon_button(ui, "+", "Zoom in (+)").clicked() {
                         zoom_in = true;
                     }
                     
@@ -137,10 +141,10 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Rotation
-                    if icon_button(ui, "↶", "Rotate left (L)").clicked() {
+                    if icon_button(ui, "⟲", "Rotate left (L)").clicked() {
                         rotate_left = true;
                     }
-                    if icon_button(ui, "↷", "Rotate right (R)").clicked() {
+                    if icon_button(ui, "⟳", "Rotate right (R)").clicked() {
                         rotate_right = true;
                     }
                     
@@ -149,13 +153,13 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // View modes
-                    if toggle_button(ui, "🖼", "Single view", view_mode == ViewMode::Single).clicked() {
+                    if toggle_button(ui, "☐", "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
-                    if toggle_button(ui, "◫", "Compare view (C)", view_mode == ViewMode::Compare).clicked() {
+                    if toggle_button(ui, "⊟", "Compare view (C)", view_mode == ViewMode::Compare).clicked() {
                         toggle_compare = true;
                     }
-                    if toggle_button(ui, "▦", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
+                    if toggle_button(ui, "⊞", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
                     
@@ -164,17 +168,29 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Photography tools
-                    if toggle_button(ui, "🎯", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
+                    if toggle_button(ui, "◎", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
                     }
-                    if toggle_button(ui, "🦓", "Zebras (Ctrl+Z)", show_zebras).clicked() {
+                    if toggle_button(ui, "▤", "Zebras (Ctrl+Z)", show_zebras).clicked() {
                         toggle_zebras = true;
                     }
-                    if toggle_button(ui, "▤", "Grid overlay", show_grid_overlay).clicked() {
+                    if toggle_button(ui, "⊞", "Grid overlay", show_grid_overlay).clicked() {
                         toggle_grid = true;
                     }
-                    if toggle_button(ui, "🔍", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
+                    if toggle_button(ui, "⌕", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
+                    }
+                    
+                    ui.add_space(8.0);
+                    toolbar_separator(ui);
+                    ui.add_space(8.0);
+                    
+                    // Panel toggles
+                    if toggle_button(ui, "ⓘ", "EXIF Info (I)", show_exif).clicked() {
+                        toggle_exif = true;
+                    }
+                    if toggle_button(ui, "☰", "Sidebar (S)", show_sidebar).clicked() {
+                        toggle_sidebar = true;
                     }
                     
                     // Right side
@@ -184,7 +200,7 @@ impl ImageViewerApp {
                             show_settings = true;
                         }
                         
-                        if icon_button(ui, "🔎", "Command palette (Ctrl+P)").clicked() {
+                        if icon_button(ui, "⌘", "Command palette (Ctrl+P)").clicked() {
                             show_command_palette = true;
                         }
                         
@@ -195,7 +211,7 @@ impl ImageViewerApp {
                         }
                         
                         // Slideshow
-                        let ss_icon = if slideshow_active { "⏸" } else { "▶" };
+                        let ss_icon = if slideshow_active { "⏸" } else { "▷" };
                         if toggle_button(ui, ss_icon, "Slideshow (Space)", slideshow_active).clicked() {
                             toggle_slideshow = true;
                         }
@@ -261,6 +277,8 @@ impl ImageViewerApp {
         }
         if toggle_grid { self.settings.show_grid_overlay = !self.settings.show_grid_overlay; }
         if toggle_loupe { self.settings.loupe_enabled = !self.settings.loupe_enabled; }
+        if toggle_exif { self.settings.show_exif = !self.settings.show_exif; }
+        if toggle_sidebar { self.settings.show_sidebar = !self.settings.show_sidebar; }
         if toggle_fullscreen { self.is_fullscreen = !self.is_fullscreen; }
         if toggle_slideshow { self.toggle_slideshow(); }
         if show_settings { self.show_settings_dialog = true; }

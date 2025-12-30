@@ -17,7 +17,7 @@ impl ImageViewerApp {
             });
     }
     
-    fn render_single_view(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+    fn render_single_view(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
         let available = ui.available_size();
         let response = ui.allocate_response(available, egui::Sense::click_and_drag());
         let rect = response.rect;
@@ -49,15 +49,38 @@ impl ImageViewerApp {
             
             // Draw overlays
             self.draw_overlays(ui, image_rect);
+            
+            // Show "Loading full resolution..." indicator for previews
+            if self.showing_preview && self.is_loading {
+                let indicator_rect = Rect::from_min_size(
+                    rect.left_top() + Vec2::new(10.0, 10.0),
+                    Vec2::new(200.0, 30.0)
+                );
+                ui.painter().rect_filled(
+                    indicator_rect, 
+                    Rounding::same(6.0), 
+                    Color32::from_rgba_unmultiplied(0, 0, 0, 200)
+                );
+                ui.painter().text(
+                    indicator_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    "⟳ Loading full resolution...",
+                    egui::FontId::proportional(12.0),
+                    Color32::from_rgb(200, 200, 200),
+                );
+            }
         } else if self.is_loading {
-            // Loading indicator
+            // Loading indicator with animation
+            let time = ui.input(|i| i.time);
+            let dots = ".".repeat(((time * 2.0) as usize % 4) + 1);
             ui.painter().text(
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
-                "Loading...",
+                format!("Loading{}", dots),
                 egui::FontId::proportional(24.0),
-                Color32::WHITE,
+                Color32::from_rgb(180, 180, 180),
             );
+            ui.ctx().request_repaint();
         } else if let Some(ref error) = self.load_error {
             // Error message
             ui.painter().text(

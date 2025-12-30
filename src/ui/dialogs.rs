@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{Theme, BackgroundColor, ThumbnailPosition, FocusPeakingColor, GridType};
-use egui::{self, Color32, RichText, Vec2, Rounding, Margin};
+use egui::{self, Color32, Vec2, Rounding, Margin};
 
 impl ImageViewerApp {
     pub fn render_dialogs(&mut self, ctx: &egui::Context) {
@@ -14,15 +14,25 @@ impl ImageViewerApp {
             return;
         }
         
-        egui::Window::new("Settings")
+        // Close on escape
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.show_settings_dialog = false;
+            return;
+        }
+        
+        let screen_rect = ctx.screen_rect();
+        let max_height = (screen_rect.height() - 100.0).max(300.0);
+        
+        egui::Window::new("⚙ Settings")
             .collapsible(false)
             .resizable(true)
-            .default_width(500.0)
-            .default_height(400.0)
+            .default_width(480.0)
+            .max_height(max_height)
             .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
+                    .max_height(max_height - 80.0)
                     .show(ui, |ui| {
                         // Theme
                         ui.heading("Appearance");
@@ -160,14 +170,16 @@ impl ImageViewerApp {
                         }
                     });
                 
-                ui.add_space(12.0);
+                ui.add_space(8.0);
                 ui.separator();
+                ui.add_space(8.0);
                 
                 ui.horizontal(|ui| {
-                    if ui.button("Close").clicked() {
+                    if ui.add_sized(Vec2::new(80.0, 28.0), egui::Button::new("✓ Close")).clicked() {
                         self.show_settings_dialog = false;
                     }
-                    if ui.button("Reset to Defaults").clicked() {
+                    ui.add_space(8.0);
+                    if ui.add_sized(Vec2::new(120.0, 28.0), egui::Button::new("↺ Reset Defaults")).clicked() {
                         self.settings = crate::settings::Settings::default();
                     }
                 });

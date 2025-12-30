@@ -1,12 +1,32 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{ThumbnailPosition, ColorLabel};
-use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Rect};
+use egui::{self, Color32, Vec2, Rounding, Margin, Rect};
 
 impl ImageViewerApp {
+    /// Pre-fetch thumbnails for items near the current view
+    fn prefetch_visible_thumbnails(&mut self, ctx: &egui::Context) {
+        // Request thumbnails for current index and nearby items
+        let start = self.current_index.saturating_sub(10);
+        let end = (self.current_index + 20).min(self.filtered_list.len());
+        
+        for display_idx in start..end {
+            if let Some(&real_idx) = self.filtered_list.get(display_idx) {
+                if let Some(path) = self.image_list.get(real_idx) {
+                    if !self.thumbnail_textures.contains_key(path) {
+                        self.request_thumbnail(path.clone(), ctx.clone());
+                    }
+                }
+            }
+        }
+    }
+    
     pub fn render_thumbnail_bar(&mut self, ctx: &egui::Context) {
-        if !self.settings.show_thumbnails {
+        if !self.settings.show_thumbnails || self.filtered_list.is_empty() {
             return;
         }
+        
+        // Pre-request thumbnails for visible items
+        self.prefetch_visible_thumbnails(ctx);
         
         let thumb_size = self.settings.thumbnail_size as f32;
         let bar_size = thumb_size + 20.0;
@@ -126,17 +146,29 @@ impl ImageViewerApp {
                         Color32::WHITE,
                     );
                 } else {
-                    // Request thumbnail to be loaded
-                    self.request_thumbnail(path.clone(), ctx.clone());
+                    // Request thumbnail to be loaded if not already requested
+                    if !self.thumbnail_requests.contains(path) {
+                        self.request_thumbnail(path.clone(), ctx.clone());
+                    }
                     
-                    // Loading indicator
+                    // Loading indicator - spinning animation
+                    let time = ui.input(|i| i.time);
+                    let angle = time * 2.0;
+                    let spinner_char = match (angle as i32) % 4 {
+                        0 => "◐",
+                        1 => "◓",
+                        2 => "◑",
+                        _ => "◒",
+                    };
                     painter.text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        "⏳",
-                        egui::FontId::proportional(16.0),
-                        Color32::GRAY,
+                        spinner_char,
+                        egui::FontId::proportional(18.0),
+                        Color32::from_rgb(100, 100, 100),
                     );
+                    // Request repaint for animation
+                    ui.ctx().request_repaint();
                 }
                 
                 // Rating stars (bottom left)

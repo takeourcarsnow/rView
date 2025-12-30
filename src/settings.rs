@@ -113,7 +113,7 @@ impl Default for Settings {
             show_thumbnails: true,
             thumbnail_size: 100.0,
             thumbnail_position: ThumbnailPosition::Bottom,
-            show_exif: false,
+            show_exif: true,
             show_histogram: false,
             show_minimap: false,
             show_toolbar: true,

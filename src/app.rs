@@ -1,6 +1,6 @@
 use crate::image_cache::ImageCache;
 use crate::image_loader::{self, is_supported_image, ImageAdjustments, SUPPORTED_EXTENSIONS};
-use crate::settings::{ColorLabel, FitMode, Settings, SortMode, ThumbnailPosition};
+use crate::settings::{ColorLabel, Settings, SortMode};
 use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory, FileOperation, RenamePattern};
 
@@ -18,6 +18,8 @@ pub enum LoaderMessage {
     ThumbnailLoaded(PathBuf, DynamicImage),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, ExifInfo),
+    /// Quick preview loaded (lower resolution, for RAW files)
+    PreviewLoaded(PathBuf, DynamicImage),
 }
 
 pub struct ImageViewerApp {
@@ -44,6 +46,8 @@ pub struct ImageViewerApp {
     pub histogram_data: Option<Vec<Vec<u32>>>,
     pub is_loading: bool,
     pub load_error: Option<String>,
+    /// Tracks if we're showing a preview (not full resolution)
+    pub showing_preview: bool,
     
     // Overlays
     pub focus_peaking_texture: Option<TextureHandle>,
@@ -63,7 +67,7 @@ pub struct ImageViewerApp {
     // Cached data
     pub image_cache: Arc<ImageCache>,
     pub thumbnail_textures: HashMap<PathBuf, egui::TextureId>,
-    thumbnail_requests: HashSet<PathBuf>,
+    pub thumbnail_requests: HashSet<PathBuf>,
     
     // Async loading
     loader_tx: Sender<LoaderMessage>,
@@ -145,6 +149,7 @@ impl ImageViewerApp {
             histogram_data: None,
             is_loading: false,
             load_error: None,
+            showing_preview: false,
             focus_peaking_texture: None,
             zebra_texture: None,
             zoom: 1.0,
@@ -390,6 +395,7 @@ impl ImageViewerApp {
             self.histogram_data = None;
             self.focus_peaking_texture = None;
             self.zebra_texture = None;
+            self.showing_preview = false;
             self.settings.last_file = Some(path.clone());
             
             // Check cache first
@@ -398,7 +404,27 @@ impl ImageViewerApp {
                 return;
             }
             
-            // Load asynchronously
+            // For RAW files, load a quick preview first then the full image
+            let is_raw = image_loader::is_raw_file(&path);
+            
+            if is_raw {
+                // Load quick preview first (smaller resolution)
+                let tx = self.loader_tx.clone();
+                let path_clone = path.clone();
+                let ctx = self.ctx.clone();
+                
+                thread::spawn(move || {
+                    // Try to load a preview-sized version first
+                    if let Ok(preview) = image_loader::load_thumbnail(&path_clone, 1920) {
+                        let _ = tx.send(LoaderMessage::PreviewLoaded(path_clone.clone(), preview));
+                        if let Some(ctx) = &ctx {
+                            ctx.request_repaint();
+                        }
+                    }
+                });
+            }
+            
+            // Load full image asynchronously
             let tx = self.loader_tx.clone();
             let path_clone = path.clone();
             let ctx = self.ctx.clone();
@@ -462,9 +488,9 @@ impl ImageViewerApp {
         self.current_texture = Some(texture);
         self.is_loading = false;
         
-        // Apply fit mode (unless maintaining zoom)
+        // Always fit to window when loading a new image (unless maintaining zoom)
         if !self.settings.maintain_zoom_on_navigate {
-            self.reset_view();
+            self.fit_to_window_internal();
         }
         
         if !self.settings.maintain_pan_on_navigate {
@@ -576,25 +602,19 @@ impl ImageViewerApp {
     }
     
     pub fn reset_view(&mut self) {
+        // Always fit to window by default
+        self.fit_to_window_internal();
+    }
+    
+    fn fit_to_window_internal(&mut self) {
         if let Some(texture) = &self.current_texture {
             let image_size = texture.size_vec2();
+            // Use a reasonable estimate of available space (will be recalculated properly in render)
             let available = Vec2::new(1200.0, 700.0);
             
-            self.target_zoom = match self.settings.fit_mode {
-                FitMode::Fit => {
-                    let scale_x = available.x / image_size.x;
-                    let scale_y = available.y / image_size.y;
-                    scale_x.min(scale_y).min(1.0)
-                }
-                FitMode::Fill => {
-                    let scale_x = available.x / image_size.x;
-                    let scale_y = available.y / image_size.y;
-                    scale_x.max(scale_y)
-                }
-                FitMode::OneToOne => 1.0,
-                FitMode::FitWidth => (available.x / image_size.x).min(1.0),
-                FitMode::FitHeight => (available.y / image_size.y).min(1.0),
-            };
+            let scale_x = available.x / image_size.x;
+            let scale_y = available.y / image_size.y;
+            self.target_zoom = scale_x.min(scale_y).min(1.0);
             
             if !self.settings.smooth_zoom {
                 self.zoom = self.target_zoom;

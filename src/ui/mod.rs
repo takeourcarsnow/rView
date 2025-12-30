@@ -1,6 +1,6 @@
 use crate::app::{ImageViewerApp, ViewMode, LoaderMessage};
-use crate::settings::{BackgroundColor, FitMode, SortMode, Theme, ThumbnailPosition, ColorLabel, GridType, FocusPeakingColor, SortOrder};
-use egui::{self, Color32, RichText, Stroke, Vec2, Rounding, Margin, Rect};
+use crate::settings::{Theme, ColorLabel};
+use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Rect};
 
 mod toolbar;
 mod sidebar;
@@ -67,9 +67,18 @@ impl ImageViewerApp {
             match msg {
                 LoaderMessage::ImageLoaded(path, image) => {
                     if self.get_current_path().as_ref() == Some(&path) {
+                        self.showing_preview = false;
                         self.set_current_image(&path, image);
                     } else {
                         self.image_cache.insert(path, image);
+                    }
+                }
+                LoaderMessage::PreviewLoaded(path, preview) => {
+                    // Only use preview if we're still waiting for this image and don't have the full one yet
+                    if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
+                        self.showing_preview = true;
+                        self.set_current_image(&path, preview);
+                        self.is_loading = true; // Keep loading indicator for full image
                     }
                 }
                 LoaderMessage::ThumbnailLoaded(path, thumb) => {
@@ -102,7 +111,35 @@ impl ImageViewerApp {
     }
     
     pub fn handle_keyboard(&mut self, ctx: &egui::Context) {
-        // Don't handle keys if a dialog is open or text input is focused
+        // Handle escape key globally to close dialogs
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if self.command_palette_open {
+                self.command_palette_open = false;
+                return;
+            }
+            if self.show_settings_dialog {
+                self.show_settings_dialog = false;
+                return;
+            }
+            if self.show_go_to_dialog {
+                self.show_go_to_dialog = false;
+                return;
+            }
+            if self.show_batch_rename_dialog {
+                self.show_batch_rename_dialog = false;
+                return;
+            }
+            if self.slideshow_active {
+                self.slideshow_active = false;
+                return;
+            }
+            if self.is_fullscreen {
+                self.is_fullscreen = false;
+                return;
+            }
+        }
+        
+        // Don't handle other keys if a dialog is open or text input is focused
         if self.show_settings_dialog || self.show_go_to_dialog || 
            self.show_batch_rename_dialog || self.command_palette_open {
             return;
@@ -161,7 +198,7 @@ impl ImageViewerApp {
             // Slideshow
             if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
                 self.toggle_slideshow();
-            } else if i.key_pressed(egui::Key::Space) || i.key_pressed(egui::Key::Escape) {
+            } else if i.key_pressed(egui::Key::Space) {
                 if self.slideshow_active {
                     self.slideshow_active = false;
                 }
@@ -170,11 +207,6 @@ impl ImageViewerApp {
             // Fullscreen
             if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
                 self.is_fullscreen = !self.is_fullscreen;
-            }
-            if i.key_pressed(egui::Key::Escape) {
-                if self.is_fullscreen {
-                    self.is_fullscreen = false;
-                }
             }
             
             // Delete
@@ -346,6 +378,19 @@ impl ImageViewerApp {
                                 .color(Color32::GRAY).size(11.0));
                         }
                         
+                        // File size from EXIF
+                        if let Some(exif) = &self.current_exif {
+                            if let Some(ref size) = exif.file_size {
+                                ui.label(RichText::new(size).color(Color32::GRAY).size(11.0));
+                            }
+                        }
+                        
+                        // Preview indicator
+                        if self.showing_preview {
+                            ui.label(RichText::new("[Preview]")
+                                .color(Color32::from_rgb(255, 200, 100)).size(11.0));
+                        }
+                        
                         // Rating
                         let metadata = self.metadata_db.get(&path);
                         if metadata.rating > 0 {
@@ -391,8 +436,7 @@ impl ImageViewerApp {
                 let available = ui.available_size();
                 let thumb_size = 150.0;
                 let padding = 8.0;
-                let cols = ((available.x - padding) / (thumb_size + padding)) as usize;
-                
+
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
