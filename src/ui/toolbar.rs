@@ -57,8 +57,9 @@ impl ImageViewerApp {
                 .fill(Color32::from_rgb(28, 28, 32))
                 .inner_margin(Margin::symmetric(8.0, 6.0)))
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                egui::ScrollArea::horizontal().show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                     
                     // File operations
                     if icon_button(ui, "\u{1F4C2}", "Open folder (Ctrl+Shift+O)").clicked() {
@@ -73,10 +74,10 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Navigation
-                    if icon_button(ui, "|◄", "First image (Home)").clicked() {
+                    if icon_button(ui, "<<", "First image (Home)").clicked() {
                         go_first = true;
                     }
-                    if icon_button(ui, "◄", "Previous image (←)").clicked() {
+                    if icon_button(ui, "<", "Previous image (←)").clicked() {
                         go_prev = true;
                     }
                     
@@ -94,10 +95,10 @@ impl ImageViewerApp {
                         }
                     }
                     
-                    if icon_button(ui, "►", "Next image (→)").clicked() {
+                    if icon_button(ui, ">", "Next image (→)").clicked() {
                         go_next = true;
                     }
-                    if icon_button(ui, "►|", "Last image (End)").clicked() {
+                    if icon_button(ui, ">>", "Last image (End)").clicked() {
                         go_last = true;
                     }
                     
@@ -154,13 +155,13 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // View modes
-                    if toggle_button(ui, "☐", "Single view", view_mode == ViewMode::Single).clicked() {
+                    if toggle_button(ui, "1", "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
-                    if toggle_button(ui, "⊟", "Compare view (C)", view_mode == ViewMode::Compare).clicked() {
+                    if toggle_button(ui, "2", "Compare view (C)", view_mode == ViewMode::Compare).clicked() {
                         toggle_compare = true;
                     }
-                    if toggle_button(ui, "⊞", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
+                    if toggle_button(ui, "G", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
                     
@@ -169,16 +170,16 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Photography tools
-                    if toggle_button(ui, "◎", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
+                    if toggle_button(ui, "FP", "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
                     }
-                    if toggle_button(ui, "▤", "Zebras (Ctrl+Z)", show_zebras).clicked() {
+                    if toggle_button(ui, "ZB", "Zebras (Ctrl+Z)", show_zebras).clicked() {
                         toggle_zebras = true;
                     }
-                    if toggle_button(ui, "⊞", "Grid overlay", show_grid_overlay).clicked() {
+                    if toggle_button(ui, "GR", "Grid overlay", show_grid_overlay).clicked() {
                         toggle_grid = true;
                     }
-                    if toggle_button(ui, "⌕", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
+                    if toggle_button(ui, "LP", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
                     }
                     
@@ -209,8 +210,7 @@ impl ImageViewerApp {
                         }
                         
                         // Fullscreen
-                        let fs_icon = if is_fullscreen { "⛶" } else { "⛶" };
-                        if toggle_button(ui, fs_icon, "Fullscreen (F11)", is_fullscreen).clicked() {
+                        if toggle_button(ui, "⛶", "Fullscreen (F11)", is_fullscreen).clicked() {
                             toggle_fullscreen = true;
                         }
                         
@@ -244,6 +244,7 @@ impl ImageViewerApp {
                     });
                 });
             });
+        });
         
         // Apply actions after UI
         if open_folder { self.open_folder_dialog(); }

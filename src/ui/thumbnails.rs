@@ -28,7 +28,7 @@ impl ImageViewerApp {
         // Pre-request thumbnails for visible items
         self.prefetch_visible_thumbnails(ctx);
         
-        let thumb_size = self.settings.thumbnail_size as f32;
+        let thumb_size = self.settings.thumbnail_size;
         let bar_size = thumb_size + 20.0;
         
         match self.settings.thumbnail_position {
@@ -80,7 +80,7 @@ impl ImageViewerApp {
     }
     
     fn render_thumbnail_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, horizontal: bool) {
-        let thumb_size = self.settings.thumbnail_size as f32;
+        let thumb_size = self.settings.thumbnail_size;
         
         if horizontal {
             egui::ScrollArea::horizontal()
@@ -109,7 +109,7 @@ impl ImageViewerApp {
             let path = self.image_list.get(real_idx).cloned();
             let is_current = display_idx == self.current_index;
             let is_selected = self.selected_indices.contains(&display_idx);
-            let tex_id = path.as_ref().and_then(|p| self.thumbnail_textures.get(p).copied());
+            let tex_id = path.as_ref().and_then(|p| self.thumbnail_textures.get(p).map(|h| h.id()));
             let metadata = path.as_ref().map(|p| self.metadata_db.get(p));
             (display_idx, path, is_current, is_selected, tex_id, metadata)
         }).collect();

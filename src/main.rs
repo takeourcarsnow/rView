@@ -22,7 +22,7 @@ fn main() -> eframe::Result<()> {
 
     // Get command line arguments for opening files/folders
     let args: Vec<String> = std::env::args().collect();
-    let initial_path = args.get(1).map(|s| std::path::PathBuf::from(s));
+    let initial_path = args.get(1).map(std::path::PathBuf::from);
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

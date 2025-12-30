@@ -7,7 +7,6 @@ pub struct Profiler {
     timers: HashMap<String, Instant>,
     measurements: HashMap<String, Vec<Duration>>,
     counters: HashMap<String, u64>,
-    enabled: bool,
 }
 
 impl Profiler {
@@ -16,43 +15,30 @@ impl Profiler {
             timers: HashMap::new(),
             measurements: HashMap::new(),
             counters: HashMap::new(),
-            enabled: cfg!(debug_assertions), // Enabled in debug mode by default
         }
-    }
-
-    pub fn set_enabled(&mut self, enabled: bool) {
-        self.enabled = enabled;
     }
 
     pub fn start_timer(&mut self, name: &str) {
-        if self.enabled {
-            self.timers.insert(name.to_string(), Instant::now());
-        }
+        self.timers.insert(name.to_string(), Instant::now());
     }
 
     pub fn end_timer(&mut self, name: &str) {
-        if self.enabled {
-            if let Some(start) = self.timers.remove(name) {
-                let duration = start.elapsed();
-                self.measurements.entry(name.to_string())
-                    .or_insert_with(Vec::new)
-                    .push(duration);
-            }
+        if let Some(start) = self.timers.remove(name) {
+            let duration = start.elapsed();
+            self.measurements.entry(name.to_string())
+                .or_default()
+                .push(duration);
         }
     }
 
     pub fn increment_counter(&mut self, name: &str) {
-        if self.enabled {
-            *self.counters.entry(name.to_string()).or_insert(0) += 1;
-        }
+        *self.counters.entry(name.to_string()).or_insert(0) += 1;
     }
 
     pub fn add_measurement(&mut self, name: &str, duration: Duration) {
-        if self.enabled {
-            self.measurements.entry(name.to_string())
-                .or_insert_with(Vec::new)
-                .push(duration);
-        }
+        self.measurements.entry(name.to_string())
+            .or_default()
+            .push(duration);
     }
 
     pub fn get_stats(&self) -> ProfilerStats {
@@ -159,43 +145,16 @@ impl LoadingDiagnostics {
     }
 }
 
-/// Global profiler instance
-pub static mut PROFILER: Option<Profiler> = None;
+use std::cell::RefCell;
+use std::thread_local;
 
-pub fn get_profiler() -> &'static mut Profiler {
-    unsafe {
-        if PROFILER.is_none() {
-            PROFILER = Some(Profiler::new());
-        }
-        PROFILER.as_mut().unwrap()
-    }
+thread_local! {
+    static PROFILER: RefCell<Profiler> = RefCell::new(Profiler::new());
 }
 
-/// RAII timer for easy profiling
-pub struct Timer {
-    name: String,
-}
-
-impl Timer {
-    pub fn new(name: &str) -> Self {
-        get_profiler().start_timer(name);
-        Self {
-            name: name.to_string(),
-        }
-    }
-}
-
-impl Drop for Timer {
-    fn drop(&mut self) {
-        get_profiler().end_timer(&self.name);
-    }
-}
-
-/// Convenience macro for timing code blocks
-#[macro_export]
-macro_rules! time_it {
-    ($name:expr, $code:block) => {{
-        let _timer = $crate::profiler::Timer::new($name);
-        $code
-    }};
+pub fn with_profiler<F, R>(f: F) -> R
+where
+    F: FnOnce(&mut Profiler) -> R,
+{
+    PROFILER.with(|p| f(&mut p.borrow_mut()))
 }

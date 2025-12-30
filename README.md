@@ -81,7 +81,23 @@ Use these to test loading performance and features.
 ### Platform-Specific Notes
 
 #### Windows
-No additional dependencies required.
+Install MSYS2 (which includes mingw-w64) using winget:
+```bash
+winget install --id MSYS2.MSYS2
+```
+
+Then use the provided `build.ps1` script to build and run:
+```powershell
+.\build.ps1
+```
+
+This script automatically sets up the PATH and runs `cargo run`.
+
+Alternatively, ensure the mingw64 bin directory is in your PATH (e.g., `C:\msys64\mingw64\bin`). If not, add it temporarily:
+```powershell
+$env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH
+cargo run
+```
 
 #### macOS
 No additional dependencies required.

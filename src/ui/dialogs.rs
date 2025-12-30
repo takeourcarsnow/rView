@@ -45,7 +45,7 @@ impl ImageViewerApp {
                                 .show_ui(ui, |ui| {
                                     ui.selectable_value(&mut self.settings.theme, Theme::Dark, "Dark");
                                     ui.selectable_value(&mut self.settings.theme, Theme::Light, "Light");
-                                    ui.selectable_value(&mut self.settings.theme, Theme::OLED, "OLED Black");
+                                    ui.selectable_value(&mut self.settings.theme, Theme::Oled, "OLED Black");
                                     ui.selectable_value(&mut self.settings.theme, Theme::System, "System");
                                 });
                         });
@@ -220,7 +220,7 @@ impl ImageViewerApp {
                             ui.label(RichText::new("Performance Timers").strong());
                             ui.add_space(2.0);
                             
-                            let profiler_stats = crate::profiler::get_profiler().get_stats();
+                            let profiler_stats = crate::profiler::with_profiler(|p| p.get_stats());
                             for (name, stats) in &profiler_stats.measurements {
                                 ui.label(format!("{}: {:.2}ms avg ({} samples)", 
                                     name, 
@@ -233,7 +233,7 @@ impl ImageViewerApp {
                             }
                             
                             if ui.button("Reset Profiler").clicked() {
-                                crate::profiler::get_profiler().reset();
+                                crate::profiler::with_profiler(|p| p.reset());
                             }
                         }
                     });

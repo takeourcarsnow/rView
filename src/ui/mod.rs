@@ -99,7 +99,7 @@ impl ImageViewerApp {
                         egui::TextureOptions::LINEAR,
                     );
                     
-                    self.thumbnail_textures.insert(path, texture.id());
+                    self.thumbnail_textures.insert(path, texture);
                 }
                 LoaderMessage::LoadError(path, error) => {
                     log::error!("Failed to load {}: {}", path.display(), error);
@@ -110,7 +110,7 @@ impl ImageViewerApp {
                 }
                 LoaderMessage::ExifLoaded(path, exif) => {
                     if self.get_current_path().as_ref() == Some(&path) {
-                        self.current_exif = Some(exif);
+                        self.current_exif = Some(*exif);
                     }
                 }
             }
@@ -205,11 +205,10 @@ impl ImageViewerApp {
             // Slideshow
             if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
                 self.toggle_slideshow();
-            } else if i.key_pressed(egui::Key::Space) {
-                if self.slideshow_active {
+            } else if i.key_pressed(egui::Key::Space)
+                && self.slideshow_active {
                     self.slideshow_active = false;
                 }
-            }
             
             // Fullscreen
             if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
@@ -492,10 +491,10 @@ impl ImageViewerApp {
                                 painter.rect_filled(rect, Rounding::same(6.0), bg_color);
                                 
                                 // Thumbnail
-                                if let Some(tex_id) = self.thumbnail_textures.get(path) {
+                                if let Some(handle) = self.thumbnail_textures.get(path) {
                                     let inner_rect = rect.shrink(4.0);
                                     painter.image(
-                                        *tex_id,
+                                        handle.id(),
                                         inner_rect,
                                         Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                                         Color32::WHITE,
@@ -632,7 +631,7 @@ fn apply_theme(ctx: &egui::Context, settings: &crate::settings::Settings) {
     let mut visuals = match settings.theme {
         Theme::Dark => egui::Visuals::dark(),
         Theme::Light => egui::Visuals::light(),
-        Theme::OLED => {
+        Theme::Oled => {
             let mut visuals = egui::Visuals::dark();
             visuals.panel_fill = Color32::BLACK;
             visuals.window_fill = Color32::BLACK;

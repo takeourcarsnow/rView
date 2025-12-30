@@ -206,7 +206,7 @@ impl Default for Settings {
 pub enum Theme {
     Dark,
     Light,
-    OLED,
+    Oled,
     System,
     SolarizedDark,
     SolarizedLight,
@@ -228,7 +228,7 @@ pub enum BackgroundColor {
 }
 
 impl BackgroundColor {
-    pub fn to_color(&self) -> egui::Color32 {
+    pub fn to_color(self) -> egui::Color32 {
         match self {
             BackgroundColor::Dark => egui::Color32::from_rgb(18, 18, 20),
             BackgroundColor::Light => egui::Color32::from_rgb(245, 245, 247),
@@ -251,7 +251,7 @@ pub enum AccentColor {
 }
 
 impl AccentColor {
-    pub fn to_color(&self) -> egui::Color32 {
+    pub fn to_color(self) -> egui::Color32 {
         match self {
             AccentColor::Blue => egui::Color32::from_rgb(70, 130, 255),
             AccentColor::Purple => egui::Color32::from_rgb(160, 90, 255),
@@ -308,7 +308,7 @@ pub enum FocusPeakingColor {
 }
 
 impl FocusPeakingColor {
-    pub fn to_color(&self) -> egui::Color32 {
+    pub fn to_color(self) -> egui::Color32 {
         match self {
             FocusPeakingColor::Red => egui::Color32::from_rgb(255, 0, 0),
             FocusPeakingColor::Green => egui::Color32::from_rgb(0, 255, 0),
@@ -341,7 +341,7 @@ pub enum ColorLabel {
 }
 
 impl ColorLabel {
-    pub fn to_color(&self) -> egui::Color32 {
+    pub fn to_color(self) -> egui::Color32 {
         match self {
             ColorLabel::None => egui::Color32::TRANSPARENT,
             ColorLabel::Red => egui::Color32::from_rgb(255, 80, 80),

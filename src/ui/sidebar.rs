@@ -61,7 +61,7 @@ impl ImageViewerApp {
     }
 
     fn render_folder_tree(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Folders").size(14.0).color(Color32::WHITE));
+        ui.label(RichText::new("File Browser").size(14.0).color(Color32::WHITE));
         ui.add_space(4.0);
         
         egui::Frame::none()
@@ -70,83 +70,144 @@ impl ImageViewerApp {
             .inner_margin(Margin::same(8.0))
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
-                    .id_salt("folder_tree")
+                    .id_salt("file_tree")
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        // Recent folders
-                        if !self.settings.recent_folders.is_empty() {
-                            ui.label(RichText::new("Recent").size(12.0).color(Color32::GRAY));
-                            ui.add_space(2.0);
+                        // Show drives/root directories
+                        #[cfg(windows)]
+                        {
+                            use std::path::Path;
                             
-                            let recent_folders: Vec<PathBuf> = self.settings.recent_folders.clone();
-                            
-                            for folder in &recent_folders {
-                                let is_current = self.current_folder.as_ref() == Some(folder);
-                                let folder_name = folder.file_name()
-                                    .map(|n| n.to_string_lossy().to_string())
-                                    .unwrap_or_else(|| folder.display().to_string());
-                                
-                                let response = ui.add(
-                                    egui::Button::new(RichText::new(&folder_name).size(11.0))
-                                        .fill(if is_current {
-                                            self.settings.accent_color.to_color().linear_multiply(0.3)
-                                        } else {
-                                            Color32::TRANSPARENT
-                                        })
-                                        .stroke(egui::Stroke::NONE)
-                                        .wrap()
-                                );
-                                
-                                if response.clicked() {
-                                    self.load_folder(folder.clone());
+                            // Windows drives
+                            for drive in b'A'..=b'Z' {
+                                let drive_str = format!("{}:\\", drive as char);
+                                let drive_path = Path::new(&drive_str);
+                                if drive_path.exists() {
+                                    self.render_tree_node(ui, drive_path.to_path_buf(), 0);
                                 }
                             }
-                            
-                            ui.add_space(8.0);
                         }
                         
-                        // Bookmarks
-                        if !self.settings.bookmarks.is_empty() {
-                            ui.label(RichText::new("Bookmarks").size(12.0).color(Color32::GRAY));
-                            ui.add_space(2.0);
-                            
-                            let bookmarks: Vec<crate::settings::Bookmark> = self.settings.bookmarks.clone();
-                            
-                            for bookmark in &bookmarks {
-                                let is_current = match bookmark.bookmark_type {
-                                    crate::settings::BookmarkType::Folder => {
-                                        self.current_folder.as_ref() == Some(&bookmark.path)
-                                    }
-                                    crate::settings::BookmarkType::Image => {
-                                        self.get_current_path().as_ref() == Some(&bookmark.path)
-                                    }
-                                };
-                                
-                                let response = ui.add(
-                                    egui::Button::new(RichText::new(&bookmark.name).size(11.0))
-                                        .fill(if is_current {
-                                            self.settings.accent_color.to_color().linear_multiply(0.3)
-                                        } else {
-                                            Color32::TRANSPARENT
-                                        })
-                                        .stroke(egui::Stroke::NONE)
-                                        .wrap()
-                                );
-                                
-                                if response.clicked() {
-                                    match bookmark.bookmark_type {
-                                        crate::settings::BookmarkType::Folder => {
-                                            self.load_folder(bookmark.path.clone());
-                                        }
-                                        crate::settings::BookmarkType::Image => {
-                                            self.load_image_file(bookmark.path.clone());
-                                        }
-                                    }
+                        #[cfg(unix)]
+                        {
+                            // Unix root
+                            self.render_tree_node(ui, PathBuf::from("/"), 0);
+                        }
+                        
+                        #[cfg(not(any(windows, unix)))]
+                        {
+                            // Fallback - show current directory
+                            if let Ok(current) = std::env::current_dir() {
+                                if let Some(parent) = current.parent() {
+                                    self.render_tree_node(ui, parent.to_path_buf(), 0);
                                 }
                             }
                         }
                     });
             });
+    }
+    
+    fn render_tree_node(&mut self, ui: &mut egui::Ui, path: PathBuf, depth: usize) {
+        if depth > 10 {
+            return; // Prevent infinite recursion
+        }
+        
+        let is_expanded = self.expanded_dirs.contains(&path);
+        let is_current_folder = self.current_folder.as_ref() == Some(&path);
+        
+        // Get directory name
+        let name = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.display().to_string());
+        
+        // Indentation
+        let indent = depth as f32 * 12.0;
+        
+        ui.horizontal(|ui| {
+            ui.add_space(indent);
+            
+            // Expand/collapse button
+            let expand_response = if path.is_dir() {
+                let icon = if is_expanded { "▼" } else { "▶" };
+                ui.add(egui::Button::new(RichText::new(icon).size(10.0))
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::NONE)
+                    .min_size(Vec2::new(16.0, 16.0)))
+            } else {
+                ui.add_space(16.0);
+                ui.separator()
+            };
+            
+            if expand_response.clicked() && path.is_dir() {
+                if is_expanded {
+                    self.expanded_dirs.remove(&path);
+                } else {
+                    self.expanded_dirs.insert(path.clone());
+                }
+            }
+            
+            // Directory/file button
+            let mut button = egui::Button::new(RichText::new(&name).size(11.0))
+                .fill(if is_current_folder {
+                    self.settings.accent_color.to_color().linear_multiply(0.3)
+                } else {
+                    Color32::TRANSPARENT
+                })
+                .stroke(egui::Stroke::NONE)
+                .wrap();
+            
+            if path.is_file() {
+                button = button.min_size(Vec2::new(0.0, 18.0));
+            }
+            
+            let response = ui.add(button);
+            
+            if response.clicked() {
+                if path.is_dir() {
+                    self.load_folder(path.clone());
+                } else if path.is_file() {
+                    self.load_image_file(path.clone());
+                }
+            }
+        });
+        
+        // Render children if expanded
+        if is_expanded && path.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&path) {
+                let mut dirs = Vec::new();
+                let mut files = Vec::new();
+                
+                for entry in entries.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        // Skip hidden directories
+                        if !entry_path.file_name()
+                            .map(|n| n.to_string_lossy().starts_with('.'))
+                            .unwrap_or(false) {
+                            dirs.push(entry_path);
+                        }
+                    } else if entry_path.is_file() {
+                        // Only show image files
+                        if crate::image_loader::is_supported_image(&entry_path) {
+                            files.push(entry_path);
+                        }
+                    }
+                }
+                
+                // Sort directories and files
+                dirs.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+                files.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+                
+                // Render directories first, then files
+                for dir_path in dirs {
+                    self.render_tree_node(ui, dir_path, depth + 1);
+                }
+                
+                for file_path in files {
+                    self.render_tree_node(ui, file_path, depth + 1);
+                }
+            }
+        }
     }
     
     fn render_recent_files(&mut self, ui: &mut egui::Ui) {

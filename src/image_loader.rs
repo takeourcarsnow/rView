@@ -136,17 +136,17 @@ pub fn generate_focus_peaking_overlay(image: &DynamicImage, threshold: f32) -> R
     for y in 1..height-1 {
         for x in 1..width-1 {
             let gx = 
-                -1.0 * gray.get_pixel(x-1, y-1).0[0] as f32 +
+                -(gray.get_pixel(x-1, y-1).0[0] as f32) +
                  1.0 * gray.get_pixel(x+1, y-1).0[0] as f32 +
                 -2.0 * gray.get_pixel(x-1, y).0[0] as f32 +
                  2.0 * gray.get_pixel(x+1, y).0[0] as f32 +
-                -1.0 * gray.get_pixel(x-1, y+1).0[0] as f32 +
+                -(gray.get_pixel(x-1, y+1).0[0] as f32) +
                  1.0 * gray.get_pixel(x+1, y+1).0[0] as f32;
                 
             let gy = 
-                -1.0 * gray.get_pixel(x-1, y-1).0[0] as f32 +
+                -(gray.get_pixel(x-1, y-1).0[0] as f32) +
                 -2.0 * gray.get_pixel(x, y-1).0[0] as f32 +
-                -1.0 * gray.get_pixel(x+1, y-1).0[0] as f32 +
+                -(gray.get_pixel(x+1, y-1).0[0] as f32) +
                  1.0 * gray.get_pixel(x-1, y+1).0[0] as f32 +
                  2.0 * gray.get_pixel(x, y+1).0[0] as f32 +
                  1.0 * gray.get_pixel(x+1, y+1).0[0] as f32;

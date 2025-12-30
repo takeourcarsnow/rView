@@ -3,7 +3,7 @@ use crate::image_loader::{self, is_supported_image, ImageAdjustments, SUPPORTED_
 use crate::settings::{ColorLabel, Settings, SortMode};
 use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory, FileOperation, RenamePattern};
-use crate::profiler::{self, CacheStats, LoadingDiagnostics};
+use crate::profiler::{CacheStats, LoadingDiagnostics};
 
 use eframe::egui::{self, Color32, TextureHandle, Vec2};
 use image::DynamicImage;
@@ -18,7 +18,7 @@ pub enum LoaderMessage {
     ImageLoaded(PathBuf, DynamicImage),
     ThumbnailLoaded(PathBuf, DynamicImage),
     LoadError(PathBuf, String),
-    ExifLoaded(PathBuf, ExifInfo),
+    ExifLoaded(PathBuf, Box<ExifInfo>),
     /// Quick preview loaded (lower resolution, for RAW files)
     PreviewLoaded(PathBuf, DynamicImage),
 }
@@ -94,8 +94,11 @@ pub struct ImageViewerApp {
     
     // Cached data
     pub image_cache: Arc<ImageCache>,
-    pub thumbnail_textures: HashMap<PathBuf, egui::TextureId>,
+    pub thumbnail_textures: HashMap<PathBuf, egui::TextureHandle>,
     pub thumbnail_requests: HashSet<PathBuf>,
+    
+    // File tree state
+    pub expanded_dirs: HashSet<PathBuf>,
     
     // Async loading
     loader_tx: Sender<LoaderMessage>,
@@ -200,6 +203,7 @@ impl ImageViewerApp {
             image_cache: Arc::new(ImageCache::new(1024)),
             thumbnail_textures: HashMap::new(),
             thumbnail_requests: HashSet::new(),
+            expanded_dirs: HashSet::new(),
             loader_tx: tx,
             loader_rx: rx,
             slideshow_active: false,
@@ -455,7 +459,7 @@ impl ImageViewerApp {
             
             thread::spawn(move || {
                 let exif = ExifInfo::from_file(&path_clone);
-                let _ = tx.send(LoaderMessage::ExifLoaded(path_clone, exif));
+                let _ = tx.send(LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
                 if let Some(ctx) = ctx {
                     ctx.request_repaint();
                 }
@@ -851,14 +855,10 @@ impl ImageViewerApp {
     pub fn delete_current_image(&mut self) {
         if let Some(path) = self.get_current_path() {
             // Backup metadata before deletion
-            let metadata_backup = if let Ok(json) = serde_json::to_string(&self.metadata_db.get(&path)) {
-                Some(json)
-            } else {
-                None
-            };
+            let metadata_backup = serde_json::to_string(&self.metadata_db.get(&path)).ok();
 
             if self.settings.delete_to_trash {
-                if let Ok(_) = trash::delete(&path) {
+                if trash::delete(&path).is_ok() {
                     self.undo_history.push(FileOperation::Delete {
                         original_path: path.clone(),
                         trash_path: None, // TODO: Get actual trash path if possible
@@ -897,7 +897,7 @@ impl ImageViewerApp {
             let filename = path.file_name().unwrap_or_default();
             let dest_path = dest_folder.join(filename);
             
-            if let Ok(_) = std::fs::rename(&path, &dest_path) {
+            if std::fs::rename(&path, &dest_path).is_ok() {
                 self.undo_history.push(FileOperation::Move {
                     from: path.clone(),
                     to: dest_path,
@@ -926,7 +926,7 @@ impl ImageViewerApp {
             let filename = path.file_name().unwrap_or_default();
             let dest_path = dest_folder.join(filename);
             
-            if let Ok(_) = std::fs::copy(&path, &dest_path) {
+            if std::fs::copy(&path, &dest_path).is_ok() {
                 self.show_status(&format!("Copied to {}", dest_folder.display()));
             }
         }
@@ -946,7 +946,7 @@ impl ImageViewerApp {
                 let filename = path.file_name().unwrap_or_default();
                 let dest_path = selected_folder.join(filename);
                 
-                if let Ok(_) = std::fs::rename(&path, &dest_path) {
+                if std::fs::rename(&path, &dest_path).is_ok() {
                     self.undo_history.push(FileOperation::Move {
                         from: path.clone(),
                         to: dest_path,
@@ -988,7 +988,7 @@ impl ImageViewerApp {
                 FileOperation::Delete { original_path, trash_path, metadata_backup } => {
                     // Try to restore from trash or show message
                     if let Some(trash_path) = trash_path {
-                        if let Ok(_) = std::fs::rename(trash_path, &original_path) {
+                        if std::fs::rename(trash_path, &original_path).is_ok() {
                             // Restore metadata if available
                             if let Some(metadata_json) = metadata_backup {
                                 if let Ok(metadata) = serde_json::from_str::<crate::metadata::ImageMetadata>(&metadata_json) {
@@ -1007,7 +1007,7 @@ impl ImageViewerApp {
                     }
                 }
                 FileOperation::Move { from, to } => {
-                    if let Ok(_) = std::fs::rename(&to, &from) {
+                    if std::fs::rename(&to, &from).is_ok() {
                         self.image_list.push(from.clone());
                         self.sort_images();
                         self.apply_filter();
@@ -1015,19 +1015,19 @@ impl ImageViewerApp {
                     }
                 }
                 FileOperation::Rename { from, to } => {
-                    if let Ok(_) = std::fs::rename(&to, &from) {
+                    if std::fs::rename(&to, &from).is_ok() {
                         if let Some(pos) = self.image_list.iter().position(|p| p == &*to) {
                             self.image_list[pos] = from.clone();
                         }
                         self.show_status("Undo: Rename reverted");
                     }
                 }
-                FileOperation::Rotate { path, degrees, previous_rotation } => {
+                FileOperation::Rotate { path, degrees: _degrees, previous_rotation } => {
                     if current_path.as_ref() == Some(&path) {
                         self.rotation = previous_rotation;
                         self.refresh_adjustments();
                     }
-                    self.show_status(&format!("Undo: Rotation reverted"));
+                    self.show_status("Undo: Rotation reverted");
                 }
                 FileOperation::Adjust { path, previous_adjustments, .. } => {
                     if current_path.as_ref() == Some(&path) {
@@ -1058,7 +1058,7 @@ impl ImageViewerApp {
             match op {
                 FileOperation::Delete { original_path, .. } => {
                     // Re-delete the file
-                    if let Ok(_) = trash::delete(&original_path) {
+                    if trash::delete(&original_path).is_ok() {
                         if let Some(&idx) = self.filtered_list.get(self.current_index) {
                             self.image_list.remove(idx);
                         }
@@ -1067,7 +1067,7 @@ impl ImageViewerApp {
                     }
                 }
                 FileOperation::Move { from, to } => {
-                    if let Ok(_) = std::fs::rename(&to, &from) {
+                    if std::fs::rename(&to, &from).is_ok() {
                         if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
                             self.image_list[pos] = from.clone();
                         }
@@ -1075,7 +1075,7 @@ impl ImageViewerApp {
                     }
                 }
                 FileOperation::Rename { from, to } => {
-                    if let Ok(_) = std::fs::rename(&from, &to) {
+                    if std::fs::rename(&from, &to).is_ok() {
                         if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
                             self.image_list[pos] = to.clone();
                         }
@@ -1087,7 +1087,7 @@ impl ImageViewerApp {
                         self.rotation = (self.rotation + degrees as f32) % 360.0;
                         self.refresh_adjustments();
                     }
-                    self.show_status(&format!("Redo: Rotation reapplied"));
+                    self.show_status("Redo: Rotation reapplied");
                 }
                 FileOperation::Adjust { path, adjustments, .. } => {
                     if current_path.as_ref() == Some(&path) {
@@ -1215,14 +1215,14 @@ impl ImageViewerApp {
                 let output_name = format!("{}{}.{}", stem, preset.suffix, ext);
                 let output_path = path.parent().unwrap_or(&path).join(output_name);
                 
-                if let Ok(_) = image_loader::export_image(
+                if image_loader::export_image(
                     image,
                     &output_path,
                     preset.format,
                     preset.quality,
                     preset.max_width,
                     preset.max_height,
-                ) {
+                ).is_ok() {
                     self.show_status(&format!("Exported to {}", output_path.display()));
                 }
             }
@@ -1381,13 +1381,11 @@ impl ImageViewerApp {
                     self.image_list.push(path);
                 }
             }
-        } else {
-            if let Ok(entries) = std::fs::read_dir(&folder) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file() && is_supported_image(&path) {
-                        self.image_list.push(path);
-                    }
+        } else if let Ok(entries) = std::fs::read_dir(&folder) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && is_supported_image(&path) {
+                    self.image_list.push(path);
                 }
             }
         }

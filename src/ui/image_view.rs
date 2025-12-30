@@ -382,7 +382,7 @@ impl ImageViewerApp {
                 painter.line_segment([egui::pos2(rect.left(), y2), egui::pos2(rect.right(), y2)], stroke);
             }
             GridType::GoldenRatio => {
-                let phi = 1.618033988749895;
+                let phi = 1.618_034;
                 
                 // Vertical
                 let x1 = rect.left() + rect.width() / phi;
