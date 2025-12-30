@@ -131,10 +131,8 @@ impl ImageViewerApp {
                             if ui.selectable_label(false, "Fit").clicked() { fit_window = true; }
                             if ui.selectable_label(false, "Fill").clicked() { fill_window = true; }
                             ui.separator();
-                            for pct in [25, 50, 100, 150, 200, 400] {
-                                if ui.selectable_label(false, format!("{}%", pct)).clicked() {
-                                    new_zoom = Some(pct as f32 / 100.0);
-                                }
+                            if ui.selectable_label(false, "100%").clicked() {
+                                new_zoom = Some(1.0);
                             }
                         });
                     

@@ -1,6 +1,71 @@
 use crate::errors::{Result, ViewerError};
 use image::{DynamicImage, ImageBuffer, RgbImage, GenericImageView, Rgba, RgbaImage};
 use std::path::Path;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
+use tokio::task;
+use rayon::ThreadPoolBuilder;
+
+lazy_static::lazy_static! {
+    static ref RAW_PROCESSING_POOL: rayon::ThreadPool = ThreadPoolBuilder::new()
+        .num_threads(2) // Limit RAW processing to 2 threads to avoid overwhelming system
+        .thread_name(|i| format!("raw-processor-{}", i))
+        .build()
+        .expect("Failed to create RAW processing thread pool");
+}
+
+// GPU-accelerated image processing
+pub struct GpuProcessor {
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+}
+
+impl GpuProcessor {
+    pub async fn new() -> Option<Self> {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::PRIMARY,
+            ..Default::default()
+        });
+
+        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            compatible_surface: None,
+            force_fallback_adapter: false,
+        }).await?;
+
+        let (device, queue) = adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                label: Some("Image Processing Device"),
+            },
+            None,
+        ).await.ok()?;
+
+        Some(Self { device, queue })
+    }
+
+    pub fn apply_brightness_contrast(&self, image: &DynamicImage, brightness: f32, contrast: f32) -> Option<DynamicImage> {
+        // For now, fall back to CPU processing if GPU fails
+        // Full GPU implementation would require shaders and complex setup
+        Some(apply_brightness_contrast_cpu(image, brightness, contrast))
+    }
+
+    pub fn calculate_histogram_gpu(&self, image: &DynamicImage) -> Option<Vec<Vec<u32>>> {
+        // GPU histogram calculation would be much faster for large images
+        // For now, fall back to CPU
+        Some(calculate_histogram(image))
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref GPU_PROCESSOR: Option<GpuProcessor> = {
+        // Try to initialize GPU processor, but don't fail if unavailable
+        tokio::runtime::Runtime::new()
+            .ok()
+            .and_then(|rt| rt.block_on(GpuProcessor::new()))
+    };
+}
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     // Standard formats
@@ -51,24 +116,26 @@ fn load_standard_image(path: &Path) -> Result<DynamicImage> {
 }
 
 fn load_raw_image(path: &Path) -> Result<DynamicImage> {
-    let raw = rawloader::decode_file(path)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
-    
-    let source = imagepipe::ImageSource::Raw(raw);
-    let mut pipeline = imagepipe::Pipeline::new_from_source(source)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Pipeline error: {}", e) })?;
-    
-    let srgb = pipeline.output_8bit(None)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Processing error: {}", e) })?;
-    
-    let width = srgb.width;
-    let height = srgb.height;
-    let pixels = srgb.data;
-    
-    let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
-        .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create image buffer".to_string() })?;
-    
-    Ok(DynamicImage::ImageRgb8(img))
+    RAW_PROCESSING_POOL.install(|| {
+        let raw = rawloader::decode_file(path)
+            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
+
+        let source = imagepipe::ImageSource::Raw(raw);
+        let mut pipeline = imagepipe::Pipeline::new_from_source(source)
+            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Pipeline error: {}", e) })?;
+
+        let srgb = pipeline.output_8bit(None)
+            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Processing error: {}", e) })?;
+
+        let width = srgb.width;
+        let height = srgb.height;
+        let pixels = srgb.data;
+
+        let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
+            .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create image buffer".to_string() })?;
+
+        Ok(DynamicImage::ImageRgb8(img))
+    })
 }
 
 pub fn generate_thumbnail(image: &DynamicImage, max_size: u32) -> DynamicImage {
@@ -405,4 +472,21 @@ pub fn get_pixel_color(image: &DynamicImage, x: u32, y: u32) -> Option<(u8, u8, 
     } else {
         None
     }
+}
+
+/// CPU-based brightness and contrast adjustment
+pub fn apply_brightness_contrast_cpu(image: &DynamicImage, brightness: f32, contrast: f32) -> DynamicImage {
+    let mut img = image.to_rgba8();
+    let factor = (259.0 * (contrast + 255.0)) / (255.0 * (259.0 - contrast));
+
+    for pixel in img.pixels_mut() {
+        for channel in 0..3 { // Only adjust RGB, leave alpha unchanged
+            let mut value = pixel[channel] as f32;
+            value = factor * (value - 128.0) + 128.0 + brightness;
+            value = value.max(0.0).min(255.0);
+            pixel[channel] = value as u8;
+        }
+    }
+
+    DynamicImage::ImageRgba8(img)
 }

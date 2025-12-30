@@ -80,6 +80,12 @@ fuzzy-matcher = "0.3"
 # Parallel processing
 rayon = "1.10"
 
+# Lazy static initialization
+lazy_static = "1.4"
+
+# GPU acceleration
+wgpu = "0.19"
+
 # Random number generation
 rand = "0.8"
 

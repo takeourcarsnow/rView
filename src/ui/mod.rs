@@ -144,7 +144,7 @@ impl ImageViewerApp {
                         LoaderMessage::ExifLoaded(path, exif) => {
                             crate::profiler::with_profiler(|p| p.increment_counter("exif_loaded"));
                             if self.get_current_path().as_ref() == Some(&path) {
-                                self.current_exif = Some(*exif);
+                                self.current_exif = Some(exif);
                             }
                         }
                     }

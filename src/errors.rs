@@ -39,6 +39,15 @@ pub enum ViewerError {
     #[error("Metadata error: {message}")]
     MetadataError { message: String },
 
+    #[error("Corrupted image file '{path}': {details}")]
+    CorruptedImage { path: PathBuf, details: String },
+
+    #[error("GPU processing error: {message}")]
+    GpuError { message: String },
+
+    #[error("Thread pool error: {message}")]
+    ThreadPoolError { message: String },
+
     #[error("IO error: {source}")]
     IoError {
         #[from]
@@ -74,7 +83,9 @@ impl ViewerError {
             ViewerError::PermissionDenied { .. } |
             ViewerError::NetworkError { .. } |
             ViewerError::Timeout { .. } |
-            ViewerError::IoError { .. }
+            ViewerError::IoError { .. } |
+            ViewerError::GpuError { .. } |
+            ViewerError::ThreadPoolError { .. }
         )
     }
 
@@ -88,10 +99,13 @@ impl ViewerError {
             ViewerError::NetworkError { .. } => "Check your internet connection and try again.",
             ViewerError::UnsupportedFormat { .. } => "This image format is not supported. Try converting it to a common format like JPEG or PNG.",
             ViewerError::ImageLoadError { .. } | ViewerError::DecodingError { .. } => "The image file may be corrupted. Try opening it in another viewer.",
+            ViewerError::CorruptedImage { .. } => "The image file appears to be corrupted. Try repairing it with image recovery software or re-downloading if applicable.",
             ViewerError::RawProcessingError { .. } => "RAW file processing failed. The file may be corrupted or use an unsupported format.",
             ViewerError::ExportError { .. } => "Export failed. Check if you have write permissions in the target directory.",
             ViewerError::Timeout { .. } => "Operation took too long. Try again or check system resources.",
             ViewerError::IoError { .. } => "File system error occurred. Check disk space and permissions.",
+            ViewerError::GpuError { .. } => "GPU processing failed. The operation will fall back to CPU processing, which may be slower.",
+            ViewerError::ThreadPoolError { .. } => "Background processing failed. Try restarting the application.",
             _ => "An unexpected error occurred.",
         };
 
@@ -113,12 +127,31 @@ impl ViewerError {
             ViewerError::CacheError { .. } => "CACHE_ERROR",
             ViewerError::SettingsError { .. } => "SETTINGS_ERROR",
             ViewerError::MetadataError { .. } => "METADATA_ERROR",
+            ViewerError::CorruptedImage { .. } => "CORRUPTED_IMAGE",
+            ViewerError::GpuError { .. } => "GPU_ERROR",
+            ViewerError::ThreadPoolError { .. } => "THREAD_POOL_ERROR",
             ViewerError::IoError { .. } => "IO_ERROR",
             ViewerError::JsonError { .. } => "JSON_ERROR",
             ViewerError::ImageProcessingError { .. } => "IMAGE_PROCESSING_ERROR",
             ViewerError::Cancelled => "CANCELLED",
             ViewerError::Timeout { .. } => "TIMEOUT",
             ViewerError::InvalidOperation { .. } => "INVALID_OPERATION",
+        }
+    }
+
+    /// Logs the error and optionally reports it for crash analysis
+    pub fn log_and_report(&self) {
+        let error_code = self.error_code();
+        let message = self.to_string();
+
+        // Log to stderr for debugging
+        eprintln!("Error [{}]: {}", error_code, message);
+
+        // For critical errors, we could send crash reports here
+        // This is a placeholder for future crash reporting implementation
+        if matches!(self, ViewerError::CorruptedImage { .. } | ViewerError::GpuError { .. } | ViewerError::ThreadPoolError { .. }) {
+            // In a real implementation, this could send anonymized crash reports
+            eprintln!("Critical error detected. Consider checking system resources or updating drivers.");
         }
     }
 }
