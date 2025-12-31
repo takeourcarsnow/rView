@@ -134,7 +134,12 @@ impl ImageViewerApp {
                             if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
                                 self.showing_preview = true;
                                 self.set_current_image(&path, preview);
-                                self.is_loading = true; // Keep loading indicator for full image
+                                // If this is a RAW file and the user disabled full-size RAW decoding, stop the loading indicator
+                                if crate::image_loader::is_raw_file(&path) && !self.settings.load_raw_full_size {
+                                    self.is_loading = false;
+                                } else {
+                                    self.is_loading = true; // Keep loading indicator for full image
+                                }
                             }
                         }
                         LoaderMessage::ThumbnailLoaded(path, thumb) => {

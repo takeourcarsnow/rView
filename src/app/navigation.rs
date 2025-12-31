@@ -168,20 +168,33 @@ impl ImageViewerApp {
             return;
         }
 
-        // For RAW files, load a quick preview first then the full image
+        // For RAW files, load a quick preview first then (optionally) the full image
         let is_raw = image_loader::is_raw_file(&path);
 
-            if is_raw {
-                // Load quick preview first (smaller resolution)
+        if is_raw {
+            // Load quick preview first (smaller resolution)
+            let path_clone = path.clone();
+            self.spawn_loader(move || {
+                image_loader::load_thumbnail(&path_clone, 1920)
+                    .ok()
+                    .map(|preview| super::LoaderMessage::PreviewLoaded(path_clone, preview))
+            });
+
+            // If user disabled full-size RAW decoding, skip spawning the full image loader
+            if !self.settings.load_raw_full_size {
+                // Still spawn EXIF loader below, but do not request the full image to save time and memory
+            } else {
+                // Spawn full image load
                 let path_clone = path.clone();
                 self.spawn_loader(move || {
-                    image_loader::load_thumbnail(&path_clone, 1920)
-                        .ok()
-                        .map(|preview| super::LoaderMessage::PreviewLoaded(path_clone, preview))
+                    Some(match image_loader::load_image(&path_clone) {
+                        Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
+                        Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+                    })
                 });
             }
-
-            // Load full image asynchronously
+        } else {
+            // Non-RAW: always load the full image
             let path_clone = path.clone();
             self.spawn_loader(move || {
                 Some(match image_loader::load_image(&path_clone) {
@@ -189,6 +202,7 @@ impl ImageViewerApp {
                     Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
                 })
             });
+        }
 
             // Load EXIF data asynchronously
             let path_clone = path.clone();
@@ -318,26 +332,41 @@ impl ImageViewerApp {
 
     fn preload_adjacent(&self) {
         let count = self.settings.preload_adjacent;
-        let mut paths = Vec::new();
+        let mut full_paths = Vec::new();
+        let mut thumb_paths = Vec::new();
 
         for i in 1..=count {
             if self.current_index + i < self.filtered_list.len() {
                 if let Some(&idx) = self.filtered_list.get(self.current_index + i) {
                     if let Some(path) = self.image_list.get(idx) {
-                        paths.push(path.clone());
+                        if crate::image_loader::is_raw_file(path) && !self.settings.load_raw_full_size {
+                            thumb_paths.push(path.clone());
+                        } else {
+                            full_paths.push(path.clone());
+                        }
                     }
                 }
             }
             if self.current_index >= i {
                 if let Some(&idx) = self.filtered_list.get(self.current_index - i) {
                     if let Some(path) = self.image_list.get(idx) {
-                        paths.push(path.clone());
+                        if crate::image_loader::is_raw_file(path) && !self.settings.load_raw_full_size {
+                            thumb_paths.push(path.clone());
+                        } else {
+                            full_paths.push(path.clone());
+                        }
                     }
                 }
             }
         }
 
-        self.image_cache.preload(paths);
+        if !full_paths.is_empty() {
+            self.image_cache.preload(full_paths);
+        }
+        if !thumb_paths.is_empty() {
+            // Preload embedded previews for RAW files (size this to a large value to get good-quality previews)
+            self.image_cache.preload_thumbnails_parallel(thumb_paths, 1920);
+        }
     }
 
     /// Ensure a thumbnail is requested: short-circuit on in-memory cache or already-requested, otherwise spawn background work
@@ -373,6 +402,7 @@ impl ImageViewerApp {
         let tx = self.loader_tx.clone();
         let size = self.settings.thumbnail_size as u32;
         let cache = Arc::clone(&self.image_cache);
+        let load_raw_full_size = self.settings.load_raw_full_size;
 
         rayon::spawn(move || {
             profiler::with_profiler(|p| p.start_timer("thumbnail_cache_lookup"));
@@ -387,10 +417,19 @@ impl ImageViewerApp {
             }
 
             profiler::with_profiler(|p| p.start_timer("thumbnail_generation"));
-            if let Ok(thumb) = image_loader::load_thumbnail(&path, size) {
-                cache.insert_thumbnail(path.clone(), thumb.clone());
-                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
-                ctx.request_repaint();
+            // If RAW files are configured to be preview-only, try only embedded thumbnail extraction
+            if image_loader::is_raw_file(&path) && !load_raw_full_size {
+                if let Ok(thumb) = image_loader::load_raw_embedded_thumbnail(&path, size) {
+                    cache.insert_thumbnail(path.clone(), thumb.clone());
+                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
+                    ctx.request_repaint();
+                }
+            } else {
+                if let Ok(thumb) = image_loader::load_thumbnail(&path, size) {
+                    cache.insert_thumbnail(path.clone(), thumb.clone());
+                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
+                    ctx.request_repaint();
+                }
             }
             profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
         });

@@ -15,6 +15,7 @@ impl ImageViewerApp {
         let show_zebras = self.settings.show_zebras;
         let show_grid_overlay = self.settings.show_grid_overlay;
         let loupe_enabled = self.settings.loupe_enabled;
+        let load_raw_full_size = self.settings.load_raw_full_size;
         let show_sidebar = self.settings.show_sidebar;
         let sort_mode = self.settings.sort_mode;
         let sort_order = self.settings.sort_order;
@@ -45,6 +46,7 @@ impl ImageViewerApp {
         let mut show_command_palette = false;
         let mut new_sort_mode: Option<SortMode> = None;
         let mut toggle_sort_order = false;
+        let mut toggle_load_raw = false;
         
         egui::TopBottomPanel::top("toolbar")
             .frame(egui::Frame::none()
@@ -161,8 +163,14 @@ impl ImageViewerApp {
                         toggle_loupe = true;
                     }
 
+                    // Toggle whether to decode full-size RAW files or only use embedded JPEG previews
+                    if toggle_button(ui, "RAW", "Load full-size RAW files (toggle). When off, only embedded JPEG previews are used.", load_raw_full_size).clicked() {
+                        toggle_load_raw = true;
+                    }
+
                     // EXIF overlay toggle (only controls overlay, not sidebar panel)
-                    if toggle_button(ui, "ⓔ", "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
+                    // Use a compact info glyph which renders reliably on most fonts
+                    if toggle_button(ui, "ℹ", "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
                         self.settings.show_exif_overlay = !self.settings.show_exif_overlay;
                     }
                     
@@ -263,16 +271,42 @@ impl ImageViewerApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
         }
 
-        if show_settings { self.show_settings_dialog = true; }
+        // Handle RAW load toggle change: flip the setting and, if enabling full RAW and current item is a RAW with only a preview, start full load
+        if toggle_load_raw {
+            self.settings.load_raw_full_size = !self.settings.load_raw_full_size;
+            if self.settings.load_raw_full_size {
+                if let Some(path) = self.get_current_path() {
+                    if crate::image_loader::is_raw_file(&path) && self.showing_preview {
+                        // Start loading the full image now
+                        self.is_loading = true;
+                        let path_clone = path.clone();
+                        self.spawn_loader(move || {
+                            Some(match crate::image_loader::load_image(&path_clone) {
+                                Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
+                                Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+                            })
+                        });
+                    }
+                }
+            }
+        }
+
         if show_command_palette { self.command_palette_open = true; }
         if let Some(mode) = new_sort_mode {
             self.settings.sort_mode = mode;
             self.sort_file_list();
         }
         if toggle_sort_order {
+            // Toggle enum and keep the legacy boolean in sync
             self.settings.sort_order = match self.settings.sort_order {
-                SortOrder::Ascending => SortOrder::Descending,
-                SortOrder::Descending => SortOrder::Ascending,
+                SortOrder::Ascending => {
+                    self.settings.sort_ascending = false;
+                    SortOrder::Descending
+                },
+                SortOrder::Descending => {
+                    self.settings.sort_ascending = true;
+                    SortOrder::Ascending
+                },
             };
             self.sort_file_list();
         }

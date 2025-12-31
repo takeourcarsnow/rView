@@ -666,37 +666,62 @@ impl ImageViewerApp {
                 display_size
             );
 
-            // Loupe circle background
-            let loupe_rect = Rect::from_center_size(*pos, Vec2::splat(loupe_size));
-
+            // Loupe circle background (draw slightly larger to hide rectangle corners)
             ui.painter().circle_filled(*pos, loupe_size / 2.0, Color32::BLACK);
 
-            // Calculate UV coordinates based on mouse position relative to image
-            if image_rect.contains(*pos) {
-                // Mouse is over the image, calculate UV coordinates
-                let relative_pos = *pos - image_rect.min;
-                let uv = relative_pos / display_size;
+            // Clamp sampling position to image to avoid disappearing when cursor is at edges
+            let sample_pos = egui::pos2(
+                pos.x.clamp(image_rect.left(), image_rect.right()),
+                pos.y.clamp(image_rect.top(), image_rect.bottom()),
+            );
 
-                // Calculate UV region for zoomed view
-                let uv_radius = (loupe_size / 2.0) / (display_size.x * loupe_zoom);
+            // Inset draw rect so image corners don't show outside the circular border
+            let draw_rect = Rect::from_center_size(*pos, Vec2::splat(loupe_size * 0.9));
 
-                let uv_min = egui::pos2(
-                    (uv.x - uv_radius).clamp(0.0, 1.0),
-                    (uv.y - uv_radius).clamp(0.0, 1.0)
-                );
-                let uv_max = egui::pos2(
-                    (uv.x + uv_radius).clamp(0.0, 1.0),
-                    (uv.y + uv_radius).clamp(0.0, 1.0)
-                );
+            // Calculate UV coordinates based on sampling position relative to image
+            let relative_pos = sample_pos - image_rect.min;
+            // Avoid division by zero
+            let display_w = if display_size.x.abs() < 1e-6 { 1.0 } else { display_size.x };
+            let display_h = if display_size.y.abs() < 1e-6 { 1.0 } else { display_size.y };
+            let uv = egui::pos2(relative_pos.x / display_w, relative_pos.y / display_h);
 
-                // Draw zoomed image portion
-                ui.painter().image(
-                    tex.id(),
-                    loupe_rect,
-                    Rect::from_min_max(uv_min, uv_max),
-                    Color32::WHITE,
-                );
+            // Calculate UV radius separately for X and Y to respect aspect ratio
+            let mut uv_radius_x = (loupe_size / 2.0) / (display_w * loupe_zoom).max(1e-6);
+            let mut uv_radius_y = (loupe_size / 2.0) / (display_h * loupe_zoom).max(1e-6);
+
+            // Ensure minimum non-zero radius to avoid degenerate uv rects
+            let min_radius_x = 1.0 / tex.size_vec2().x.max(1.0);
+            let min_radius_y = 1.0 / tex.size_vec2().y.max(1.0);
+            if uv_radius_x < min_radius_x { uv_radius_x = min_radius_x; }
+            if uv_radius_y < min_radius_y { uv_radius_y = min_radius_y; }
+
+            let mut uv_min_x = (uv.x - uv_radius_x).clamp(0.0, 1.0);
+            let mut uv_max_x = (uv.x + uv_radius_x).clamp(0.0, 1.0);
+            let mut uv_min_y = (uv.y - uv_radius_y).clamp(0.0, 1.0);
+            let mut uv_max_y = (uv.y + uv_radius_y).clamp(0.0, 1.0);
+
+            // If any axis collapsed (edge cases), expand slightly to create a tiny region
+            if uv_max_x <= uv_min_x {
+                let mid = (uv_min_x + uv_max_x) * 0.5;
+                uv_min_x = (mid - 0.005).clamp(0.0, 1.0);
+                uv_max_x = (mid + 0.005).clamp(0.0, 1.0);
             }
+            if uv_max_y <= uv_min_y {
+                let mid = (uv_min_y + uv_max_y) * 0.5;
+                uv_min_y = (mid - 0.005).clamp(0.0, 1.0);
+                uv_max_y = (mid + 0.005).clamp(0.0, 1.0);
+            }
+
+            let uv_min = egui::pos2(uv_min_x, uv_min_y);
+            let uv_max = egui::pos2(uv_max_x, uv_max_y);
+
+            // Draw zoomed image portion into inset draw rect
+            ui.painter().image(
+                tex.id(),
+                draw_rect,
+                Rect::from_min_max(uv_min, uv_max),
+                Color32::WHITE,
+            );
 
             // Border
             ui.painter().circle_stroke(*pos, loupe_size / 2.0, Stroke::new(2.0, Color32::WHITE));

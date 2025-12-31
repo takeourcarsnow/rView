@@ -239,15 +239,29 @@ impl ImageCache {
                     }
                 }
                 
-                if let Ok(thumb) = image_loader::load_thumbnail(path, size) {
-                    let size_bytes = estimate_image_size(&thumb);
-                    let mut c = cache.lock().unwrap();
-                    c.insert(path.clone(), CachedImage {
-                        image: thumb,
-                        last_access: std::time::Instant::now(),
-                        size_bytes,
-                        priority: CachePriority::Low, // Thumbnails have lower priority
-                    });
+                // For RAW files, only attempt to extract embedded JPEG thumbnails to avoid heavy RAW decoding here
+                if image_loader::is_raw_file(path) {
+                    if let Ok(thumb) = image_loader::load_raw_embedded_thumbnail(path, size) {
+                        let size_bytes = estimate_image_size(&thumb);
+                        let mut c = cache.lock().unwrap();
+                        c.insert(path.clone(), CachedImage {
+                            image: thumb,
+                            last_access: std::time::Instant::now(),
+                            size_bytes,
+                            priority: CachePriority::Low, // Thumbnails have lower priority
+                        });
+                    }
+                } else {
+                    if let Ok(thumb) = image_loader::load_thumbnail(path, size) {
+                        let size_bytes = estimate_image_size(&thumb);
+                        let mut c = cache.lock().unwrap();
+                        c.insert(path.clone(), CachedImage {
+                            image: thumb,
+                            last_access: std::time::Instant::now(),
+                            size_bytes,
+                            priority: CachePriority::Low, // Thumbnails have lower priority
+                        });
+                    }
                 }
             });
         });

@@ -86,8 +86,10 @@ pub struct Settings {
     // Loupe
     pub loupe_size: f32,
     pub loupe_zoom: f32,
+    /// If false, RAW files will not be decoded to full resolution; only embedded JPEG previews will be used
+    pub load_raw_full_size: bool,
     pub loupe_enabled: bool,
-}
+} 
 
 impl Default for Settings {
     fn default() -> Self {
@@ -159,6 +161,7 @@ impl Default for Settings {
             
             loupe_size: 200.0,
             loupe_zoom: 2.0,
+            load_raw_full_size: true,
             loupe_enabled: false,
         }
     }

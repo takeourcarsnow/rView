@@ -107,47 +107,50 @@ fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
     Ok(generate_thumbnail(&image, max_size))
 }
 
-/// Load embedded JPEG thumbnail from RAW file (very fast)
-fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImage> {
-    use std::io::BufReader;
+/// Load embedded JPEG thumbnail from RAW file (very fast). This version attempts to extract an embedded JPEG via EXIF tags
+/// but does NOT fall back to full RAW decoding to avoid expensive or unsafe raw processing here.
+pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImage> {
+    use std::io::{BufReader, Read, Seek, SeekFrom};
     use std::fs::File;
-    
+
     let file = File::open(path)
         .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
-    let mut bufreader = BufReader::new(file);
-    
-    // Try to read EXIF data which may contain embedded thumbnail
+    let mut bufreader = BufReader::new(&file);
+
+    // Try to read EXIF data which may contain an embedded JPEG thumbnail with offset/length fields
     if let Ok(exif) = exif::Reader::new().read_from_container(&mut bufreader) {
+        let mut offset: Option<u64> = None;
+        let mut length: Option<u64> = None;
         for field in exif.fields() {
             if field.tag == exif::Tag::JPEGInterchangeFormat {
-                // Found embedded JPEG - this approach works for some RAW formats
-                // Fall through to rawloader approach
-                break;
+                if let Some(off) = field.value.get_uint(0) {
+                    offset = Some(off as u64);
+                }
+            }
+            if field.tag == exif::Tag::JPEGInterchangeFormatLength {
+                if let Some(len) = field.value.get_uint(0) {
+                    length = Some(len as u64);
+                }
+            }
+        }
+
+        if let (Some(off), Some(len)) = (offset, length) {
+            // Read embedded JPEG bytes directly
+            let mut f = File::open(path)
+                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+            f.seek(SeekFrom::Start(off))
+                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+            let mut buf = vec![0u8; len as usize];
+            f.read_exact(&mut buf)
+                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+            if let Ok(img) = image::load_from_memory(&buf) {
+                return Ok(img.thumbnail(max_size, max_size));
             }
         }
     }
-    
-    // Use rawloader to get the embedded thumbnail
-    let raw = rawloader::decode_file(path)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
-    
-    // Create a quick preview by processing at reduced resolution
-    let source = imagepipe::ImageSource::Raw(raw);
-    let mut pipeline = imagepipe::Pipeline::new_from_source(source)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
-    
-    // Get output - we can't pass size directly, so just get full output and resize
-    let srgb = pipeline.output_8bit(None)
-        .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
-    
-    let width = srgb.width;
-    let height = srgb.height;
-    let pixels = srgb.data;
-    
-    let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
-        .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create thumbnail buffer".to_string() })?;
-    
-    Ok(DynamicImage::ImageRgb8(img).thumbnail(max_size, max_size))
+
+    // No embedded JPEG found; return error so callers can decide whether to attempt full RAW decoding
+    Err(ViewerError::ImageLoadError { path: path.to_path_buf(), message: "No embedded thumbnail found".to_string() })
 }
 
 // Focus peaking - detect edges/sharp areas

@@ -132,7 +132,8 @@ impl ImageViewerApp {
                                     ui.selectable_value(&mut self.settings.grid_type, GridType::Center, "Center");
                                 });
                         });
-                        
+                        // RAW loading option: use embedded previews only to avoid heavy RAW decoding
+                        ui.checkbox(&mut self.settings.load_raw_full_size, "Load full-size RAW files (decode to full resolution). If unchecked, only embedded JPEG previews are used");                        
                         ui.add_space(12.0);
                         ui.heading("Slideshow");
                         ui.add_space(4.0);
