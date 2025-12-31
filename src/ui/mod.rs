@@ -139,6 +139,15 @@ impl ImageViewerApp {
                                 }
                             }
                         }
+                        LoaderMessage::ProgressiveLoaded(path, progressive) => {
+                            crate::profiler::with_profiler(|p| p.increment_counter("progressive_loaded"));
+                            // Use progressive image if we're still waiting for the full image
+                            if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
+                                self.showing_preview = true;
+                                self.set_current_image(&path, progressive);
+                                // Keep loading indicator for full image
+                            }
+                        }
                         LoaderMessage::ThumbnailLoaded(path, thumb) => {
                             crate::profiler::with_profiler(|p| p.increment_counter("thumbnails_loaded"));
                             let size = [thumb.width() as usize, thumb.height() as usize];

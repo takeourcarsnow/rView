@@ -31,6 +31,7 @@ impl GpuProcessor {
                         label: Some("image_viewer_device"),
                         required_features: wgpu::Features::empty(),
                         required_limits: wgpu::Limits::downlevel_defaults(),
+                        memory_hints: wgpu::MemoryHints::default(),
                     },
                     None,
                 )
@@ -60,13 +61,20 @@ impl GpuProcessor {
             packed.push(packed_pixel);
         }
 
-        // Shader WGSL: simple pipeline applying exposure/brightness/contrast/saturation
+        // Shader WGSL: comprehensive image adjustments
         let shader_source = r#"
 struct Params {
     exposure : f32,
     brightness : f32,
     contrast : f32,
     saturation : f32,
+    highlights : f32,
+    shadows : f32,
+    temperature : f32,
+    tint : f32,
+    blacks : f32,
+    whites : f32,
+    sharpening : f32,
     width : u32,
     height : u32,
 };
@@ -99,10 +107,28 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     }
 
     var c = unpack_u32(input_pixels[idx]); // rgba in [0,1]
+    var rgb = c.xyz;
 
     // Exposure (stops): multiply
     let exposure_mult = pow(2.0, params.exposure);
-    var rgb = c.xyz * exposure_mult;
+    rgb = rgb * exposure_mult;
+
+    // Blacks adjustment (lift shadows)
+    rgb = rgb + vec3<f32>(params.blacks * 0.1);
+
+    // Whites adjustment (reduce highlights)
+    let white_factor = 1.0 - params.whites * 0.1;
+    rgb = rgb * white_factor;
+
+    // Shadows adjustment (gamma-like curve for shadows)
+    let shadow_lift = params.shadows * 0.2;
+    rgb = mix(rgb, pow(rgb, vec3<f32>(1.0 - shadow_lift)), step(0.0, -shadow_lift));
+
+    // Highlights adjustment (compress highlights)
+    let highlight_compress = params.highlights * 0.3;
+    let luminance = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+    let highlight_mask = smoothstep(0.5, 1.0, luminance);
+    rgb = mix(rgb, rgb * (1.0 - highlight_compress * highlight_mask), step(0.0, highlight_compress));
 
     // Brightness (mapped -100..100 -> -1..1)
     rgb = rgb + vec3<f32>(params.brightness / 100.0);
@@ -110,9 +136,40 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     // Contrast: params.contrast is multiplier (0..inf)
     rgb = ((rgb - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5));
 
+    // Temperature adjustment (blue/yellow shift)
+    if (params.temperature > 0.0) {
+        // Warmer: reduce blue, increase red/yellow
+        rgb.x = rgb.x + params.temperature * 0.1; // more red
+        rgb.y = rgb.y + params.temperature * 0.05; // more green
+        rgb.z = rgb.z - params.temperature * 0.08; // less blue
+    } else {
+        // Cooler: increase blue, reduce red/yellow
+        rgb.x = rgb.x + params.temperature * 0.08; // less red
+        rgb.y = rgb.y + params.temperature * 0.05; // less green
+        rgb.z = rgb.z - params.temperature * 0.1; // more blue
+    }
+
+    // Tint adjustment (green/magenta shift)
+    if (params.tint > 0.0) {
+        // More magenta: increase red and blue
+        rgb.x = rgb.x + params.tint * 0.05;
+        rgb.z = rgb.z + params.tint * 0.05;
+    } else {
+        // More green: increase green
+        rgb.y = rgb.y - params.tint * 0.08;
+    }
+
     // Saturation: convert to luma, mix
     let gray = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
     rgb = mix(vec3<f32>(gray), rgb, params.saturation);
+
+    // Basic sharpening (unsharp mask approximation)
+    if (params.sharpening > 0.0) {
+        // This is a simplified sharpening - in a real implementation,
+        // we'd need access to neighboring pixels
+        let sharpened = rgb + (rgb - vec3<f32>(gray)) * params.sharpening * 0.5;
+        rgb = mix(rgb, sharpened, params.sharpening);
+    }
 
     // Clamp
     rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
@@ -149,6 +206,13 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             brightness: f32,
             contrast: f32,
             saturation: f32,
+            highlights: f32,
+            shadows: f32,
+            temperature: f32,
+            tint: f32,
+            blacks: f32,
+            whites: f32,
+            sharpening: f32,
             width: u32,
             height: u32,
         }
@@ -158,6 +222,13 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             brightness: adj.brightness,
             contrast: adj.contrast,
             saturation: adj.saturation,
+            highlights: adj.highlights,
+            shadows: adj.shadows,
+            temperature: adj.temperature,
+            tint: adj.tint,
+            blacks: adj.blacks,
+            whites: adj.whites,
+            sharpening: adj.sharpening,
             width,
             height,
         };
@@ -239,6 +310,8 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
         });
 
         // Command encoder

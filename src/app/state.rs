@@ -18,6 +18,7 @@ use crate::gpu::GpuProcessor;
 pub enum LoaderMessage {
     ImageLoaded(PathBuf, DynamicImage),
     PreviewLoaded(PathBuf, DynamicImage),
+    ProgressiveLoaded(PathBuf, DynamicImage),
     ThumbnailLoaded(PathBuf, DynamicImage),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, Box<ExifInfo>),
@@ -48,7 +49,6 @@ pub struct ImageViewerApp {
 
     // Multi-selection
     pub selected_indices: HashSet<usize>,
-    pub last_selected: Option<usize>,
 
     // Current image state
     pub current_texture: Option<TextureHandle>,
@@ -101,7 +101,6 @@ pub struct ImageViewerApp {
 
     // View modes
     pub view_mode: ViewMode,
-    pub lightbox_columns: usize,
 
     // Dialogs
     pub show_settings_dialog: bool,
@@ -172,7 +171,6 @@ impl ImageViewerApp {
             current_index: 0,
             current_folder: None,
             selected_indices: HashSet::new(),
-            last_selected: None,
             current_texture: None,
             current_image: None,
             current_exif: None,
@@ -202,7 +200,6 @@ impl ImageViewerApp {
             slideshow_timer: 0.0,
             is_fullscreen: false,
             view_mode: ViewMode::Single,
-            lightbox_columns: 4,
             show_settings_dialog: false,
             show_go_to_dialog: false,
             go_to_input: String::new(),

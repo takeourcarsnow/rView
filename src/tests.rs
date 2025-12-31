@@ -158,6 +158,12 @@ mod unit_tests {
         let user_msg = error.user_message();
         assert!(user_msg.contains("restarting the application"));
     }
+
+    #[test]
+    fn test_logging_initialization() {
+        // Ensure logging/tracing initialization runs without panic
+        crate::logging::init_tracing(false);
+    }
 }
 
 #[cfg(test)]
@@ -231,6 +237,97 @@ mod integration_tests {
         assert!(stats.image_count > 0);
         assert!(stats.image_size_bytes > 0);
     }
+
+    #[test]
+    fn test_cache_eviction_by_memory() {
+        use crate::image_cache::ImageCache;
+        use std::path::PathBuf;
+        use image::{DynamicImage, RgbaImage, Rgba};
+
+        // 1 MB cache
+        let cache = ImageCache::new(1);
+
+        // Each image is ~512x512x4 = 1,048,576 bytes (~1MB)
+        let img = DynamicImage::ImageRgba8(RgbaImage::from_pixel(512, 512, Rgba([10, 20, 30, 255])));
+
+        cache.insert(PathBuf::from("img1.jpg"), img.clone());
+        cache.insert(PathBuf::from("img2.jpg"), img.clone());
+
+        let stats = cache.get_stats();
+
+        // Ensure total tracked size does not exceed configured cache size
+        assert!(stats.image_size_bytes <= 1 * 1024 * 1024, "Cache exceeded max size: {}", stats.image_size_bytes);
+    }
+
+    #[test]
+    fn test_thumbnail_disk_persistence() {
+        use crate::image_cache::ImageCache;
+        use tempfile::TempDir;
+        use image::{DynamicImage, RgbaImage, Rgba};
+
+        let tmp = TempDir::new().unwrap();
+        let key_path = tmp.path().join("test_image.jpg");
+
+        let cache = ImageCache::new(10);
+
+        let thumb = DynamicImage::ImageRgba8(RgbaImage::from_pixel(16, 16, Rgba([100, 150, 200, 255])));
+        // Ensure the source file exists so the cache key generation which depends on file metadata works.
+        thumb.save(&key_path).unwrap();
+        cache.insert_thumbnail(key_path.clone(), thumb.clone());
+
+        // Ensure thumbnail exists in-memory
+        let stats = cache.get_stats();
+        assert!(stats.thumbnail_count >= 1);
+
+        // Clear in-memory caches and verify load from disk succeeds
+        cache.clear();
+        let loaded = cache.get_thumbnail(&key_path);
+        assert!(loaded.is_some(), "Failed to load thumbnail from disk cache");
+    }
+
+    #[test]
+    fn test_preload_thumbnails_parallel() {
+        use crate::image_cache::ImageCache;
+        use tempfile::TempDir;
+        use std::path::PathBuf;
+        use std::thread;
+        use std::time::{Duration, Instant};
+        use image::{DynamicImage, RgbaImage, Rgba};
+
+        let tmp = TempDir::new().unwrap();
+        let mut paths = Vec::new();
+
+        for i in 0..4 {
+            let p = tmp.path().join(format!("f{}.png", i));
+            let img = DynamicImage::ImageRgba8(RgbaImage::from_pixel(64, 64, Rgba([i as u8 * 10, 100, 120, 255])));
+            img.save(&p).unwrap();
+            paths.push(p);
+        }
+
+        let cache = ImageCache::new(10);
+        let paths_clone: Vec<PathBuf> = paths.clone();
+
+        cache.preload_thumbnails_parallel(paths.clone(), 64);
+
+        // Wait until thumbnails are generated (timeout after 2s)
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_secs(2) {
+            let mut all_ok = true;
+            for p in &paths_clone {
+                if cache.get_thumbnail(p).is_none() {
+                    all_ok = false;
+                    break;
+                }
+            }
+            if all_ok { return; }
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        // Final check
+        for p in &paths_clone {
+            assert!(cache.get_thumbnail(p).is_some(), "Thumbnail not generated for {:?}", p);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -238,11 +335,13 @@ mod benchmark_tests {
     // benching disabled: test crate/bench unsupported in stable
 
     #[ignore]
+    #[allow(dead_code)]
     fn bench_cache_operations() {
         // bench disabled on stable; kept for reference
     }
 
     #[ignore]
+    #[allow(dead_code)]
     fn bench_error_creation() {
         // bench disabled on stable; kept for reference
     }

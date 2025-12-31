@@ -11,19 +11,22 @@ mod settings;
 mod tests;
 mod gpu;
 mod ui;
+mod logging;
 
 use app::ImageViewerApp;
 use eframe::egui;
 
 fn main() -> eframe::Result<()> {
-    // Initialize logging
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn"))
-        .format_timestamp(None)
-        .init();
-
-    // Get command line arguments for opening files/folders
+    // Get command line arguments for opening files/folders and detect debug flag
     let args: Vec<String> = std::env::args().collect();
-    let initial_path = args.get(1).map(std::path::PathBuf::from);
+    let debug_flag = args.iter().any(|a| a == "--debug" || a == "-d");
+    logging::init_tracing(debug_flag);
+
+    // Determine initial path (first non-flag argument that's not the program name)
+    let initial_path = args.iter()
+        .skip(1)
+        .find(|a| !a.starts_with('-'))
+        .map(|s| std::path::PathBuf::from(s));
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

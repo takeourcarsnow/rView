@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::ColorLabel;
-use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Rect};
+use egui::{self, Color32, RichText, Vec2, Rounding, Margin};
 use std::path::PathBuf;
 
 impl ImageViewerApp {
@@ -273,11 +273,11 @@ impl ImageViewerApp {
     fn render_minimap(&self, ui: &mut egui::Ui) {
         collapsible_header(ui, "Navigator", true, |ui| {
             let size = 150.0;
-            let (response, painter) = ui.allocate_painter(
+            let (response, _painter) = ui.allocate_painter(
                 Vec2::splat(size),
                 egui::Sense::click_and_drag()
             );
-            let rect = response.rect;
+            let _rect = response.rect;
         });
     }
 

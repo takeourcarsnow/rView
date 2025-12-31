@@ -190,7 +190,21 @@ impl ImageViewerApp {
                 });
             }
         } else {
-            // Non-RAW: always load the full image
+            // Non-RAW: load progressive versions for better UX
+            // First load a smaller preview version
+            let path_clone = path.clone();
+            self.spawn_loader(move || {
+                match image_loader::load_image(&path_clone) {
+                    Ok(full_image) => {
+                        // Create a smaller preview version (max 1920px on longest side)
+                        let preview = image_loader::generate_thumbnail(&full_image, 1920);
+                        Some(super::LoaderMessage::ProgressiveLoaded(path_clone.clone(), preview))
+                    }
+                    Err(e) => Some(super::LoaderMessage::LoadError(path_clone, e.to_string())),
+                }
+            });
+
+            // Then load the full resolution
             let path_clone = path.clone();
             self.spawn_loader(move || {
                 Some(match image_loader::load_image(&path_clone) {

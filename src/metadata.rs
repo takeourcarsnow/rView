@@ -21,6 +21,7 @@ pub struct MetadataDb {
 }
 
 impl MetadataDb {
+    #[allow(dead_code)]
     pub fn new() -> Self { Self::default() }
 
     pub fn load() -> Self {
@@ -64,18 +65,21 @@ impl MetadataDb {
         entry.color_label = color;
     }
     
+    #[allow(dead_code)]
     pub fn toggle_flag<P: AsRef<std::path::Path>>(&mut self, path: P) {
         let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
         entry.flagged = !entry.flagged;
     }
     
+    #[allow(dead_code)]
     pub fn toggle_reject<P: AsRef<std::path::Path>>(&mut self, path: P) {
         let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
         entry.rejected = !entry.rejected;
     }
     
+    #[allow(dead_code)]
     pub fn add_tag<P: Into<PathBuf>>(&mut self, path: P, tag: String) {
         let path = path.into();
         let entry = self.images.entry(path).or_default();
@@ -84,6 +88,7 @@ impl MetadataDb {
         }
     }
     
+    #[allow(dead_code)]
     pub fn remove_tag<P: AsRef<std::path::Path>>(&mut self, path: P, tag: &str) {
         let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
@@ -107,6 +112,7 @@ pub enum FileOperation {
         from: PathBuf,
         to: PathBuf,
     },
+    #[allow(dead_code)]
     Rename {
         from: PathBuf,
         to: PathBuf,
@@ -116,6 +122,7 @@ pub enum FileOperation {
         degrees: i32,
         previous_rotation: f32,
     },
+    #[allow(dead_code)]
     Adjust {
         path: PathBuf,
         adjustments: crate::image_loader::ImageAdjustments,
@@ -181,14 +188,17 @@ impl UndoHistory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn can_undo(&self) -> bool {
         self.current_index > 0
     }
 
+    #[allow(dead_code)]
     pub fn can_redo(&self) -> bool {
         self.current_index < self.operations.len()
     }
 
+    #[allow(dead_code)]
     pub fn last_operation_description(&self) -> Option<String> {
         if self.current_index > 0 {
             self.operations.get(self.current_index - 1).map(|op| match op {
@@ -223,6 +233,7 @@ impl UndoHistory {
         }
     }
 
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.operations.clear();
         self.current_index = 0;

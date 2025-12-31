@@ -19,12 +19,14 @@ impl Profiler {
     } 
 
     pub fn start_timer(&mut self, name: &str) {
+        tracing::trace!(timer = name, "start_timer");
         self.timers.insert(name.to_string(), Instant::now());
     }
 
     pub fn end_timer(&mut self, name: &str) {
         if let Some(start) = self.timers.remove(name) {
             let duration = start.elapsed();
+            tracing::debug!(timer = name, duration_ms = ?duration.as_millis(), "end_timer");
             self.measurements.entry(name.to_string())
                 .or_default()
                 .push(duration);
@@ -32,9 +34,11 @@ impl Profiler {
     }
 
     pub fn increment_counter(&mut self, name: &str) {
+        tracing::trace!(counter = name, "increment_counter");
         *self.counters.entry(name.to_string()).or_insert(0) += 1;
     }
 
+    #[allow(dead_code)]
     pub fn add_measurement(&mut self, name: &str, duration: Duration) {
         self.measurements.entry(name.to_string())
             .or_default()
@@ -77,9 +81,12 @@ impl Profiler {
 #[derive(Debug, Clone)]
 pub struct MeasurementStats {
     pub count: usize,
+    #[allow(dead_code)]
     pub total_time: Duration,
     pub average_time: Duration,
+    #[allow(dead_code)]
     pub min_time: Duration,
+    #[allow(dead_code)]
     pub max_time: Duration,
 } 
 
@@ -95,6 +102,7 @@ pub struct CacheStats {
     pub total_images: usize,
     pub cached_images: usize,
     pub cache_memory_usage: usize, // bytes
+    #[allow(dead_code)]
     pub thumbnail_count: usize,
     pub thumbnail_memory_usage: usize, // bytes
     pub cache_hit_count: u64,
@@ -121,9 +129,13 @@ impl CacheStats {
 #[derive(Debug, Default, Clone)]
 pub struct LoadingDiagnostics {
     pub total_load_time: Duration,
+    #[allow(dead_code)]
     pub image_decode_time: Duration,
+    #[allow(dead_code)]
     pub thumbnail_generation_time: Duration,
+    #[allow(dead_code)]
     pub cache_lookup_time: Duration,
+    #[allow(dead_code)]
     pub io_time: Duration,
     pub images_loaded: usize,
     pub thumbnails_generated: usize,
@@ -132,6 +144,7 @@ pub struct LoadingDiagnostics {
 } 
 
 impl LoadingDiagnostics {
+    #[allow(dead_code)]
     pub fn add_bottleneck(&mut self, description: String) {
         self.bottlenecks.push(description);
     }

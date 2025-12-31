@@ -4,11 +4,14 @@ use std::path::Path;
 use rayon::ThreadPoolBuilder;
 
 lazy_static::lazy_static! {
-    static ref RAW_PROCESSING_POOL: rayon::ThreadPool = ThreadPoolBuilder::new()
-        .num_threads(2) // Limit RAW processing to 2 threads to avoid overwhelming system
-        .thread_name(|i| format!("raw-processor-{}", i))
-        .build()
-        .expect("Failed to create RAW processing thread pool");
+    static ref RAW_PROCESSING_POOL: rayon::ThreadPool = {
+        let num_threads = (num_cpus::get() / 2).max(2).min(8); // Use half of CPU cores, min 2, max 8
+        ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .thread_name(|i| format!("raw-processor-{}", i))
+            .build()
+            .expect("Failed to create RAW processing thread pool")
+    };
 }
 
 // GPU acceleration stubs were removed: not used in current codebase.
@@ -57,7 +60,28 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
 }
 
 fn load_standard_image(path: &Path) -> Result<DynamicImage> {
+    // For large files (>50MB), use memory mapping to avoid loading entire file into RAM
+    if let Ok(metadata) = std::fs::metadata(path) {
+        if metadata.len() > 50 * 1024 * 1024 { // 50MB threshold
+            return load_image_memory_mapped(path);
+        }
+    }
+
     image::open(path)
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })
+}
+
+fn load_image_memory_mapped(path: &Path) -> Result<DynamicImage> {
+    use std::fs::File;
+    use memmap2::Mmap;
+
+    let file = File::open(path)
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+
+    let mmap = unsafe { Mmap::map(&file) }
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: format!("Memory mapping failed: {}", e) })?;
+
+    image::load_from_memory(&mmap)
         .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })
 }
 

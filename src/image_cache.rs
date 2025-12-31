@@ -54,9 +54,11 @@ impl ImageCache {
     fn get_from_cache(&self, cache: &Arc<Mutex<HashMap<PathBuf, CachedImage>>>, path: &Path) -> Option<DynamicImage> {
         let mut cache = cache.lock().unwrap();
         if let Some(cached) = cache.get_mut(path) {
+            tracing::debug!(path = %path.display(), "cache hit");
             cached.last_access = std::time::Instant::now();
             return Some(cached.image.clone());
         }
+        tracing::trace!(path = %path.display(), "cache miss");
         None
     }
 
@@ -101,7 +103,11 @@ impl ImageCache {
         if let Some(cache_path) = self.cache_key_path(path) {
             let mut buffer = std::io::Cursor::new(Vec::new());
             if image.to_rgba8().write_to(&mut buffer, image::ImageFormat::Png).is_ok() {
-                let _ = fs::write(cache_path, buffer.into_inner());
+                if fs::write(&cache_path, buffer.into_inner()).is_ok() {
+                    tracing::debug!(path = %path.display(), cache = %cache_path.display(), "saved thumbnail to disk");
+                } else {
+                    tracing::warn!(path = %path.display(), cache = %cache_path.display(), "failed to write thumbnail to disk");
+                }
             }
         }
     }
@@ -111,18 +117,25 @@ impl ImageCache {
             if cache_path.exists() {
                 if let Ok(data) = fs::read(&cache_path) {
                     if let Ok(img) = image::load_from_memory(&data) {
+                        tracing::debug!(path = %path.display(), cache = %cache_path.display(), "loaded thumbnail from disk");
                         return Some(img);
+                    } else {
+                        tracing::warn!(path = %path.display(), cache = %cache_path.display(), "failed to decode thumbnail from disk");
                     }
+                } else {
+                    tracing::warn!(path = %path.display(), cache = %cache_path.display(), "failed to read thumbnail from disk");
                 }
             }
         }
         None
     }
 
+    #[allow(dead_code)]
     pub fn put<P: Into<PathBuf>>(&self, path: P, image: DynamicImage) {
         self.insert(path.into(), image);
     }
 
+    #[allow(dead_code)]
     pub fn stats(&self) -> CacheStats {
         self.get_stats()
     }    
@@ -130,14 +143,15 @@ impl ImageCache {
         let size_bytes = estimate_image_size(&image);
         let mut cache = self.cache.lock().unwrap();
 
-        self.evict_if_needed(&mut cache);
-
-        cache.insert(path, CachedImage {
+        // Insert first, then ensure we evict if the cache grew too large.
+        cache.insert(path.clone(), CachedImage {
             image,
             last_access: std::time::Instant::now(),
             size_bytes,
             priority: CachePriority::Medium, // Default priority for inserted images
         });
+
+        self.evict_if_needed(&mut cache);
     }
 
 
@@ -173,6 +187,7 @@ impl ImageCache {
         let total_size: usize = cache.values().map(|c| c.size_bytes).sum();
 
         if total_size > self.max_cache_size || cache.len() > self.max_cache_items {
+            tracing::info!(current_size = total_size, items = cache.len(), "evicting entries from cache");
             let mut entries: Vec<_> = cache.iter()
                 .map(|(k, v)| (k.clone(), v.last_access, v.size_bytes, v.priority))
                 .collect();
@@ -195,6 +210,10 @@ impl ImageCache {
                 .map(|(path, _, _, _)| path.clone())
                 .collect();
 
+            for path in to_remove.iter() {
+                tracing::info!(evicted = %path.display(), "evicted entry");
+            }
+
             for path in to_remove {
                 cache.remove(&path);
             }
@@ -205,15 +224,18 @@ impl ImageCache {
         let cache = Arc::clone(&self.cache);
         
         thread::spawn(move || {
+            tracing::debug!(count = paths.len(), "starting preload of images");
             for path in paths {
                 {
                     let c = cache.lock().unwrap();
                     if c.contains_key(&path) {
+                        tracing::trace!(path = %path.display(), "already cached, skipping preload");
                         continue;
                     }
                 }
                 
                 if let Ok(image) = image_loader::load_image(&path) {
+                    tracing::debug!(path = %path.display(), "preloaded image");
                     let size_bytes = estimate_image_size(&image);
                     let mut c = cache.lock().unwrap();
                     c.insert(path, CachedImage {
@@ -231,10 +253,12 @@ impl ImageCache {
         let cache = Arc::clone(&self.thumbnail_cache);
         
         thread::spawn(move || {
+            tracing::debug!(count = paths.len(), thumb_size = size, "starting parallel thumbnail preload");
             paths.par_iter().for_each(|path| {
                 {
                     let c = cache.lock().unwrap();
                     if c.contains_key(path) {
+                        tracing::trace!(path = %path.display(), "thumbnail already cached, skipping");
                         return;
                     }
                 }
@@ -242,6 +266,7 @@ impl ImageCache {
                 // For RAW files, only attempt to extract embedded JPEG thumbnails to avoid heavy RAW decoding here
                 if image_loader::is_raw_file(path) {
                     if let Ok(thumb) = image_loader::load_raw_embedded_thumbnail(path, size) {
+                        tracing::debug!(path = %path.display(), "preloaded embedded raw thumbnail");
                         let size_bytes = estimate_image_size(&thumb);
                         let mut c = cache.lock().unwrap();
                         c.insert(path.clone(), CachedImage {
@@ -253,6 +278,7 @@ impl ImageCache {
                     }
                 } else {
                     if let Ok(thumb) = image_loader::load_thumbnail(path, size) {
+                        tracing::debug!(path = %path.display(), "preloaded thumbnail");
                         let size_bytes = estimate_image_size(&thumb);
                         let mut c = cache.lock().unwrap();
                         c.insert(path.clone(), CachedImage {
@@ -306,7 +332,9 @@ impl ImageCache {
 pub struct CacheStats {
     pub image_count: usize,
     pub image_size_bytes: usize,
+    #[allow(dead_code)]
     pub thumbnail_count: usize,
+    #[allow(dead_code)]
     pub thumbnail_size_bytes: usize,
 } 
 

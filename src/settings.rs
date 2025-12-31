@@ -273,6 +273,7 @@ pub enum FocusPeakingColor {
 }
 
 impl FocusPeakingColor {
+    #[allow(dead_code)]
     pub fn to_color(self) -> egui::Color32 {
         match self {
             FocusPeakingColor::Red => egui::Color32::from_rgb(255, 0, 0),
@@ -317,6 +318,7 @@ impl ColorLabel {
         }
     }
     
+    #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
             ColorLabel::None => "None",
@@ -328,6 +330,7 @@ impl ColorLabel {
         }
     }
     
+    #[allow(dead_code)]
     pub fn all() -> &'static [ColorLabel] {
         &[
             ColorLabel::None,
@@ -348,14 +351,16 @@ pub struct ExternalEditor {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum PanelPosition {
     Left,
     Right,
     Top,
     Bottom,
     Hidden,
-} 
+}
 
+#[allow(dead_code)]
 fn default_panel_positions() -> HashMap<String, PanelPosition> {
     let mut positions = HashMap::new();
     positions.insert("sidebar".to_string(), PanelPosition::Right);
