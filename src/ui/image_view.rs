@@ -51,8 +51,8 @@ impl ImageViewerApp {
             // Draw overlays
             self.draw_overlays(ui, image_rect);
 
-            // Show EXIF overlay on top of image if enabled
-            if self.settings.show_exif {
+            // Show EXIF overlay on top of image if enabled (overlay toggle controls only overlay)
+            if self.settings.show_exif_overlay {
                 if let Some(ref exif) = self.current_exif {
                     self.draw_exif_overlay(ui, image_rect, exif);
                 }
@@ -132,7 +132,7 @@ impl ImageViewerApp {
 
         let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string());
         let date = exif.date_taken.clone().unwrap_or_else(|| "Unknown Date".to_string());
-        let settings = format!("{} • {} • ISO {}", exif.focal_length.clone().unwrap_or_default(), exif.aperture.clone().unwrap_or_default(), exif.iso.clone().unwrap_or_default());
+        let settings = format!("{} • {} • ISO {}", exif.focal_length_formatted(), exif.aperture_formatted(), exif.iso.clone().unwrap_or_default());
 
         ui.painter().text(
             overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0),
@@ -153,7 +153,7 @@ impl ImageViewerApp {
     /// Return the pixel size of a texture given its `TextureId` by inspecting
     /// the current texture and cached thumbnails. Falls back to a sensible
     /// default if the texture is unknown.
-    fn texture_size_from_id(&self, id: egui::TextureId) -> Vec2 {
+    pub(crate) fn texture_size_from_id(&self, id: egui::TextureId) -> Vec2 {
         if let Some(ref t) = self.current_texture {
             if t.id() == id {
                 return t.size_vec2();
@@ -262,20 +262,25 @@ impl ImageViewerApp {
                                 }
 
                                 // EXIF overlay for this slot
-                                if let Some(exif) = self.compare_exifs.get(path) {
-                                    let overlay_pos = rect.left_bottom() + egui::Vec2::new(12.0, -12.0 - 48.0);
-                                    let overlay_rect = Rect::from_min_size(overlay_pos, egui::Vec2::new(280.0, 48.0));
-                                    left_painter.rect_filled(overlay_rect, Rounding::same(6.0), Color32::from_rgba_unmultiplied(0,0,0,160));
-                                    let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown".to_string());
-                                    let date = exif.date_taken.clone().unwrap_or_else(|| "".to_string());
-                                    left_painter.text(overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0), egui::Align2::LEFT_TOP, camera, egui::FontId::proportional(12.0), Color32::WHITE);
-                                    left_painter.text(overlay_rect.left_bottom() + egui::Vec2::new(8.0, -6.0), egui::Align2::LEFT_BOTTOM, format!("{} • ISO {}", exif.aperture.clone().unwrap_or_default(), exif.iso.clone().unwrap_or_default()), egui::FontId::proportional(11.0), Color32::from_rgb(200,200,200));
+                                if self.settings.show_exif_overlay {
+                                    if let Some(exif) = self.compare_exifs.get(path) {
+                                        let overlay_pos = rect.left_bottom() + egui::Vec2::new(12.0, -12.0 - 48.0);
+                                        let overlay_rect = Rect::from_min_size(overlay_pos, egui::Vec2::new(280.0, 48.0));
+                                        left_painter.rect_filled(overlay_rect, Rounding::same(6.0), Color32::from_rgba_unmultiplied(0,0,0,160));
+                                        let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown".to_string());
+                                        left_painter.text(overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0), egui::Align2::LEFT_TOP, camera, egui::FontId::proportional(12.0), Color32::WHITE);
+                                        left_painter.text(overlay_rect.left_bottom() + egui::Vec2::new(8.0, -6.0), egui::Align2::LEFT_BOTTOM, format!("{} • {}", exif.focal_length_formatted(), exif.aperture_formatted()), egui::FontId::proportional(11.0), Color32::from_rgb(200,200,200));
+                                    } else {
+                                        let path_clone = path.clone();
+                                        self.spawn_loader(move || {
+                                            let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                                            Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
+                                        });
+                                    }
                                 } else {
-                                    let path_clone = path.clone();
-                                    self.spawn_loader(move || {
-                                        let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
-                                        Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
-                                    });
+                                    if !self.thumbnail_requests.contains(path) {
+                                        self.ensure_thumbnail_requested(path, ctx);
+                                    }
                                 }
 
                                 // Click to make this the current image

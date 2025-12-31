@@ -11,7 +11,6 @@ impl ImageViewerApp {
         let view_mode = self.view_mode;
         let _selected_count = self.selected_indices.len();
         let is_fullscreen = self.is_fullscreen;
-        let slideshow_active = self.slideshow_active;
         let show_focus_peaking = self.settings.show_focus_peaking;
         let show_zebras = self.settings.show_zebras;
         let show_grid_overlay = self.settings.show_grid_overlay;
@@ -44,7 +43,6 @@ impl ImageViewerApp {
     let mut toggle_sidebar = false;
         let mut toggle_panels = false;
         let mut toggle_fullscreen = false;
-        let mut toggle_slideshow = false;
         let mut show_settings = false;
         let mut show_command_palette = false;
         let mut new_sort_mode: Option<SortMode> = None;
@@ -176,6 +174,11 @@ impl ImageViewerApp {
                     if toggle_button(ui, "🔍", "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
                     }
+
+                    // EXIF overlay toggle (only controls overlay, not sidebar panel)
+                    if toggle_button(ui, "ⓔ", "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
+                        self.settings.show_exif_overlay = !self.settings.show_exif_overlay;
+                    }
                     
                     ui.add_space(8.0);
                     toolbar_separator(ui);
@@ -205,12 +208,7 @@ impl ImageViewerApp {
                             toggle_fullscreen = true;
                         }
                         
-                        // Slideshow
-                        let ss_icon = if slideshow_active { "⏸" } else { "▷" };
-                        if toggle_button(ui, ss_icon, "Slideshow (Space)", slideshow_active).clicked() {
-                            toggle_slideshow = true;
-                        }
-                        
+                        // (Slideshow removed per user preference)
                         toolbar_separator(ui);
                         
                         // Sort options
@@ -279,7 +277,7 @@ impl ImageViewerApp {
             self.is_fullscreen = !self.is_fullscreen;
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
         }
-        if toggle_slideshow { self.toggle_slideshow(); }
+
         if show_settings { self.show_settings_dialog = true; }
         if show_command_palette { self.command_palette_open = true; }
         if let Some(mode) = new_sort_mode {

@@ -156,11 +156,20 @@ impl ImageViewerApp {
             // Check cache first
             if let Some(image) = self.image_cache.get(&path) {
                 self.set_current_image(&path, image);
-                return;
-            }
 
-            // For RAW files, load a quick preview first then the full image
-            let is_raw = image_loader::is_raw_file(&path);
+            // Even when the image came from cache, spawn EXIF loader so sidebar gets populated
+            let path_clone = path.clone();
+            self.spawn_loader(move || {
+                let exif = ExifInfo::from_file(&path_clone);
+                Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
+            });
+
+            // Return early because we've already set the image from cache
+            return;
+        }
+
+        // For RAW files, load a quick preview first then the full image
+        let is_raw = image_loader::is_raw_file(&path);
 
             if is_raw {
                 // Load quick preview first (smaller resolution)

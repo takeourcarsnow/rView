@@ -141,6 +141,28 @@ impl ExifInfo {
         self.shutter_speed.is_some() ||
         self.iso.is_some()
     }
+
+    /// Return focal length with units (e.g. "50 mm") if available, else empty string
+    pub fn focal_length_formatted(&self) -> String {
+        if let Some(ref s) = self.focal_length {
+            let t = s.trim();
+            if t.is_empty() { return String::new(); }
+            if t.to_lowercase().contains("mm") { t.to_string() } else { format!("{} mm", t) }
+        } else {
+            String::new()
+        }
+    }
+
+    /// Return aperture formatted as f/ (e.g. "f/1.8") if available, else empty string
+    pub fn aperture_formatted(&self) -> String {
+        if let Some(ref s) = self.aperture {
+            let t = s.trim();
+            if t.is_empty() { return String::new(); }
+            if t.to_lowercase().starts_with('f') { t.to_string() } else { format!("f/{}", t) }
+        } else {
+            String::new()
+        }
+    }
     
     pub fn has_gps(&self) -> bool {
         self.gps_latitude.is_some() && self.gps_longitude.is_some()

@@ -15,6 +15,8 @@ pub struct Settings {
     pub thumbnail_size: f32,
     pub thumbnail_position: ThumbnailPosition,
     pub show_exif: bool,
+    /// Whether the small EXIF overlay on the image is visible (separate from the sidebar)
+    pub show_exif_overlay: bool,
     pub show_histogram: bool,
     pub show_toolbar: bool,
     pub show_statusbar: bool,
@@ -99,6 +101,7 @@ impl Default for Settings {
             thumbnail_size: 100.0,
             thumbnail_position: ThumbnailPosition::Bottom,
             show_exif: true,
+            show_exif_overlay: true,
             show_histogram: false,
             show_toolbar: true,
             show_statusbar: true,

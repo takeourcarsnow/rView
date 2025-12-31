@@ -121,6 +121,8 @@ impl ImageViewerApp {
                             if self.get_current_path().as_ref() == Some(&path) {
                                 self.showing_preview = false;
                                 self.set_current_image(&path, image.clone());
+                                // Default to fitting the image to the view when it is loaded
+                                self.pending_fit_to_window = true;
                             } else {
                                 self.image_cache.insert(path.clone(), image.clone());
                             }
@@ -246,24 +248,15 @@ impl ImageViewerApp {
                 if i.key_pressed(egui::Key::Num2) && !ctrl && !alt {
                     self.zoom_to(2.0);
                 }
-                
-                // Rotation
-                if i.key_pressed(egui::Key::L) && !ctrl {
-                    self.rotate_left();
+
+                // (Removed slideshow hotkey - slideshow feature intentionally hidden)
+
+
+                // Toggle EXIF overlay
+                // Toggle EXIF overlay only (E)
+                if i.key_pressed(egui::Key::E) {
+                    self.settings.show_exif_overlay = !self.settings.show_exif_overlay;
                 }
-                if i.key_pressed(egui::Key::R) && !ctrl {
-                    self.rotate_right();
-                }
-                
-                // Slideshow
-                if i.key_pressed(egui::Key::Space) && !self.slideshow_active {
-                    self.toggle_slideshow();
-                } else if i.key_pressed(egui::Key::Space)
-                    && self.slideshow_active {
-                        self.slideshow_active = false;
-                    }
-                
-                // Fullscreen
                 if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
                     self.is_fullscreen = !self.is_fullscreen;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));

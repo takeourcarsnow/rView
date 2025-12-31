@@ -42,10 +42,8 @@ impl ImageViewerApp {
                             ui.add_space(12.0);
                         }
                         
-                        // EXIF data (compact summary + full panel)
+                        // EXIF data (full panel only - avoids duplicated summary)
                         if self.settings.show_exif {
-                            self.render_exif_summary(ui);
-                            ui.add_space(8.0);
                             self.render_exif_panel(ui);
                             ui.add_space(12.0);
                         }
@@ -58,9 +56,6 @@ impl ImageViewerApp {
     }
 
     fn render_folder_tree(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("File Browser").size(14.0).color(Color32::WHITE));
-        ui.add_space(4.0);
-        
         egui::Frame::none()
             .fill(Color32::from_rgb(25, 25, 30))
             .rounding(Rounding::same(4.0))
@@ -283,58 +278,65 @@ impl ImageViewerApp {
         });
     }
 
-    fn render_exif_summary(&self, ui: &mut egui::Ui) {
-        if let Some(exif) = &self.current_exif {
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.label(egui::RichText::new(exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string())).strong());
-                    ui.label(egui::RichText::new(format!("{} • ISO {}", exif.date_taken.clone().unwrap_or_default(), exif.iso.clone().unwrap_or_default())).small().color(Color32::GRAY));
-                });
-            });
-        } else {
-            ui.label(egui::RichText::new("No EXIF available").color(Color32::GRAY));
-        }
-    }
-            
 
     
     fn render_exif_panel(&mut self, ui: &mut egui::Ui) {
         collapsible_header(ui, "EXIF Data", true, |ui| {
             if let Some(exif) = &self.current_exif {
-                exif_row_opt(ui, "Camera", &exif.camera_model);
-                exif_row_opt(ui, "Lens", &exif.lens);
-                exif_row_opt(ui, "Focal Length", &exif.focal_length);
-                exif_row_opt(ui, "Aperture", &exif.aperture);
-                exif_row_opt(ui, "Shutter", &exif.shutter_speed);
-                exif_row_opt(ui, "ISO", &exif.iso);
-                exif_row_opt(ui, "Date", &exif.date_taken);
-                exif_row_opt(ui, "Dimensions", &exif.dimensions);
-                if exif.gps_latitude.is_some() && exif.gps_longitude.is_some() {
-                    let gps = format!("{:.4}, {:.4}", 
-                        exif.gps_latitude.unwrap_or(0.0), 
-                        exif.gps_longitude.unwrap_or(0.0));
-                    exif_row(ui, "GPS", &gps);
-                }
-
-                ui.add_space(6.0);
-                // Manual reload button
-                ui.horizontal(|ui| {
-                    if ui.button("Reload EXIF").clicked() {
-                        if let Some(path) = self.get_current_path() {
-                            let path_clone = path.clone();
-                            let tx = self.loader_tx.clone();
-                            self.set_status_message(format!("Reloading EXIF for {}", path_clone.display()));
-                            std::thread::spawn(move || {
-                                let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
-                                let _ = tx.send(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
-                            });
+                // If EXIF object exists but contains no meaningful fields, show a helpful message
+                if !exif.has_data() {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("No EXIF data found for this image").color(Color32::GRAY).size(11.0));
+                        if ui.button("Reload EXIF").clicked() {
+                            if let Some(path) = self.get_current_path() {
+                                let path_clone = path.clone();
+                                let tx = self.loader_tx.clone();
+                                self.set_status_message(format!("Reloading EXIF for {}", path_clone.display()));
+                                std::thread::spawn(move || {
+                                    let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                                    let _ = tx.send(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
+                                });
+                            }
                         }
+                    });
+                } else {
+                    exif_row_opt(ui, "Camera", &exif.camera_model);
+                    exif_row_opt(ui, "Lens", &exif.lens);
+                    let fl = exif.focal_length_formatted();
+                    if !fl.is_empty() { exif_row(ui, "Focal Length", &fl); }
+                    let ap = exif.aperture_formatted();
+                    if !ap.is_empty() { exif_row(ui, "Aperture", &ap); }
+                    exif_row_opt(ui, "Shutter", &exif.shutter_speed);
+                    exif_row_opt(ui, "ISO", &exif.iso);
+                    exif_row_opt(ui, "Date", &exif.date_taken);
+                    exif_row_opt(ui, "Dimensions", &exif.dimensions);
+                    if exif.gps_latitude.is_some() && exif.gps_longitude.is_some() {
+                        let gps = format!("{:.4}, {:.4}", 
+                            exif.gps_latitude.unwrap_or(0.0), 
+                            exif.gps_longitude.unwrap_or(0.0));
+                        exif_row(ui, "GPS", &gps);
                     }
-                });
+
+                    ui.add_space(6.0);
+                    // Manual reload button
+                    ui.horizontal(|ui| {
+                        if ui.button("Reload EXIF").clicked() {
+                            if let Some(path) = self.get_current_path() {
+                                let path_clone = path.clone();
+                                let tx = self.loader_tx.clone();
+                                self.set_status_message(format!("Reloading EXIF for {}", path_clone.display()));
+                                std::thread::spawn(move || {
+                                    let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                                    let _ = tx.send(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
+                                });
+                            }
+                        }
+                    });
+                }
 
             } else {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("No EXIF data").color(Color32::GRAY).size(11.0));
+                    ui.label(RichText::new("No EXIF data found").color(Color32::GRAY).size(11.0));
                     if ui.button("Reload EXIF").clicked() {
                         if let Some(path) = self.get_current_path() {
                             let path_clone = path.clone();

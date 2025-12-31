@@ -137,12 +137,17 @@ impl ImageViewerApp {
                 
                 painter.rect_filled(rect, Rounding::same(4.0), bg_color);
                 
-                // Thumbnail image
+                // Thumbnail image (preserve original aspect ratio)
                 if let Some(tex_id) = tex_id {
                     let inner_rect = rect.shrink(3.0);
+                    // Determine texture pixel size and scale to fit inside inner_rect while preserving aspect ratio
+                    let tex_size = self.texture_size_from_id(tex_id);
+                    let scale = (inner_rect.width() / tex_size.x).min(inner_rect.height() / tex_size.y);
+                    let display_size = tex_size * scale;
+                    let image_rect = Rect::from_center_size(inner_rect.center(), display_size);
                     painter.image(
                         tex_id,
-                        inner_rect,
+                        image_rect,
                         Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                         Color32::WHITE,
                     );
