@@ -1,0 +1,230 @@
+use crate::app::ImageViewerApp;
+use crate::settings::GridType;
+use egui::{self, Color32, Vec2, Rect, Rounding, Stroke};
+
+impl ImageViewerApp {
+    pub(crate) fn draw_overlays(&self, ui: &mut egui::Ui, image_rect: Rect) {
+        // Focus peaking overlay
+        if self.settings.show_focus_peaking {
+            if let Some(tex) = &self.focus_peaking_texture {
+                ui.painter().image(
+                    tex.id(),
+                    image_rect,
+                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+        }
+
+        // Zebra overlay
+        if self.settings.show_zebras {
+            if let Some(tex) = &self.zebra_texture {
+                ui.painter().image(
+                    tex.id(),
+                    image_rect,
+                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+            }
+        }
+
+        // Grid overlay
+        if self.settings.show_grid_overlay {
+            self.draw_grid_overlay(ui, image_rect);
+        }
+    }
+
+    pub(crate) fn draw_grid_overlay(&self, ui: &mut egui::Ui, rect: Rect) {
+        let stroke = Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 100));
+        let painter = ui.painter();
+
+        match self.settings.grid_type {
+            GridType::Off => {}
+            GridType::RuleOfThirds => {
+                // Vertical lines
+                let x1 = rect.left() + rect.width() / 3.0;
+                let x2 = rect.left() + rect.width() * 2.0 / 3.0;
+                painter.line_segment([egui::pos2(x1, rect.top()), egui::pos2(x1, rect.bottom())], stroke);
+                painter.line_segment([egui::pos2(x2, rect.top()), egui::pos2(x2, rect.bottom())], stroke);
+
+                // Horizontal lines
+                let y1 = rect.top() + rect.height() / 3.0;
+                let y2 = rect.top() + rect.height() * 2.0 / 3.0;
+                painter.line_segment([egui::pos2(rect.left(), y1), egui::pos2(rect.right(), y1)], stroke);
+                painter.line_segment([egui::pos2(rect.left(), y2), egui::pos2(rect.right(), y2)], stroke);
+            }
+            GridType::GoldenRatio => {
+                let phi = 1.618_034;
+
+                // Vertical
+                let x1 = rect.left() + rect.width() / phi;
+                let x2 = rect.right() - rect.width() / phi;
+                painter.line_segment([egui::pos2(x1, rect.top()), egui::pos2(x1, rect.bottom())], stroke);
+                painter.line_segment([egui::pos2(x2, rect.top()), egui::pos2(x2, rect.bottom())], stroke);
+
+                // Horizontal
+                let y1 = rect.top() + rect.height() / phi;
+                let y2 = rect.bottom() - rect.height() / phi;
+                painter.line_segment([egui::pos2(rect.left(), y1), egui::pos2(rect.right(), y1)], stroke);
+                painter.line_segment([egui::pos2(rect.left(), y2), egui::pos2(rect.right(), y2)], stroke);
+            }
+            GridType::Diagonal => {
+                painter.line_segment([rect.left_top(), rect.right_bottom()], stroke);
+                painter.line_segment([rect.right_top(), rect.left_bottom()], stroke);
+            }
+            GridType::Center | GridType::Square => {
+                let center = rect.center();
+                painter.line_segment([egui::pos2(center.x, rect.top()), egui::pos2(center.x, rect.bottom())], stroke);
+                painter.line_segment([egui::pos2(rect.left(), center.y), egui::pos2(rect.right(), center.y)], stroke);
+            }
+        }
+    }
+
+    pub(crate) fn draw_checkered_background(&self, ui: &mut egui::Ui, rect: Rect) {
+        let checker_size = 16.0;
+        let color1 = Color32::from_rgb(60, 60, 60);
+        let color2 = Color32::from_rgb(80, 80, 80);
+
+        let cols = (rect.width() / checker_size).ceil() as i32;
+        let rows = (rect.height() / checker_size).ceil() as i32;
+
+        for row in 0..rows {
+            for col in 0..cols {
+                let color = if (row + col) % 2 == 0 { color1 } else { color2 };
+                let checker_rect = Rect::from_min_size(
+                    egui::pos2(
+                        rect.left() + col as f32 * checker_size,
+                        rect.top() + row as f32 * checker_size
+                    ),
+                    Vec2::splat(checker_size)
+                ).intersect(rect);
+
+                ui.painter().rect_filled(checker_rect, Rounding::ZERO, color);
+            }
+        }
+    }
+
+    pub(crate) fn draw_loupe(&self, ui: &mut egui::Ui) {
+        if let (Some(pos), Some(tex)) = (&self.loupe_position, &self.current_texture) {
+            let loupe_size = self.settings.loupe_size;
+            let loupe_zoom = self.settings.loupe_zoom;
+
+            // Calculate image rectangle (same as in render_single_view)
+            let _available = ui.available_size();
+            let rect = ui.available_rect_before_wrap();
+            let tex_size = tex.size_vec2();
+            let display_size = tex_size * self.zoom;
+
+            let image_rect = Rect::from_center_size(
+                rect.center() + self.pan_offset,
+                display_size
+            );
+
+            // Loupe circle background (draw slightly larger to hide rectangle corners)
+            ui.painter().circle_filled(*pos, loupe_size / 2.0, Color32::BLACK);
+
+            // Clamp sampling position to image to avoid disappearing when cursor is at edges
+            let sample_pos = egui::pos2(
+                pos.x.clamp(image_rect.left(), image_rect.right()),
+                pos.y.clamp(image_rect.top(), image_rect.bottom()),
+            );
+
+            // Inset draw rect so image corners don't show outside the circular border
+            let draw_rect = Rect::from_center_size(*pos, Vec2::splat(loupe_size * 0.9));
+
+            // Calculate UV coordinates based on sampling position relative to image
+            let relative_pos = sample_pos - image_rect.min;
+            // Avoid division by zero
+            let display_w = if display_size.x.abs() < 1e-6 { 1.0 } else { display_size.x };
+            let display_h = if display_size.y.abs() < 1e-6 { 1.0 } else { display_size.y };
+            let uv = egui::pos2(relative_pos.x / display_w, relative_pos.y / display_h);
+
+            // Calculate UV radius separately for X and Y to respect aspect ratio
+            let mut uv_radius_x = (loupe_size / 2.0) / (display_w * loupe_zoom).max(1e-6);
+            let mut uv_radius_y = (loupe_size / 2.0) / (display_h * loupe_zoom).max(1e-6);
+
+            // Ensure minimum non-zero radius to avoid degenerate uv rects
+            let min_radius_x = 1.0 / tex.size_vec2().x.max(1.0);
+            let min_radius_y = 1.0 / tex.size_vec2().y.max(1.0);
+            if uv_radius_x < min_radius_x { uv_radius_x = min_radius_x; }
+            if uv_radius_y < min_radius_y { uv_radius_y = min_radius_y; }
+
+            let mut uv_min_x = (uv.x - uv_radius_x).clamp(0.0, 1.0);
+            let mut uv_max_x = (uv.x + uv_radius_x).clamp(0.0, 1.0);
+            let mut uv_min_y = (uv.y - uv_radius_y).clamp(0.0, 1.0);
+            let mut uv_max_y = (uv.y + uv_radius_y).clamp(0.0, 1.0);
+
+            // If any axis collapsed (edge cases), expand slightly to create a tiny region
+            if uv_max_x <= uv_min_x {
+                let mid = (uv_min_x + uv_max_x) * 0.5;
+                uv_min_x = (mid - 0.005).clamp(0.0, 1.0);
+                uv_max_x = (mid + 0.005).clamp(0.0, 1.0);
+            }
+            if uv_max_y <= uv_min_y {
+                let mid = (uv_min_y + uv_max_y) * 0.5;
+                uv_min_y = (mid - 0.005).clamp(0.0, 1.0);
+                uv_max_y = (mid + 0.005).clamp(0.0, 1.0);
+            }
+
+            let uv_min = egui::pos2(uv_min_x, uv_min_y);
+            let uv_max = egui::pos2(uv_max_x, uv_max_y);
+
+            // Draw zoomed image portion into inset draw rect
+            ui.painter().image(
+                tex.id(),
+                draw_rect,
+                Rect::from_min_max(uv_min, uv_max),
+                Color32::WHITE,
+            );
+
+            // Border
+            ui.painter().circle_stroke(*pos, loupe_size / 2.0, Stroke::new(2.0, Color32::WHITE));
+
+            // Crosshair
+            ui.painter().line_segment(
+                [egui::pos2(pos.x - 10.0, pos.y), egui::pos2(pos.x + 10.0, pos.y)],
+                Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 150)),
+            );
+            ui.painter().line_segment(
+                [egui::pos2(pos.x, pos.y - 10.0), egui::pos2(pos.x, pos.y + 10.0)],
+                Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 150)),
+            );
+        }
+    }
+
+    pub(crate) fn draw_color_info(&self, ui: &mut egui::Ui, rect: Rect) {
+        if let Some((r, g, b)) = self.picked_color {
+            let info_rect = Rect::from_min_size(
+                rect.right_bottom() - Vec2::new(150.0, 80.0),
+                Vec2::new(140.0, 70.0)
+            );
+
+            ui.painter().rect_filled(info_rect, Rounding::same(4.0), Color32::from_rgba_unmultiplied(0, 0, 0, 200));
+
+            // Color swatch
+            let swatch_rect = Rect::from_min_size(
+                info_rect.left_top() + Vec2::new(8.0, 8.0),
+                Vec2::splat(30.0)
+            );
+            ui.painter().rect_filled(swatch_rect, Rounding::same(2.0), Color32::from_rgb(r, g, b));
+
+            // RGB values
+            ui.painter().text(
+                swatch_rect.right_center() + Vec2::new(8.0, 0.0),
+                egui::Align2::LEFT_CENTER,
+                format!("R: {}\nG: {}\nB: {}", r, g, b),
+                egui::FontId::monospace(10.0),
+                Color32::WHITE,
+            );
+
+            // Hex value
+            ui.painter().text(
+                info_rect.left_bottom() + Vec2::new(8.0, -8.0),
+                egui::Align2::LEFT_BOTTOM,
+                format!("#{:02X}{:02X}{:02X}", r, g, b),
+                egui::FontId::monospace(11.0),
+                Color32::WHITE,
+            );
+        }
+    }
+}
