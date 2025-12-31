@@ -42,7 +42,7 @@ impl eframe::App for ImageViewerApp {
         
         // Render UI based on view mode
         match self.view_mode {
-            ViewMode::Single | ViewMode::Compare => {
+            ViewMode::Single => {
                 if self.settings.show_toolbar {
                     self.render_toolbar(ctx);
                 }
@@ -111,12 +111,7 @@ impl ImageViewerApp {
                             } else {
                                 self.image_cache.insert(path.clone(), image.clone());
                             }
-                            // Check if this is the compare image
-                            if let Some(compare_idx) = self.compare_index {
-                                if self.image_list.get(compare_idx) == Some(&path) {
-                                    self.set_compare_image(&path, image);
-                                }
-                            }
+
                         }
                         LoaderMessage::PreviewLoaded(path, preview) => {
                             crate::profiler::with_profiler(|p| p.increment_counter("previews_loaded"));
@@ -315,10 +310,7 @@ impl ImageViewerApp {
                     self.undo_last_operation();
                 }
                 
-                // Compare mode
-                if i.key_pressed(egui::Key::C) && !ctrl {
-                    self.toggle_compare_mode();
-                }
+
                 
                 // Lightbox mode
                 if i.key_pressed(egui::Key::G) {
@@ -542,6 +534,17 @@ impl ImageViewerApp {
                                     );
                                 } else {
                                     thumbnails_needed.push(path.clone());
+
+                                    // Show spinner placeholder while thumbnail is loading
+                                    let spinner = self.spinner_char(ui);
+                                    painter.text(
+                                        rect.center(),
+                                        egui::Align2::CENTER_CENTER,
+                                        spinner,
+                                        egui::FontId::proportional(18.0),
+                                        Color32::from_rgb(100, 100, 100),
+                                    );
+                                    ui.ctx().request_repaint();
                                 }
                                 
                                 // Rating stars
@@ -579,7 +582,7 @@ impl ImageViewerApp {
                             
                             // Now apply state changes after the UI loop
                             for path in thumbnails_needed {
-                                self.request_thumbnail(path, ctx.clone());
+                                self.ensure_thumbnail_requested(&path, ctx);
                             }
                             
                             if let Some((idx, ctrl)) = clicked_index {

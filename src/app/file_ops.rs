@@ -1,4 +1,4 @@
-use crate::image_loader::{self, SUPPORTED_EXTENSIONS, is_supported_image};
+use crate::image_loader::{SUPPORTED_EXTENSIONS, is_supported_image};
 use eframe::egui;
 use std::path::PathBuf;
 use walkdir::WalkDir;
@@ -70,42 +70,7 @@ impl ImageViewerApp {
         }
     }
 
-    pub fn toggle_compare_mode(&mut self) {
-        if self.view_mode == super::ViewMode::Compare {
-            self.view_mode = super::ViewMode::Single;
-        } else if self.compare_index.is_some() || self.selected_indices.len() > 1 {
-            if self.compare_index.is_none() && self.selected_indices.len() > 1 {
-                // Set compare_index to the first selected that's not current
-                if let Some(&idx) = self.selected_indices.iter().find(|&&i| i != self.current_index) {
-                    self.compare_index = Some(idx);
-                }
-            }
-            // Load the compare image if not already loaded
-            if let Some(compare_idx) = self.compare_index {
-                if let Some(path) = self.image_list.get(compare_idx).cloned() {
-                    if let Some(image) = self.image_cache.get(&path) {
-                        self.set_compare_image(&path, image.clone());
-                    } else {
-                        // Load it
-                        let path_clone = path.clone();
-                        self.spawn_loader(move || {
-                            match crate::image_loader::load_image(&path_clone) {
-                                Ok(image) => Some(crate::app::LoaderMessage::ImageLoaded(path_clone, image)),
-                                Err(e) => Some(crate::app::LoaderMessage::LoadError(path_clone, e.to_string())),
-                            }
-                        });
-                    }
-                    // Load EXIF if not already loaded
-                    let path_clone = path.clone();
-                    self.spawn_loader(move || {
-                        let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
-                        Some(crate::app::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
-                    });
-                }
-            }
-            self.view_mode = super::ViewMode::Compare;
-        }
-    }
+
 
     pub fn toggle_lightbox_mode(&mut self) {
         if self.view_mode == super::ViewMode::Lightbox {
@@ -123,31 +88,7 @@ impl ImageViewerApp {
 
     // Tab management methods
     pub fn create_tab(&mut self, folder_path: PathBuf) {
-        let tab_name = folder_path.file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "New Tab".to_string());
-
-        let tab = super::ImageTab {
-            name: tab_name,
-            folder_path: folder_path.clone(),
-            image_list: Vec::new(),
-            filtered_list: Vec::new(),
-            current_index: 0,
-            zoom: 1.0,
-            target_zoom: 1.0,
-            pan_offset: egui::Vec2::ZERO,
-            target_pan: egui::Vec2::ZERO,
-            rotation: 0.0,
-            adjustments: image_loader::ImageAdjustments::default(),
-            show_original: false,
-            view_mode: super::ViewMode::Single,
-            compare_index: None,
-            lightbox_columns: 4,
-            selected_indices: std::collections::HashSet::new(),
-            last_selected: None,
-            search_query: String::new(),
-        };
-
+        let tab = super::ImageTab::new(folder_path.clone());
         self.tabs.push(tab);
         self.current_tab = self.tabs.len() - 1;
 
@@ -157,48 +98,15 @@ impl ImageViewerApp {
 
     pub fn switch_to_tab(&mut self, tab_index: usize) {
         if tab_index < self.tabs.len() {
-            // Save current tab state
-            if let Some(current_tab) = self.tabs.get_mut(self.current_tab) {
-                current_tab.image_list = self.image_list.clone();
-                current_tab.filtered_list = self.filtered_list.clone();
-                current_tab.current_index = self.current_index;
-                current_tab.zoom = self.zoom;
-                current_tab.target_zoom = self.target_zoom;
-                current_tab.pan_offset = self.pan_offset;
-                current_tab.target_pan = self.target_pan;
-                current_tab.rotation = self.rotation;
-                current_tab.adjustments = self.adjustments.clone();
-                current_tab.show_original = self.show_original;
-                current_tab.view_mode = self.view_mode;
-                current_tab.compare_index = self.compare_index;
-                current_tab.lightbox_columns = self.lightbox_columns;
-                current_tab.selected_indices = self.selected_indices.clone();
-                current_tab.last_selected = self.last_selected;
-                current_tab.search_query = self.search_query.clone();
-            }
+            // Save current tab state: capture snapshot then write back
+            let folder = self.tabs[self.current_tab].folder_path.clone();
+            let new_tab = super::ImageTab::capture_from_app(self, folder);
+            self.tabs[self.current_tab] = new_tab;
 
             // Switch to new tab
             self.current_tab = tab_index;
-            let tab = &self.tabs[tab_index];
-
-            // Restore tab state
-            self.image_list = tab.image_list.clone();
-            self.filtered_list = tab.filtered_list.clone();
-            self.current_index = tab.current_index;
-            self.zoom = tab.zoom;
-            self.target_zoom = tab.target_zoom;
-            self.pan_offset = tab.pan_offset;
-            self.target_pan = tab.target_pan;
-            self.rotation = tab.rotation;
-            self.adjustments = tab.adjustments.clone();
-            self.show_original = tab.show_original;
-            self.view_mode = tab.view_mode;
-            self.compare_index = tab.compare_index;
-            self.lightbox_columns = tab.lightbox_columns;
-            self.selected_indices = tab.selected_indices.clone();
-            self.last_selected = tab.last_selected;
-            self.search_query = tab.search_query.clone();
-            self.current_folder = Some(tab.folder_path.clone());
+            let tab = self.tabs[tab_index].clone();
+            tab.apply_to_app(self);
 
             // Load current image
             self.load_current_image();

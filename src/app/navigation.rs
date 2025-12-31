@@ -246,28 +246,6 @@ impl ImageViewerApp {
         self.image_cache.insert(path.to_path_buf(), image);
     }
 
-    pub fn set_compare_image(&mut self, path: &std::path::Path, image: DynamicImage) {
-        let ctx = match &self.ctx {
-            Some(c) => c.clone(),
-            None => return,
-        };
-
-        // Apply adjustments if any (for compare, maybe not, or same as current?)
-        let display_image = image.clone(); // For now, no adjustments for compare
-
-        let size = [display_image.width() as usize, display_image.height() as usize];
-        let rgba = display_image.to_rgba8();
-        let pixels = rgba.as_flat_samples();
-
-        let texture = ctx.load_texture(
-            format!("compare_{}", path.display()),
-            egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
-            egui::TextureOptions::LINEAR,
-        );
-
-        self.compare_texture = Some(texture);
-    }
-
     pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
         let overlay = image_loader::generate_focus_peaking_overlay(
             image,
@@ -329,6 +307,29 @@ impl ImageViewerApp {
         self.image_cache.preload(paths);
     }
 
+    /// Ensure a thumbnail is requested: short-circuit on in-memory cache or already-requested, otherwise spawn background work
+    pub fn ensure_thumbnail_requested(&mut self, path: &PathBuf, ctx: &egui::Context) {
+        // If texture already present, nothing to do
+        if self.thumbnail_textures.contains_key(path) {
+            return;
+        }
+
+        // If a request is already in flight, nothing to do
+        if self.thumbnail_requests.contains(path) {
+            return;
+        }
+
+        // Try a synchronous cache lookup to quickly satisfy from disk cache
+        if let Some(img) = self.image_cache.get_thumbnail(path) {
+            let _ = self.loader_tx.send(super::LoaderMessage::ThumbnailLoaded(path.clone(), img));
+            ctx.request_repaint();
+            return;
+        }
+
+        // Otherwise spawn the background request
+        self.request_thumbnail(path.clone(), ctx.clone());
+    }
+
     pub fn request_thumbnail(&mut self, path: PathBuf, ctx: egui::Context) {
         if self.thumbnail_requests.contains(&path) {
             return;
@@ -360,6 +361,17 @@ impl ImageViewerApp {
             }
             profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
         });
+    }
+
+    /// Return a single-frame spinner character used in small UI elements (thumbnails)
+    pub fn spinner_char(&self, ui: &egui::Ui) -> &'static str {
+        let time = ui.input(|i| i.time);
+        match (time as i32) % 4 {
+            0 => "◐",
+            1 => "◓",
+            2 => "◑",
+            _ => "◒",
+        }
     }
 
     pub fn reset_view(&mut self) {

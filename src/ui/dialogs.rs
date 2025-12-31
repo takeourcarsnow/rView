@@ -391,7 +391,6 @@ impl ImageViewerApp {
             ("Toggle Thumbnails", "T", "thumbnails"),
             ("Toggle EXIF Info", "I", "exif"),
             ("Toggle Histogram", "H", "histogram"),
-            ("Compare Mode", "C", "compare"),
             ("Grid View", "G", "lightbox"),
             ("Delete Image", "Del", "delete"),
             ("Set as Wallpaper", "", "wallpaper"),
@@ -429,7 +428,7 @@ impl ImageViewerApp {
             "thumbnails" => self.settings.show_thumbnails = !self.settings.show_thumbnails,
             "exif" => self.settings.show_exif = !self.settings.show_exif,
             "histogram" => self.settings.show_histogram = !self.settings.show_histogram,
-            "compare" => self.toggle_compare_mode(),
+
             "lightbox" => self.toggle_lightbox_mode(),
             "delete" => self.delete_current_image(),
             "wallpaper" => self.set_as_wallpaper(),

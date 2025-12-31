@@ -51,27 +51,31 @@ impl ImageCache {
         }
     }
     
-    pub fn get<P: AsRef<Path>>(&self, path: P) -> Option<DynamicImage> {
-        let path = path.as_ref();
-        let mut cache = self.cache.lock().unwrap();
+    fn get_from_cache(&self, cache: &Arc<Mutex<HashMap<PathBuf, CachedImage>>>, path: &Path) -> Option<DynamicImage> {
+        let mut cache = cache.lock().unwrap();
         if let Some(cached) = cache.get_mut(path) {
             cached.last_access = std::time::Instant::now();
             return Some(cached.image.clone());
         }
         None
     }
+
+    pub fn get<P: AsRef<Path>>(&self, path: P) -> Option<DynamicImage> {
+        self.get_from_cache(&self.cache, path.as_ref())
+    }
     
     pub fn get_thumbnail<P: AsRef<Path>>(&self, path: P) -> Option<DynamicImage> {
         let path = path.as_ref();
-        let mut cache = self.thumbnail_cache.lock().unwrap();
-        if let Some(cached) = cache.get_mut(path) {
-            cached.last_access = std::time::Instant::now();
-            return Some(cached.image.clone());
+
+        // Try in-memory thumbnail cache first
+        if let Some(img) = self.get_from_cache(&self.thumbnail_cache, path) {
+            return Some(img);
         }
 
         // Try to load from disk cache
         if let Some(image) = self.load_thumbnail_from_disk(path) {
             let size_bytes = estimate_image_size(&image);
+            let mut cache = self.thumbnail_cache.lock().unwrap();
             cache.insert(path.to_path_buf(), CachedImage {
                 image: image.clone(),
                 last_access: std::time::Instant::now(),
@@ -81,6 +85,37 @@ impl ImageCache {
             return Some(image);
         }
 
+        None
+    }
+
+    fn cache_key_path(&self, path: &Path) -> Option<PathBuf> {
+        if let Some(cache_dir) = &self.disk_cache_dir {
+            if let Some(key) = self.get_cache_key(path) {
+                return Some(cache_dir.join(format!("{}.png", key)));
+            }
+        }
+        None
+    }
+
+    fn save_thumbnail_to_disk(&self, path: &Path, image: &DynamicImage) {
+        if let Some(cache_path) = self.cache_key_path(path) {
+            let mut buffer = std::io::Cursor::new(Vec::new());
+            if image.to_rgba8().write_to(&mut buffer, image::ImageFormat::Png).is_ok() {
+                let _ = fs::write(cache_path, buffer.into_inner());
+            }
+        }
+    }
+
+    fn load_thumbnail_from_disk(&self, path: &Path) -> Option<DynamicImage> {
+        if let Some(cache_path) = self.cache_key_path(path) {
+            if cache_path.exists() {
+                if let Ok(data) = fs::read(&cache_path) {
+                    if let Ok(img) = image::load_from_memory(&data) {
+                        return Some(img);
+                    }
+                }
+            }
+        }
         None
     }
 
@@ -250,33 +285,7 @@ impl ImageCache {
         Some(format!("{:x}", hasher.finish()))
     }
 
-    fn save_thumbnail_to_disk(&self, path: &Path, image: &DynamicImage) {
-        if let Some(cache_dir) = &self.disk_cache_dir {
-            if let Some(key) = self.get_cache_key(path) {
-                let cache_path = cache_dir.join(format!("{}.png", key));
-                let mut buffer = std::io::Cursor::new(Vec::new());
-                if image.to_rgba8().write_to(&mut buffer, image::ImageFormat::Png).is_ok() {
-                    let _ = fs::write(cache_path, buffer.into_inner());
-                }
-            }
-        }
-    }
 
-    fn load_thumbnail_from_disk(&self, path: &Path) -> Option<DynamicImage> {
-        if let Some(cache_dir) = &self.disk_cache_dir {
-            if let Some(key) = self.get_cache_key(path) {
-                let cache_path = cache_dir.join(format!("{}.png", key));
-                if cache_path.exists() {
-                    if let Ok(data) = fs::read(&cache_path) {
-                        if let Ok(img) = image::load_from_memory(&data) {
-                            return Some(img);
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
 }
 
 #[derive(Debug)]

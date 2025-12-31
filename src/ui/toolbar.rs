@@ -9,8 +9,7 @@ impl ImageViewerApp {
         let filtered_len = self.filtered_list.len();
         let zoom = self.zoom;
         let view_mode = self.view_mode;
-        let compare_index = self.compare_index;
-        let selected_count = self.selected_indices.len();
+        let _selected_count = self.selected_indices.len();
         let is_fullscreen = self.is_fullscreen;
         let slideshow_active = self.slideshow_active;
         let show_focus_peaking = self.settings.show_focus_peaking;
@@ -37,7 +36,6 @@ impl ImageViewerApp {
         let mut rotate_left = false;
         let mut rotate_right = false;
         let mut set_view_single = false;
-        let mut toggle_compare = false;
         let mut toggle_lightbox = false;
         let mut toggle_focus_peaking = false;
         let mut toggle_zebras = false;
@@ -156,9 +154,7 @@ impl ImageViewerApp {
                     if toggle_button(ui, "👁", "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
-                    if toggle_button_enabled(ui, "⚖", "Compare view (C)", view_mode == ViewMode::Compare, compare_index.is_some() && compare_index != Some(current_index) || selected_count > 1).clicked() {
-                        toggle_compare = true;
-                    }
+
                     if toggle_button(ui, "⊞", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
@@ -257,7 +253,7 @@ impl ImageViewerApp {
         if rotate_left { self.rotate_left(); }
         if rotate_right { self.rotate_right(); }
         if set_view_single { self.view_mode = ViewMode::Single; }
-        if toggle_compare { self.toggle_compare_mode(); }
+
         if toggle_lightbox { self.toggle_lightbox_mode(); }
         if toggle_focus_peaking {
             self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
@@ -322,19 +318,7 @@ fn toggle_button(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> 
         .on_hover_text(tooltip)
 }
 
-fn toggle_button_enabled(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool, enabled: bool) -> egui::Response {
-    let bg = if active {
-        Color32::from_rgb(70, 130, 255)
-    } else {
-        Color32::TRANSPARENT
-    };
-    
-    ui.add_enabled(enabled, egui::Button::new(RichText::new(icon).size(16.0))
-        .fill(bg)
-        .rounding(Rounding::same(4.0))
-        .min_size(Vec2::new(28.0, 28.0)))
-        .on_hover_text(tooltip)
-}
+
 
 fn toolbar_separator(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 20.0), egui::Sense::hover());

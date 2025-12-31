@@ -11,9 +11,10 @@ impl ImageViewerApp {
         
         for display_idx in start..end {
             if let Some(&real_idx) = self.filtered_list.get(display_idx) {
-                if let Some(path) = self.image_list.get(real_idx) {
-                    if !self.thumbnail_textures.contains_key(path) {
-                        self.request_thumbnail(path.clone(), ctx.clone());
+                if let Some(path) = self.image_list.get(real_idx).cloned() {
+                    // Avoid holding mutable and immutable borrows simultaneously by copying path
+                    if !self.thumbnail_textures.contains_key(&path) {
+                        self.ensure_thumbnail_requested(&path, ctx);
                     }
                 }
             }
@@ -148,18 +149,11 @@ impl ImageViewerApp {
                 } else {
                     // Request thumbnail to be loaded if not already requested
                     if !self.thumbnail_requests.contains(path) {
-                        self.request_thumbnail(path.clone(), ctx.clone());
+                        self.ensure_thumbnail_requested(path, ctx);
                     }
                     
                     // Loading indicator - spinning animation
-                    let time = ui.input(|i| i.time);
-                    let angle = time * 2.0;
-                    let spinner_char = match (angle as i32) % 4 {
-                        0 => "◐",
-                        1 => "◓",
-                        2 => "◑",
-                        _ => "◒",
-                    };
+                    let spinner_char = self.spinner_char(ui);
                     painter.text(
                         rect.center(),
                         egui::Align2::CENTER_CENTER,
@@ -217,27 +211,10 @@ impl ImageViewerApp {
                     }
                 }
                 
-                // Double-click for compare mode
+                // Double-click: open image
                 if response.double_clicked() {
-                    self.compare_index = Some(display_idx);
-                    self.view_mode = crate::app::ViewMode::Compare;
-                    // Load the compare image if not current
-                    if display_idx != self.current_index {
-                        if let Some(path) = self.image_list.get(display_idx).cloned() {
-                            if let Some(image) = self.image_cache.get(&path) {
-                                self.set_compare_image(&path, image.clone());
-                            } else {
-                                // Load it
-                                let path_clone = path.clone();
-                                self.spawn_loader(move || {
-                                    match crate::image_loader::load_image(&path_clone) {
-                                        Ok(image) => Some(crate::app::LoaderMessage::ImageLoaded(path_clone, image)),
-                                        Err(e) => Some(crate::app::LoaderMessage::LoadError(path_clone, e.to_string())),
-                                    }
-                                });
-                            }
-                        }
-                    }
+                    self.current_index = display_idx;
+                    self.load_current_image();
                 }
                 
                 // Context menu
@@ -247,11 +224,7 @@ impl ImageViewerApp {
                         self.load_current_image();
                         ui.close_menu();
                     }
-                    if ui.button("Compare with current").clicked() {
-                        self.compare_index = Some(display_idx);
-                        self.view_mode = crate::app::ViewMode::Compare;
-                        ui.close_menu();
-                    }
+
                     ui.separator();
                     if ui.button("Delete").clicked() {
                         self.current_index = display_idx;

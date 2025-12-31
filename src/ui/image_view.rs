@@ -11,7 +11,6 @@ impl ImageViewerApp {
             .show(ctx, |ui| {
                 match self.view_mode {
                     ViewMode::Single => self.render_single_view(ui, ctx),
-                    ViewMode::Compare => self.render_compare_view(ui, ctx),
                     ViewMode::Lightbox => {} // Handled separately
                 }
             });
@@ -113,95 +112,7 @@ impl ImageViewerApp {
         }
     }
     
-    fn render_compare_view(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context) {
-        let available = ui.available_size();
-        self.available_view_size = available; // Store for fit functions
-        let half_width = available.x / 2.0 - 2.0;
-        
-        ui.horizontal(|ui| {
-            // Left image (current)
-            let left_rect = egui::Rect::from_min_size(
-                ui.cursor().min,
-                Vec2::new(half_width, available.y)
-            );
-            
-            ui.allocate_new_ui(egui::UiBuilder::new().max_rect(left_rect), |ui| {
-                self.render_compare_image(ui, self.current_index, "Current");
-            });
-            
-            // Separator
-            let sep_rect = egui::Rect::from_min_size(
-                egui::pos2(left_rect.right(), left_rect.top()),
-                Vec2::new(4.0, available.y)
-            );
-            ui.painter().rect_filled(sep_rect, Rounding::ZERO, Color32::from_rgb(60, 60, 65));
-            
-            // Right image (compare)
-            let right_rect = egui::Rect::from_min_size(
-                egui::pos2(sep_rect.right(), left_rect.top()),
-                Vec2::new(half_width, available.y)
-            );
-            
-            ui.allocate_new_ui(egui::UiBuilder::new().max_rect(right_rect), |ui| {
-                if let Some(compare_idx) = self.compare_index {
-                    self.render_compare_image(ui, compare_idx, "Compare");
-                } else {
-                    ui.painter().text(
-                        right_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Click a thumbnail to compare",
-                        egui::FontId::proportional(16.0),
-                        Color32::GRAY,
-                    );
-                }
-            });
-        });
-    }
-    
-    fn render_compare_image(&self, ui: &mut egui::Ui, index: usize, label: &str) {
-        let rect = ui.available_rect_before_wrap();
-        
-        // Draw background
-        ui.painter().rect_filled(rect, Rounding::ZERO, self.settings.background_color.to_color());
-        
-        // Get the texture for this index
-        let tex = if index == self.current_index {
-            self.current_texture.as_ref()
-        } else if Some(index) == self.compare_index {
-            self.compare_texture.as_ref()
-        } else {
-            None
-        };
-        
-        if let Some(tex) = tex {
-            let tex_size = tex.size_vec2();
-            
-            // Fit to available space
-            let scale = (rect.width() / tex_size.x).min(rect.height() / tex_size.y);
-            let display_size = tex_size * scale * self.zoom;
-            
-            let image_rect = Rect::from_center_size(
-                rect.center() + self.pan_offset,
-                display_size
-            );
-            
-            ui.painter().image(
-                tex.id(),
-                image_rect,
-                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                Color32::WHITE,
-            );
-        }
-        
-        // Label
-        ui.painter().text(
-            rect.left_top() + Vec2::new(10.0, 10.0),
-            egui::Align2::LEFT_TOP,
-            label,
-            egui::FontId::proportional(14.0),
-            Color32::WHITE,
-        );
-    }
+
     
     fn handle_image_input(&mut self, response: &egui::Response, ui: &egui::Ui) {
         // Handle touch gestures
