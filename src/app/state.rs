@@ -23,100 +23,6 @@ pub enum LoaderMessage {
     ExifLoaded(PathBuf, Box<ExifInfo>),
 }
 
-#[derive(Debug, Clone)]
-pub struct ImageTab {
-    pub name: String,
-    pub folder_path: PathBuf,
-    pub image_list: Vec<PathBuf>,
-    pub filtered_list: Vec<usize>,
-    pub current_index: usize,
-    pub zoom: f32,
-    pub target_zoom: f32,
-    pub pan_offset: Vec2,
-    pub target_pan: Vec2,
-    pub rotation: f32,
-    pub adjustments: ImageAdjustments,
-    pub show_original: bool,
-    pub view_mode: ViewMode,
-    pub lightbox_columns: usize,
-    pub selected_indices: HashSet<usize>,
-    pub last_selected: Option<usize>,
-    pub search_query: String,
-}
-
-impl ImageTab {
-    /// Create a new tab with sane defaults for a given folder
-    pub fn new(folder_path: PathBuf) -> Self {
-        let tab_name = folder_path.file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "New Tab".to_string());
-
-        Self {
-            name: tab_name,
-            folder_path,
-            image_list: Vec::new(),
-            filtered_list: Vec::new(),
-            current_index: 0,
-            zoom: 1.0,
-            target_zoom: 1.0,
-            pan_offset: Vec2::ZERO,
-            target_pan: Vec2::ZERO,
-            rotation: 0.0,
-            adjustments: ImageAdjustments::default(),
-            show_original: false,
-            view_mode: ViewMode::Single,
-            lightbox_columns: 4,
-            selected_indices: HashSet::new(),
-            last_selected: None,
-            search_query: String::new(),
-        }
-    }
-
-    /// Capture the current app state into a tab (useful for saving before switching)
-    pub fn capture_from_app(app: &ImageViewerApp, folder: PathBuf) -> Self {
-        Self {
-            name: folder.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "New Tab".to_string()),
-            folder_path: folder,
-            image_list: app.image_list.clone(),
-            filtered_list: app.filtered_list.clone(),
-            current_index: app.current_index,
-            zoom: app.zoom,
-            target_zoom: app.target_zoom,
-            pan_offset: app.pan_offset,
-            target_pan: app.target_pan,
-            rotation: app.rotation,
-            adjustments: app.adjustments.clone(),
-            show_original: app.show_original,
-            view_mode: app.view_mode,
-            lightbox_columns: app.lightbox_columns,
-            selected_indices: app.selected_indices.clone(),
-            last_selected: app.last_selected,
-            search_query: app.search_query.clone(),
-        }
-    }
-
-    /// Apply this tab's state to the running app (restore fields)
-    pub fn apply_to_app(&self, app: &mut ImageViewerApp) {
-        app.image_list = self.image_list.clone();
-        app.filtered_list = self.filtered_list.clone();
-        app.current_index = self.current_index;
-        app.zoom = self.zoom;
-        app.target_zoom = self.target_zoom;
-        app.pan_offset = self.pan_offset;
-        app.target_pan = self.target_pan;
-        app.rotation = self.rotation;
-        app.adjustments = self.adjustments.clone();
-        app.show_original = self.show_original;
-        app.view_mode = self.view_mode;
-        app.lightbox_columns = self.lightbox_columns;
-        app.selected_indices = self.selected_indices.clone();
-        app.last_selected = self.last_selected;
-        app.search_query = self.search_query.clone();
-        app.current_folder = Some(self.folder_path.clone());
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -132,9 +38,7 @@ pub struct ImageViewerApp {
     // Metadata database
     pub metadata_db: MetadataDb,
 
-    // Tabs - multiple open folders
-    pub tabs: Vec<ImageTab>,
-    pub current_tab: usize,
+    // Tabs removed
 
     // Current tab's data (for backward compatibility)
     pub image_list: Vec<PathBuf>,
@@ -263,8 +167,6 @@ impl ImageViewerApp {
         let mut app = Self {
             settings,
             metadata_db,
-            tabs: Vec::new(),
-            current_tab: 0,
             image_list: Vec::new(),
             filtered_list: Vec::new(),
             current_index: 0,

@@ -20,10 +20,6 @@ impl ImageViewerApp {
         }
     }
 
-    pub fn load_folder(&mut self, folder: PathBuf) {
-        // Create a new tab for the folder
-        self.create_tab(folder);
-    }
 
     pub fn sort_images(&mut self) {
         let current_path = self.get_current_path();

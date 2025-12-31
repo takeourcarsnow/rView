@@ -86,58 +86,8 @@ impl ImageViewerApp {
         self.pending_fit_to_window = true;
     }
 
-    // Tab management methods
-    pub fn create_tab(&mut self, folder_path: PathBuf) {
-        let tab = super::ImageTab::new(folder_path.clone());
-        self.tabs.push(tab);
-        self.current_tab = self.tabs.len() - 1;
-
-        // Load the folder for the new tab
-        self.load_folder_for_current_tab(folder_path);
-    }
-
-    pub fn switch_to_tab(&mut self, tab_index: usize) {
-        if tab_index < self.tabs.len() {
-            // Save current tab state: capture snapshot then write back
-            let folder = self.tabs[self.current_tab].folder_path.clone();
-            let new_tab = super::ImageTab::capture_from_app(self, folder);
-            self.tabs[self.current_tab] = new_tab;
-
-            // Switch to new tab
-            self.current_tab = tab_index;
-            let tab = self.tabs[tab_index].clone();
-            tab.apply_to_app(self);
-
-            // Load current image
-            self.load_current_image();
-        }
-    }
-
-    pub fn close_tab(&mut self, tab_index: usize) {
-        if self.tabs.len() > 1 && tab_index < self.tabs.len() {
-            self.tabs.remove(tab_index);
-
-            if self.current_tab >= tab_index && self.current_tab > 0 {
-                self.current_tab -= 1;
-            } else if self.tabs.is_empty() {
-                self.current_tab = 0;
-            }
-
-            // Switch to the current tab
-            if !self.tabs.is_empty() {
-                self.switch_to_tab(self.current_tab);
-            }
-        }
-    }
-
-    pub fn load_folder_for_current_tab(&mut self, folder: PathBuf) {
-        if let Some(tab) = self.tabs.get_mut(self.current_tab) {
-            tab.folder_path = folder.clone();
-            tab.name = folder.file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "New Tab".to_string());
-        }
-
+    // Load a folder (tabs removed) - populate app image list directly
+    pub fn load_folder(&mut self, folder: PathBuf) {
         self.current_folder = Some(folder.clone());
         self.settings.add_recent_folder(folder.clone());
 

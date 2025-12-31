@@ -35,10 +35,7 @@ impl eframe::App for ImageViewerApp {
         // Render dialogs
         self.render_dialogs(ctx);
         
-        // Render tab bar if we have multiple tabs
-        if self.tabs.len() > 1 {
-            self.render_tab_bar(ctx);
-        }
+        // Tabs disabled — do not render tab bar
         
         // Render UI based on view mode
         match self.view_mode {
@@ -637,66 +634,6 @@ impl ImageViewerApp {
     }
 }
 
-impl ImageViewerApp {
-    fn render_tab_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("tab_bar")
-            .frame(egui::Frame::none()
-                .fill(Color32::from_rgb(25, 25, 28))
-                .inner_margin(Margin::symmetric(8.0, 4.0)))
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                    
-                    let tab_indices: Vec<usize> = (0..self.tabs.len()).collect();
-                    
-                    for &i in &tab_indices {
-                        if i >= self.tabs.len() {
-                            continue; // Tab was removed
-                        }
-                        
-                        let tab = &self.tabs[i];
-                        let is_active = i == self.current_tab;
-                        
-                        let response = ui.add(
-                            egui::Button::new(RichText::new(&tab.name).size(12.0))
-                                .fill(if is_active {
-                                    self.settings.accent_color.to_color()
-                                } else {
-                                    Color32::from_rgb(45, 45, 50)
-                                })
-                                .stroke(if is_active {
-                                    egui::Stroke::new(1.0, Color32::WHITE)
-                                } else {
-                                    egui::Stroke::NONE
-                                })
-                        );
-                        
-                        if response.clicked() {
-                            self.switch_to_tab(i);
-                        }
-                        
-                        // Close button
-                        let close_response = ui.add(
-                            egui::Button::new("×")
-                                .fill(Color32::TRANSPARENT)
-                                .stroke(egui::Stroke::NONE)
-                                .frame(false)
-                        );
-                        
-                        if close_response.clicked() {
-                            self.close_tab(i);
-                            break; // Exit loop since tabs changed
-                        }
-                    }
-                    
-                    // Add new tab button
-                    if ui.button("+").clicked() {
-                        self.open_folder_dialog();
-                    }
-                });
-            });
-    }
-}
 
 fn apply_theme(ctx: &egui::Context, settings: &crate::settings::Settings) {
     let mut visuals = match settings.theme {
