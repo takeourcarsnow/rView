@@ -403,4 +403,12 @@ impl Settings {
             self.recent_folders.truncate(self.max_recent_folders);
         }
     }
+
+    pub fn add_quick_move_folder(&mut self, path: PathBuf) {
+        self.quick_move_folders.retain(|p| p != &path);
+        self.quick_move_folders.insert(0, path);
+        if self.quick_move_folders.len() > 10 { // Keep max 10 quick move folders
+            self.quick_move_folders.truncate(10);
+        }
+    }
 }

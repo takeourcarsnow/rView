@@ -33,7 +33,7 @@ impl ImageViewerApp {
 
         // Don't handle other keys if a dialog is open or text input is focused
         let dialogs_open = self.show_settings_dialog || self.show_go_to_dialog ||
-                          self.show_move_dialog || self.command_palette_open;
+                          self.command_palette_open;
 
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl;
@@ -60,8 +60,23 @@ impl ImageViewerApp {
                 self.pending_navigate_page_down = true;
             }
 
+            // Handle M key specially for move dialog
+            if i.key_pressed(egui::Key::M) && !ctrl {
+                if self.show_move_dialog {
+                    // If move dialog is open, move to most recent folder
+                    if let Some(recent_folder) = self.settings.quick_move_folders.first() {
+                        self.move_to_folder(recent_folder.clone());
+                        self.show_move_dialog = false;
+                    }
+                } else {
+                    // Otherwise, open the move dialog
+                    self.show_move_dialog = true;
+                }
+                return;
+            }
+
             // Other keys only work when no dialogs are open
-            if !dialogs_open {
+            if !dialogs_open && !self.show_move_dialog {
                 // Zoom
                 if i.key_pressed(egui::Key::Plus) || i.key_pressed(egui::Key::Equals) {
                     self.zoom_in();
@@ -103,11 +118,6 @@ impl ImageViewerApp {
                 // Delete
                 if i.key_pressed(egui::Key::Delete) {
                     self.delete_current_image();
-                }
-
-                // Move to selected folder
-                if i.key_pressed(egui::Key::M) && !ctrl {
-                    self.show_move_dialog = true;
                 }
 
                 // Ratings (with Alt modifier)

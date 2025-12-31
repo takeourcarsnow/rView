@@ -155,6 +155,9 @@ impl ImageViewerApp {
                 }
 
                 self.show_status(&format!("Moved to {}", dest_folder.display()));
+
+                // Add to quick move folders history
+                self.settings.add_quick_move_folder(dest_folder);
             } else {
                 self.show_status("Failed to move image");
             }
