@@ -124,6 +124,11 @@ impl ImageViewerApp {
                 display_size
             );
 
+            // Check if cursor is over the image
+            if !image_rect.contains(*pos) {
+                return;
+            }
+
             // Draw background circle to mask the corners
             ui.painter().circle_filled(*pos, loupe_size / 2.0, Color32::BLACK);
 
@@ -131,38 +136,22 @@ impl ImageViewerApp {
             let draw_size = Vec2::splat(loupe_size * 0.9);
             let draw_rect = Rect::from_center_size(*pos, draw_size);
 
-            // Source rectangle in screen (display) coordinates to sample from; center it on the cursor, size = draw_size / loupe_zoom
-            let source_size = draw_size / loupe_zoom;
-            let mut source_rect = Rect::from_center_size(*pos, source_size);
+            // Calculate the position in the original texture coordinates
+            let relative_pos = *pos - image_rect.min;
+            let texture_uv = relative_pos / display_size;
 
-            // Clamp source_rect to the visible image_rect while preserving its size
-            if source_rect.left() < image_rect.left() {
-                source_rect = source_rect.translate(egui::vec2(image_rect.left() - source_rect.left(), 0.0));
-            }
-            if source_rect.right() > image_rect.right() {
-                source_rect = source_rect.translate(egui::vec2(image_rect.right() - source_rect.right(), 0.0));
-            }
-            if source_rect.top() < image_rect.top() {
-                source_rect = source_rect.translate(egui::vec2(0.0, image_rect.top() - source_rect.top()));
-            }
-            if source_rect.bottom() > image_rect.bottom() {
-                source_rect = source_rect.translate(egui::vec2(0.0, image_rect.bottom() - source_rect.bottom()));
-            }
+            // Size of the area to sample in texture coordinates
+            let sample_size_uv = draw_size / (tex_size * loupe_zoom);
 
-            // Convert source_rect (in screen/display pixels) into UV coords relative to image_rect
-            let uv_min_x = ((source_rect.left() - image_rect.left()) / display_size.x).clamp(0.0, 1.0);
-            let uv_min_y = ((source_rect.top() - image_rect.top()) / display_size.y).clamp(0.0, 1.0);
-            let uv_max_x = ((source_rect.right() - image_rect.left()) / display_size.x).clamp(0.0, 1.0);
-            let uv_max_y = ((source_rect.bottom() - image_rect.top()) / display_size.y).clamp(0.0, 1.0);
+            // Calculate UV rectangle centered on the cursor position
+            let uv_min = (texture_uv - sample_size_uv / 2.0).clamp(Vec2::ZERO, Vec2::splat(1.0));
+            let uv_max = (texture_uv + sample_size_uv / 2.0).clamp(Vec2::ZERO, Vec2::splat(1.0));
 
-            let uv_min = egui::pos2(uv_min_x, uv_min_y);
-            let uv_max = egui::pos2(uv_max_x, uv_max_y);
-
-            // Paint the magnified portion into the draw_rect (this maps the sampled source area to the square draw rect)
+            // Paint the magnified portion into the draw_rect
             ui.painter().image(
                 tex.id(),
                 draw_rect,
-                Rect::from_min_max(uv_min, uv_max),
+                Rect::from_min_max(uv_min.to_pos2(), uv_max.to_pos2()),
                 Color32::WHITE,
             );
 

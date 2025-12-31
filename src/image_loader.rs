@@ -51,6 +51,18 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         return Err(ViewerError::FileNotFound { path: path.to_path_buf() });
     }
 
+    // Check file size to prevent loading extremely large images that could cause crashes
+    if let Ok(metadata) = std::fs::metadata(path) {
+        let file_size = metadata.len();
+        // Limit to 500MB to prevent memory issues
+        if file_size > 500 * 1024 * 1024 {
+            return Err(ViewerError::ImageLoadError { 
+                path: path.to_path_buf(), 
+                message: format!("File too large: {}MB (max 500MB)", file_size / (1024 * 1024)) 
+            });
+        }
+    }
+
     crate::profiler::with_profiler(|p| p.start_timer("image_load"));
     let result = if is_raw_file(path) {
         load_raw_image(path)
@@ -58,6 +70,21 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         load_standard_image(path)
     };
     crate::profiler::with_profiler(|p| p.end_timer("image_load"));
+
+    // Check image dimensions to prevent creating textures that are too large
+    match &result {
+        Ok(img) => {
+            let (width, height) = img.dimensions();
+            let megapixels = (width as u64 * height as u64) / 1_000_000;
+            if megapixels > 100 {
+                return Err(ViewerError::ImageLoadError { 
+                    path: path.to_path_buf(), 
+                    message: format!("Image too large: {}MP (max 100MP)", megapixels) 
+                });
+            }
+        }
+        Err(_) => {}
+    }
 
     result
 }
