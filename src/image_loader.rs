@@ -5,10 +5,11 @@ use rayon::ThreadPoolBuilder;
 
 lazy_static::lazy_static! {
     static ref RAW_PROCESSING_POOL: rayon::ThreadPool = {
-        let num_threads = (num_cpus::get() / 2).max(2).min(8); // Use half of CPU cores, min 2, max 8
+        let num_threads = 1; // Use single thread to avoid multi-threading issues with rawloader
         ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .thread_name(|i| format!("raw-processor-{}", i))
+            .stack_size(8 * 1024 * 1024) // 8MB stack to prevent overflow
             .build()
             .expect("Failed to create RAW processing thread pool")
     };
@@ -86,25 +87,67 @@ fn load_image_memory_mapped(path: &Path) -> Result<DynamicImage> {
 }
 
 fn load_raw_image(path: &Path) -> Result<DynamicImage> {
+    log::info!("Loading RAW image: {:?}", path);
     RAW_PROCESSING_POOL.install(|| {
-        let raw = rawloader::decode_file(path)
-            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() })?;
+        // Wrap in catch_unwind to handle panics in rawloader
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            log::debug!("Decoding RAW file: {:?}", path);
+            // Attempt to decode with rawloader. If it fails, try a safe fallback: extract an embedded JPEG preview
+            // and use it as the image so that DNGs exported by Lightroom that rawloader can't decode still display.
+            let raw = match rawloader::decode_file(path) {
+                Ok(r) => r,
+                Err(e) => {
+                    log::error!("rawloader decode_file failed for {:?}: {}", path, e);
+                    // Try to extract embedded thumbnail as a fallback
+                    match load_raw_embedded_thumbnail(path, 16384) {
+                        Ok(thumb) => {
+                            log::warn!("Using embedded thumbnail as fallback for {:?}", path);
+                            return Ok(thumb);
+                        }
+                        Err(_) => {
+                            return Err(ViewerError::RawProcessingError { path: path.to_path_buf(), message: e.to_string() });
+                        }
+                    }
+                }
+            };
 
-        let source = imagepipe::ImageSource::Raw(raw);
-        let mut pipeline = imagepipe::Pipeline::new_from_source(source)
-            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Pipeline error: {}", e) })?;
+            log::debug!("Creating pipeline for {:?}", path);
+            let source = imagepipe::ImageSource::Raw(raw);
+            let mut pipeline = imagepipe::Pipeline::new_from_source(source)
+                .map_err(|e| {
+                    log::error!("Pipeline creation failed for {:?}: {}", path, e);
+                    ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Pipeline error: {}", e) }
+                })?;
 
-        let srgb = pipeline.output_8bit(None)
-            .map_err(|e| ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Processing error: {}", e) })?;
+            log::debug!("Processing image for {:?}", path);
+            let srgb = pipeline.output_8bit(None)
+                .map_err(|e| {
+                    log::error!("Pipeline output failed for {:?}: {}", path, e);
+                    ViewerError::RawProcessingError { path: path.to_path_buf(), message: format!("Processing error: {}", e) }
+                })?;
 
-        let width = srgb.width;
-        let height = srgb.height;
-        let pixels = srgb.data;
+            let width = srgb.width;
+            let height = srgb.height;
+            let pixels = srgb.data;
 
-        let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
-            .ok_or_else(|| ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create image buffer".to_string() })?;
+            log::debug!("Creating image buffer for {:?}, size {}x{}", path, width, height);
+            let img: RgbImage = ImageBuffer::from_raw(width as u32, height as u32, pixels)
+                .ok_or_else(|| {
+                    log::error!("Failed to create image buffer for {:?}", path);
+                    ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Failed to create image buffer".to_string() }
+                })?;
 
-        Ok(DynamicImage::ImageRgb8(img))
+            log::info!("Successfully loaded RAW image: {:?}", path);
+            Ok(DynamicImage::ImageRgb8(img))
+        }));
+
+        match result {
+            Ok(img) => img,
+            Err(_) => {
+                log::error!("RAW processing panicked for file: {:?}", path);
+                Err(ViewerError::RawProcessingError { path: path.to_path_buf(), message: "Raw processing panicked, possibly due to corrupted file or unsupported format".to_string() })
+            },
+        }
     })
 }
 
@@ -124,6 +167,17 @@ fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
     if is_raw_file(path) {
         if let Ok(thumb) = load_raw_embedded_thumbnail(path, max_size) {
             return Ok(thumb);
+        }
+
+        // No embedded thumbnail available; as a fallback, attempt a full RAW decode and generate a thumbnail from it.
+        // This is more expensive but ensures files (like some Lightroom-exported DNGs) still show a preview.
+        log::warn!("No embedded thumbnail for {:?}; attempting full RAW decode to generate thumbnail", path);
+        match load_raw_image(path) {
+            Ok(img) => return Ok(generate_thumbnail(&img, max_size)),
+            Err(e) => {
+                log::warn!("Full RAW decode fallback for thumbnail failed for {:?}: {}", path, e);
+                return Err(ViewerError::ImageLoadError { path: path.to_path_buf(), message: "No embedded thumbnail for RAW file".to_string() });
+            }
         }
     }
     
@@ -173,7 +227,43 @@ pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<Dynamic
         }
     }
 
-    // No embedded JPEG found; return error so callers can decide whether to attempt full RAW decoding
+    // No embedded JPEG found via EXIF tags; try scanning the file for JPEG signatures as a fallback
+    // (Some DNGs exported by Lightroom place previews without standard EXIF thumbnail tags)
+    let data = std::fs::read(path)
+        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+
+    // Find JPEG start (0xFFD8) and end (0xFFD9) markers and try the largest candidates first
+    let mut candidates: Vec<(usize, usize)> = Vec::new();
+    let mut i = 0usize;
+    while i + 1 < data.len() {
+        if data[i] == 0xFF && data[i + 1] == 0xD8 {
+            // found start
+            let mut j = i + 2;
+            while j + 1 < data.len() {
+                if data[j] == 0xFF && data[j + 1] == 0xD9 {
+                    candidates.push((i, j + 2)); // end is inclusive index + 1
+                    i = j + 2;
+                    break;
+                }
+                j += 1;
+            }
+        }
+        i += 1;
+    }
+
+    // Sort by length descending so we try the largest (likely preview) first
+    candidates.sort_by(|a, b| (b.1 - b.0).cmp(&(a.1 - a.0)));
+
+    for (s, e) in candidates {
+        let slice = &data[s..e];
+        // skip obviously too small fragments
+        if slice.len() < 512 { continue; }
+        if let Ok(img) = image::load_from_memory(slice) {
+            log::warn!("Using embedded JPEG scan fallback for {:?} ({} bytes)", path, slice.len());
+            return Ok(img.thumbnail(max_size, max_size));
+        }
+    }
+
     Err(ViewerError::ImageLoadError { path: path.to_path_buf(), message: "No embedded thumbnail found".to_string() })
 }
 

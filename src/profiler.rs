@@ -26,7 +26,7 @@ impl Profiler {
     pub fn end_timer(&mut self, name: &str) {
         if let Some(start) = self.timers.remove(name) {
             let duration = start.elapsed();
-            tracing::debug!(timer = name, duration_ms = ?duration.as_millis(), "end_timer");
+            tracing::trace!(timer = name, duration_ms = ?duration.as_millis(), "end_timer");
             self.measurements.entry(name.to_string())
                 .or_default()
                 .push(duration);

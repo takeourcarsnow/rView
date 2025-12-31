@@ -20,6 +20,7 @@ pub enum LoaderMessage {
     PreviewLoaded(PathBuf, DynamicImage),
     ProgressiveLoaded(PathBuf, DynamicImage),
     ThumbnailLoaded(PathBuf, DynamicImage),
+    ThumbnailRequestComplete(PathBuf),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, Box<ExifInfo>),
     MoveCompleted { from: PathBuf, dest_folder: PathBuf, success: bool, error: Option<String> },

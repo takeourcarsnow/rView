@@ -6,11 +6,11 @@ pub fn init_tracing(enable_debug: bool) {
     // Bridge `log` records into `tracing` so existing `log` macros are captured
     let _ = tracing_log::LogTracer::init();
 
-    // Prefer explicit debug flag, otherwise fall back to RUST_LOG or default to warn
+    // Prefer explicit debug flag, otherwise fall back to RUST_LOG or default to info
     let env_filter = if enable_debug {
         EnvFilter::new("debug")
     } else {
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("warn"))
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
     };
 
     // Use try_init so calling this multiple times (e.g., in tests) doesn't panic

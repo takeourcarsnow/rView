@@ -328,6 +328,31 @@ mod integration_tests {
             assert!(cache.get_thumbnail(p).is_some(), "Thumbnail not generated for {:?}", p);
         }
     }
+
+    #[test]
+    fn debug_load_lightroom_dng() {
+        use std::path::Path;
+        let p = Path::new("testfiles/20251121-IMG_20251121_145826.dng");
+        assert!(p.exists(), "Test DNG not found: {:?}", p);
+
+        // Try embedded thumbnail via EXIF
+        match crate::image_loader::load_raw_embedded_thumbnail(p, 512) {
+            Ok(img) => println!("embedded thumbnail OK: {}x{}", img.width(), img.height()),
+            Err(e) => println!("embedded thumbnail failed: {:?}", e),
+        }
+
+        // Use the public thumbnail loader
+        match crate::image_loader::load_thumbnail(p, 512) {
+            Ok(img) => println!("load_thumbnail OK: {}x{}", img.width(), img.height()),
+            Err(e) => println!("load_thumbnail failed: {:?}", e),
+        }
+
+        // Finally try full RAW decode (this may be slow)
+        match crate::image_loader::load_image(p) {
+            Ok(img) => println!("load_image OK: {}x{}", img.width(), img.height()),
+            Err(e) => println!("load_image failed: {:?}", e),
+        }
+    }
 }
 
 #[cfg(test)]

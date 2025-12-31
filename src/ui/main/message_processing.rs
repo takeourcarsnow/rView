@@ -59,7 +59,9 @@ impl ImageViewerApp {
                                 egui::TextureOptions::LINEAR,
                             );
 
-                            self.thumbnail_textures.insert(path, texture);
+                            // Insert texture and clear the in-flight request flag for this path
+                            self.thumbnail_textures.insert(path.clone(), texture);
+                            self.thumbnail_requests.remove(&path);
                         }
                         LoaderMessage::LoadError(path, error) => {
                             crate::profiler::with_profiler(|p| p.increment_counter("load_errors"));
@@ -77,6 +79,10 @@ impl ImageViewerApp {
                             if self.get_current_path().as_ref() == Some(&path) {
                                 self.current_exif = Some(exif_val);
                             }
+                        }
+                        LoaderMessage::ThumbnailRequestComplete(path) => {
+                            // Clear the in-flight flag so future thumbnail attempts can retry if needed
+                            self.thumbnail_requests.remove(&path);
                         }
                         LoaderMessage::MoveCompleted { from, dest_folder, success, error } => {
                             if success {

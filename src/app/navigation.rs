@@ -415,33 +415,49 @@ impl ImageViewerApp {
         let load_raw_full_size = self.settings.load_raw_full_size;
 
         rayon::spawn(move || {
+            // Clone once for use in sends to avoid moving the original too early
+            let p = path.clone();
+
             profiler::with_profiler(|p| p.start_timer("thumbnail_cache_lookup"));
-            let cache_hit = cache.get_thumbnail(&path).is_some();
+            let cache_hit = cache.get_thumbnail(&p).is_some();
             profiler::with_profiler(|p| p.end_timer("thumbnail_cache_lookup"));
 
             if cache_hit {
-                let thumb = cache.get_thumbnail(&path).unwrap();
-                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
+                let thumb = cache.get_thumbnail(&p).unwrap();
+                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                 ctx.request_repaint();
                 return;
             }
 
             profiler::with_profiler(|p| p.start_timer("thumbnail_generation"));
-            // If RAW files are configured to be preview-only, try only embedded thumbnail extraction
-            if image_loader::is_raw_file(&path) && !load_raw_full_size {
-                if let Ok(thumb) = image_loader::load_raw_embedded_thumbnail(&path, size) {
-                    cache.insert_thumbnail(path.clone(), thumb.clone());
-                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
-                    ctx.request_repaint();
+            // If RAW files are configured to be preview-only, try embedded thumbnail extraction first
+            // If that fails, fall back to generating a thumbnail via full RAW decode to ensure previews appear.
+            if image_loader::is_raw_file(&p) && !load_raw_full_size {
+                match image_loader::load_raw_embedded_thumbnail(&p, size) {
+                    Ok(thumb) => {
+                        cache.insert_thumbnail(p.clone(), thumb.clone());
+                        let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
+                        ctx.request_repaint();
+                    }
+                    Err(_) => {
+                        log::warn!("No embedded thumbnail for {:?} — falling back to full decode for thumbnail", p);
+                        if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
+                            cache.insert_thumbnail(p.clone(), thumb.clone());
+                            let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
+                            ctx.request_repaint();
+                        }
+                    }
                 }
             } else {
-                if let Ok(thumb) = image_loader::load_thumbnail(&path, size) {
-                    cache.insert_thumbnail(path.clone(), thumb.clone());
-                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(path, thumb));
+                if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
+                    cache.insert_thumbnail(p.clone(), thumb.clone());
+                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                     ctx.request_repaint();
                 }
             }
             profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
+            // Notify main thread that this thumbnail request has completed (so it can clear in-flight flags)
+            let _ = tx.send(super::LoaderMessage::ThumbnailRequestComplete(p));
         });
     }
 

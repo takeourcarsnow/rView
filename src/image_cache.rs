@@ -54,7 +54,7 @@ impl ImageCache {
     fn get_from_cache(&self, cache: &Arc<Mutex<HashMap<PathBuf, CachedImage>>>, path: &Path) -> Option<DynamicImage> {
         let mut cache = cache.lock().unwrap();
         if let Some(cached) = cache.get_mut(path) {
-            tracing::debug!(path = %path.display(), "cache hit");
+            tracing::trace!(path = %path.display(), "cache hit");
             cached.last_access = std::time::Instant::now();
             return Some(cached.image.clone());
         }
