@@ -29,9 +29,12 @@ impl GpuProcessor {
                 .request_device(
                     &wgpu::DeviceDescriptor {
                         label: Some("image_viewer_device"),
-                        required_features: wgpu::Features::empty(),
-                        required_limits: wgpu::Limits::downlevel_defaults(),
-                        memory_hints: wgpu::MemoryHints::default(),
+                        required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                        required_limits: wgpu::Limits {
+                            max_compute_workgroup_size_x: 256,
+                            ..wgpu::Limits::downlevel_defaults()
+                        },
+                        memory_hints: wgpu::MemoryHints::Performance,
                     },
                     None,
                 )
@@ -99,7 +102,7 @@ fn pack_u32(c: vec4<f32>) -> u32 {
     return (a << 24) | (b << 16) | (g << 8) | r;
 }
 
-@compute @workgroup_size(64)
+@compute @workgroup_size(256)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let idx = GlobalInvocationID.x;
     if (idx >= params.width * params.height) {
@@ -323,7 +326,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("compute_pass"), timestamp_writes: None });
             cpass.set_pipeline(&compute_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            let groups = ((pixel_count as u32) + 63) / 64;
+            let groups = ((pixel_count as u32) + 255) / 256;
             cpass.dispatch_workgroups(groups, 1, 1);
         }
 

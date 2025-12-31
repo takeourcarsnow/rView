@@ -2,6 +2,8 @@ use crate::errors::{Result, ViewerError};
 use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage};
 use std::path::Path;
 use rayon::ThreadPoolBuilder;
+use rayon::prelude::*;
+use num_cpus;
 
 lazy_static::lazy_static! {
     static ref RAW_PROCESSING_POOL: rayon::ThreadPool = {
@@ -411,54 +413,126 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     let exposure_mult = 2.0_f32.powf(adj.exposure);
     
     // Contrast adjustment
-    let contrast_factor = (100.0 + adj.contrast) / 100.0;
+    let contrast_factor = adj.contrast;
     
-    for y in 0..height {
-        for x in 0..width {
-            let pixel = img.get_pixel_mut(x, y);
+    // Saturation factor
+    let sat_factor = adj.saturation;
+    
+    // Temperature adjustments
+    let temp_r_add = if adj.temperature > 0.0 { adj.temperature * 25.5 } else { adj.temperature * 15.3 };
+    let temp_b_sub = if adj.temperature > 0.0 { adj.temperature * 15.3 } else { adj.temperature * 25.5 };
+    
+    // Brightness addition
+    let brightness_add = adj.brightness * 2.55;
+    
+    // Blacks adjustment (lift shadows)
+    let blacks_add = adj.blacks * 25.5; // -1.0 to +1.0 -> -25.5 to +25.5
+    
+    // Whites adjustment (reduce highlights)
+    let whites_mult = 1.0 - adj.whites * 0.1; // -1.0 to +1.0 -> 0.9 to 1.1
+    
+    // Shadows adjustment (gamma-like curve for shadows)
+    let shadow_lift = adj.shadows * 0.5; // -1.0 to +1.0 -> -0.5 to +0.5
+    
+    // Highlights adjustment (compress highlights)
+    let highlight_compress = adj.highlights * 0.7; // -1.0 to +1.0 -> -0.7 to +0.7
+    
+    // Tint adjustments
+    let tint_r_add = if adj.tint > 0.0 { adj.tint * 12.75 } else { 0.0 };
+    let tint_b_add = if adj.tint > 0.0 { adj.tint * 12.75 } else { 0.0 };
+    let tint_g_sub = if adj.tint < 0.0 { -adj.tint * 20.4 } else { 0.0 };
+    
+    // Sharpening (simplified)
+    let sharpen_strength = adj.sharpening * 0.5;
+    
+    // Process pixels in parallel for maximum CPU utilization
+    let raw_pixels = img.as_mut();
+    let pixels_per_chunk = (raw_pixels.len() / num_cpus::get()).max(4); // 4 bytes per pixel (RGBA)
+    
+    raw_pixels.par_chunks_mut(pixels_per_chunk).for_each(|chunk| {
+        for pixel in chunk.chunks_mut(4) {
+            if pixel.len() < 4 { continue; } // Skip incomplete pixels
+            
             let mut r = pixel[0] as f32;
             let mut g = pixel[1] as f32;
             let mut b = pixel[2] as f32;
+            let a = pixel[3] as f32;
             
             // Apply exposure
             r *= exposure_mult;
             g *= exposure_mult;
             b *= exposure_mult;
             
-            // Apply brightness
-            r += adj.brightness * 2.55;
-            g += adj.brightness * 2.55;
-            b += adj.brightness * 2.55;
+            // Blacks adjustment (lift shadows)
+            r += blacks_add;
+            g += blacks_add;
+            b += blacks_add;
             
-            // Apply contrast
+            // Whites adjustment (reduce highlights)
+            r *= whites_mult;
+            g *= whites_mult;
+            b *= whites_mult;
+            
+            // Shadows adjustment (gamma-like curve for shadows)
+            if shadow_lift < 0.0 {
+                let gamma = 1.0 - shadow_lift;
+                r = r.powf(gamma);
+                g = g.powf(gamma);
+                b = b.powf(gamma);
+            }
+            
+            // Highlights adjustment (compress highlights)
+            if highlight_compress > 0.0 {
+                let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                let highlight_mask = ((luminance - 0.5) / 0.5).max(0.0).min(1.0);
+                let compress = 1.0 - highlight_compress * highlight_mask;
+                r *= compress;
+                g *= compress;
+                b *= compress;
+            }
+            
+            // Brightness
+            r += brightness_add;
+            g += brightness_add;
+            b += brightness_add;
+            
+            // Contrast
             r = ((r / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
             g = ((g / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
             b = ((b / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
             
-            // Apply saturation
+            // Temperature
+            r += temp_r_add;
+            b -= temp_b_sub;
+            
+            // Tint
+            r += tint_r_add;
+            g -= tint_g_sub;
+            b += tint_b_add;
+            
+            // Saturation
             let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            let sat_factor = (100.0 + adj.saturation) / 100.0;
             r = gray + (r - gray) * sat_factor;
             g = gray + (g - gray) * sat_factor;
             b = gray + (b - gray) * sat_factor;
             
-            // Apply temperature (simplified)
-            if adj.temperature > 0.0 {
-                // Warmer
-                r += adj.temperature * 0.5;
-                b -= adj.temperature * 0.3;
-            } else {
-                // Cooler
-                r += adj.temperature * 0.3;
-                b -= adj.temperature * 0.5;
+            // Basic sharpening (simplified unsharp mask approximation)
+            if sharpen_strength > 0.0 {
+                let sharpened = r + (r - gray) * sharpen_strength;
+                r = r + (sharpened - r) * sharpen_strength;
+                let sharpened = g + (g - gray) * sharpen_strength;
+                g = g + (sharpened - g) * sharpen_strength;
+                let sharpened = b + (b - gray) * sharpen_strength;
+                b = b + (sharpened - b) * sharpen_strength;
             }
             
             // Clamp values
             pixel[0] = r.clamp(0.0, 255.0) as u8;
             pixel[1] = g.clamp(0.0, 255.0) as u8;
             pixel[2] = b.clamp(0.0, 255.0) as u8;
+            pixel[3] = a as u8; // Alpha unchanged
         }
-    }
+    });
     
     DynamicImage::ImageRgba8(img)
 }
