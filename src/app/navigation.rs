@@ -8,6 +8,36 @@ use std::sync::Arc;
 
 use super::ImageViewerApp;
 
+fn compare_paths_by_mode(a: &PathBuf, b: &PathBuf, sort_mode: crate::settings::SortMode) -> std::cmp::Ordering {
+    match sort_mode {
+        crate::settings::SortMode::Name => {
+            let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+            natord::compare(&a_name, &b_name)
+        },
+        crate::settings::SortMode::Date | crate::settings::SortMode::DateTaken => {
+            let a_time = a.metadata().and_then(|m| m.modified()).ok();
+            let b_time = b.metadata().and_then(|m| m.modified()).ok();
+            a_time.cmp(&b_time)
+        },
+        crate::settings::SortMode::Size => {
+            let a_size = a.metadata().map(|m| m.len()).unwrap_or(0);
+            let b_size = b.metadata().map(|m| m.len()).unwrap_or(0);
+            a_size.cmp(&b_size)
+        },
+        crate::settings::SortMode::Type => {
+            let a_ext = a.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            let b_ext = b.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+            a_ext.cmp(&b_ext).then_with(|| {
+                let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                natord::compare(&a_name, &b_name)
+            })
+        },
+        _ => unreachable!("Rating and Random handled separately"),
+    }
+}
+
 impl ImageViewerApp {
     pub fn load_image_file(&mut self, path: PathBuf) {
         if let Some(parent) = path.parent() {
@@ -23,60 +53,20 @@ impl ImageViewerApp {
 
     pub fn sort_images(&mut self) {
         let current_path = self.get_current_path();
+        let sort_mode = self.settings.sort_mode;
 
-        match self.settings.sort_mode {
-            crate::settings::SortMode::Name => {
-                self.image_list.sort_by(|a, b| {
-                    let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    natord::compare(&a_name, &b_name)
-                });
-            }
-            crate::settings::SortMode::Date => {
-                self.image_list.sort_by(|a, b| {
-                    let a_time = a.metadata().and_then(|m| m.modified()).ok();
-                    let b_time = b.metadata().and_then(|m| m.modified()).ok();
-                    a_time.cmp(&b_time)
-                });
-            }
-            crate::settings::SortMode::DateTaken => {
-                // Would need EXIF data cached - fall back to file date for now
-                self.image_list.sort_by(|a, b| {
-                    let a_time = a.metadata().and_then(|m| m.modified()).ok();
-                    let b_time = b.metadata().and_then(|m| m.modified()).ok();
-                    a_time.cmp(&b_time)
-                });
-            }
-            crate::settings::SortMode::Size => {
-                self.image_list.sort_by(|a, b| {
-                    let a_size = a.metadata().map(|m| m.len()).unwrap_or(0);
-                    let b_size = b.metadata().map(|m| m.len()).unwrap_or(0);
-                    a_size.cmp(&b_size)
-                });
-            }
-            crate::settings::SortMode::Type => {
-                self.image_list.sort_by(|a, b| {
-                    let a_ext = a.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    let b_ext = b.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    a_ext.cmp(&b_ext).then_with(|| {
-                        let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                        let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                        natord::compare(&a_name, &b_name)
-                    })
-                });
-            }
-            crate::settings::SortMode::Rating => {
-                self.image_list.sort_by(|a, b| {
-                    let a_rating = self.metadata_db.get(a).rating;
-                    let b_rating = self.metadata_db.get(b).rating;
-                    b_rating.cmp(&a_rating) // Descending
-                });
-            }
-            crate::settings::SortMode::Random => {
-                use rand::seq::SliceRandom;
-                let mut rng = rand::thread_rng();
-                self.image_list.shuffle(&mut rng);
-            }
+        if matches!(sort_mode, crate::settings::SortMode::Random) {
+            use rand::seq::SliceRandom;
+            let mut rng = rand::thread_rng();
+            self.image_list.shuffle(&mut rng);
+        } else if matches!(sort_mode, crate::settings::SortMode::Rating) {
+            self.image_list.sort_by(|a, b| {
+                let a_rating = self.metadata_db.get(a).rating;
+                let b_rating = self.metadata_db.get(b).rating;
+                b_rating.cmp(&a_rating)
+            });
+        } else {
+            self.image_list.sort_by(|a, b| compare_paths_by_mode(a, b, sort_mode));
         }
 
         if !self.settings.sort_ascending {
@@ -88,6 +78,41 @@ impl ImageViewerApp {
             if let Some(idx) = self.image_list.iter().position(|p| p == &path) {
                 self.current_index = idx;
             }
+        }
+    }
+
+    fn compare_paths_with_mode(&self, a: &PathBuf, b: &PathBuf, sort_mode: crate::settings::SortMode) -> std::cmp::Ordering {
+        match sort_mode {
+            crate::settings::SortMode::Name => {
+                let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                natord::compare(&a_name, &b_name)
+            },
+            crate::settings::SortMode::Date | crate::settings::SortMode::DateTaken => {
+                let a_time = a.metadata().and_then(|m| m.modified()).ok();
+                let b_time = b.metadata().and_then(|m| m.modified()).ok();
+                a_time.cmp(&b_time)
+            },
+            crate::settings::SortMode::Size => {
+                let a_size = a.metadata().map(|m| m.len()).unwrap_or(0);
+                let b_size = b.metadata().map(|m| m.len()).unwrap_or(0);
+                a_size.cmp(&b_size)
+            },
+            crate::settings::SortMode::Type => {
+                let a_ext = a.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                let b_ext = b.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+                a_ext.cmp(&b_ext).then_with(|| {
+                    let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                    let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+                    natord::compare(&a_name, &b_name)
+                })
+            },
+            crate::settings::SortMode::Rating => {
+                let a_rating = self.metadata_db.get(a).rating;
+                let b_rating = self.metadata_db.get(b).rating;
+                b_rating.cmp(&a_rating) // Descending
+            },
+            crate::settings::SortMode::Random => unreachable!("Random sorting handled separately"),
         }
     }
 
@@ -140,71 +165,54 @@ impl ImageViewerApp {
 
     pub fn load_current_image(&mut self) {
         if let Some(path) = self.get_current_path() {
-            self.is_loading = true;
-            self.load_error = None;
-            self.current_exif = None;
-            self.histogram_data = None;
-            self.focus_peaking_texture = None;
-            self.zebra_texture = None;
-            self.showing_preview = false;
+            self.reset_image_state();
             self.settings.last_file = Some(path.clone());
 
-            // Check cache first
-            if let Some(image) = self.image_cache.get(&path) {
-                self.set_current_image(&path, image);
-
-            // Even when the image came from cache, spawn EXIF loader so sidebar gets populated
-            let path_clone = path.clone();
-            self.spawn_loader(move || {
-                let exif = ExifInfo::from_file(&path_clone);
-                Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
-            });
-
-            // Return early because we've already set the image from cache
-            return;
-        }
-
-        // For RAW files, load a quick preview first then (optionally) the full image
-        let is_raw = image_loader::is_raw_file(&path);
-
-        if is_raw {
-            // Load quick preview first (smaller resolution)
-            let path_clone = path.clone();
-            self.spawn_loader(move || {
-                image_loader::load_thumbnail(&path_clone, 1920)
-                    .ok()
-                    .map(|preview| super::LoaderMessage::PreviewLoaded(path_clone, preview))
-            });
-
-            // If user disabled full-size RAW decoding, skip spawning the full image loader
-            if !self.settings.load_raw_full_size {
-                // Still spawn EXIF loader below, but do not request the full image to save time and memory
-            } else {
-                // Spawn full image load
-                let path_clone = path.clone();
-                self.spawn_loader(move || {
-                    Some(match image_loader::load_image(&path_clone) {
-                        Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
-                        Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
-                    })
-                });
+            if self.try_load_from_cache(&path) {
+                return;
             }
-        } else {
-            // Non-RAW: load progressive versions for better UX
-            // First load a smaller preview version
-            let path_clone = path.clone();
-            self.spawn_loader(move || {
-                match image_loader::load_image(&path_clone) {
-                    Ok(full_image) => {
-                        // Create a smaller preview version (max 1920px on longest side)
-                        let preview = image_loader::generate_thumbnail(&full_image, 1920);
-                        Some(super::LoaderMessage::ProgressiveLoaded(path_clone.clone(), preview))
-                    }
-                    Err(e) => Some(super::LoaderMessage::LoadError(path_clone, e.to_string())),
-                }
-            });
 
-            // Then load the full resolution
+            if image_loader::is_raw_file(&path) {
+                self.load_raw_image(&path);
+            } else {
+                self.load_standard_image(&path);
+            }
+
+            self.load_exif_data(&path);
+            self.preload_adjacent();
+        }
+    }
+
+    fn reset_image_state(&mut self) {
+        self.is_loading = true;
+        self.load_error = None;
+        self.current_exif = None;
+        self.histogram_data = None;
+        self.focus_peaking_texture = None;
+        self.zebra_texture = None;
+        self.showing_preview = false;
+    }
+
+    fn try_load_from_cache(&mut self, path: &PathBuf) -> bool {
+        if let Some(image) = self.image_cache.get(path) {
+            self.set_current_image(path, image);
+            self.load_exif_data(path);
+            return true;
+        }
+        false
+    }
+
+    fn load_raw_image(&mut self, path: &PathBuf) {
+        // Load quick preview first
+        let path_clone = path.clone();
+        self.spawn_loader(move || {
+            image_loader::load_thumbnail(&path_clone, 1920)
+                .ok()
+                .map(|preview| super::LoaderMessage::PreviewLoaded(path_clone, preview))
+        });
+
+        if self.settings.load_raw_full_size {
+            // Spawn full image load
             let path_clone = path.clone();
             self.spawn_loader(move || {
                 Some(match image_loader::load_image(&path_clone) {
@@ -213,16 +221,37 @@ impl ImageViewerApp {
                 })
             });
         }
+    }
 
-            // Load EXIF data asynchronously
-            let path_clone = path.clone();
-            self.spawn_loader(move || {
-                let exif = ExifInfo::from_file(&path_clone);
-                Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
-            });
+    fn load_standard_image(&mut self, path: &PathBuf) {
+        // Load progressive versions for better UX
+        let path_clone = path.clone();
+        self.spawn_loader(move || {
+            match image_loader::load_image(&path_clone) {
+                Ok(full_image) => {
+                    let preview = image_loader::generate_thumbnail(&full_image, 1920);
+                    Some(super::LoaderMessage::ProgressiveLoaded(path_clone.clone(), preview))
+                }
+                Err(e) => Some(super::LoaderMessage::LoadError(path_clone, e.to_string())),
+            }
+        });
 
-            self.preload_adjacent();
-        }
+        // Then load the full resolution
+        let path_clone = path.clone();
+        self.spawn_loader(move || {
+            Some(match image_loader::load_image(&path_clone) {
+                Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
+                Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+            })
+        });
+    }
+
+    fn load_exif_data(&self, path: &PathBuf) {
+        let path_clone = path.clone();
+        self.spawn_loader(move || {
+            let exif = ExifInfo::from_file(&path_clone);
+            Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
+        });
     }
 
     pub fn set_current_image(&mut self, path: &std::path::Path, image: DynamicImage) {
