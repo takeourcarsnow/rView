@@ -21,13 +21,14 @@ impl ImageViewerApp {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        // Folder tree
-                        self.render_folder_tree(ui);
+                        // Folder tree (collapsible)
+                        collapsible_header(ui, "File Browser", true, |ui| {
+                            self.render_folder_tree(ui);
+                        });
                         ui.add_space(12.0);
                         
-                        // Recent files
-                        self.render_recent_files(ui);
-                        ui.add_space(12.0);
+                        // (recent files removed)
+                        // ui.add_space(12.0);
                         
                         // Histogram
                         if self.settings.show_histogram {
@@ -41,9 +42,13 @@ impl ImageViewerApp {
                             ui.add_space(12.0);
                         }
                         
-                        // EXIF data
-                        self.render_exif_panel(ui);
-                        ui.add_space(12.0);
+                        // EXIF data (compact summary + full panel)
+                        if self.settings.show_exif {
+                            self.render_exif_summary(ui);
+                            ui.add_space(8.0);
+                            self.render_exif_panel(ui);
+                            ui.add_space(12.0);
+                        }
                         
                         // Rating & Labels
                         self.render_metadata_panel(ui);
@@ -202,54 +207,6 @@ impl ImageViewerApp {
         }
     }
     
-    fn render_recent_files(&mut self, ui: &mut egui::Ui) {
-        ui.label(RichText::new("Recent Files").size(14.0).color(Color32::WHITE));
-        ui.add_space(4.0);
-        
-        egui::Frame::none()
-            .fill(Color32::from_rgb(25, 25, 30))
-            .rounding(Rounding::same(4.0))
-            .inner_margin(Margin::same(8.0))
-            .show(ui, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("recent_files")
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        // Get recent files from settings (we'll need to add this)
-                        // For now, show some example recent files
-                        let recent_files = vec![
-                            ("IMG_1234.jpg", "2 hours ago"),
-                            ("DSC_5678.CR2", "Yesterday"),
-                            ("photo_001.png", "3 days ago"),
-                        ];
-                        
-                        for (filename, time) in recent_files {
-                            ui.horizontal(|ui| {
-                                // Thumbnail placeholder
-                                let (rect, _) = ui.allocate_exact_size(Vec2::new(40.0, 40.0), egui::Sense::click());
-                                ui.painter().rect_filled(rect, Rounding::same(2.0), Color32::from_rgb(50, 50, 55));
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    "📷",
-                                    egui::FontId::proportional(16.0),
-                                    Color32::GRAY,
-                                );
-                                
-                                ui.vertical(|ui| {
-                                    ui.add_space(2.0);
-                                    ui.label(RichText::new(filename).size(11.0).color(Color32::WHITE));
-                                    ui.label(RichText::new(time).size(10.0).color(Color32::GRAY));
-                                });
-                            });
-                            
-                            if ui.input(|i| i.pointer.primary_clicked()) {
-                                // Would load the file here
-                            }
-                        }
-                    });
-            });
-    }
     
     fn render_histogram_panel(&self, ui: &mut egui::Ui) {
         collapsible_header(ui, "Histogram", true, |ui| {
@@ -323,42 +280,25 @@ impl ImageViewerApp {
                 egui::Sense::click_and_drag()
             );
             let rect = response.rect;
-            
-            // Background
-            painter.rect_filled(rect, Rounding::same(4.0), Color32::from_rgb(20, 20, 25));
-            
-            // Draw thumbnail
-            if let Some(tex) = &self.current_texture {
-                let tex_size = tex.size_vec2();
-                let scale = (rect.width() / tex_size.x).min(rect.height() / tex_size.y);
-                let thumb_size = tex_size * scale;
-                
-                let thumb_rect = Rect::from_center_size(rect.center(), thumb_size);
-                painter.image(
-                    tex.id(),
-                    thumb_rect,
-                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-                
-                // Draw viewport rectangle
-                let view_w = (1.0 / self.zoom) * thumb_size.x;
-                let view_h = (1.0 / self.zoom) * thumb_size.y;
-                let view_x = thumb_rect.center().x - self.pan_offset.x * scale - view_w / 2.0;
-                let view_y = thumb_rect.center().y - self.pan_offset.y * scale - view_h / 2.0;
-                
-                let view_rect = Rect::from_min_size(
-                    egui::pos2(view_x, view_y),
-                    Vec2::new(view_w, view_h)
-                ).intersect(thumb_rect);
-                
-                painter.rect_stroke(view_rect, Rounding::ZERO, 
-                    egui::Stroke::new(2.0, Color32::from_rgb(70, 130, 255)));
-            }
         });
     }
+
+    fn render_exif_summary(&self, ui: &mut egui::Ui) {
+        if let Some(exif) = &self.current_exif {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(egui::RichText::new(exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string())).strong());
+                    ui.label(egui::RichText::new(format!("{} • ISO {}", exif.date_taken.clone().unwrap_or_default(), exif.iso.clone().unwrap_or_default())).small().color(Color32::GRAY));
+                });
+            });
+        } else {
+            ui.label(egui::RichText::new("No EXIF available").color(Color32::GRAY));
+        }
+    }
+            
+
     
-    fn render_exif_panel(&self, ui: &mut egui::Ui) {
+    fn render_exif_panel(&mut self, ui: &mut egui::Ui) {
         collapsible_header(ui, "EXIF Data", true, |ui| {
             if let Some(exif) = &self.current_exif {
                 exif_row_opt(ui, "Camera", &exif.camera_model);
@@ -375,8 +315,38 @@ impl ImageViewerApp {
                         exif.gps_longitude.unwrap_or(0.0));
                     exif_row(ui, "GPS", &gps);
                 }
+
+                ui.add_space(6.0);
+                // Manual reload button
+                ui.horizontal(|ui| {
+                    if ui.button("Reload EXIF").clicked() {
+                        if let Some(path) = self.get_current_path() {
+                            let path_clone = path.clone();
+                            let tx = self.loader_tx.clone();
+                            self.set_status_message(format!("Reloading EXIF for {}", path_clone.display()));
+                            std::thread::spawn(move || {
+                                let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                                let _ = tx.send(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
+                            });
+                        }
+                    }
+                });
+
             } else {
-                ui.label(RichText::new("No EXIF data").color(Color32::GRAY).size(11.0));
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("No EXIF data").color(Color32::GRAY).size(11.0));
+                    if ui.button("Reload EXIF").clicked() {
+                        if let Some(path) = self.get_current_path() {
+                            let path_clone = path.clone();
+                            let tx = self.loader_tx.clone();
+                            self.set_status_message(format!("Reloading EXIF for {}", path_clone.display()));
+                            std::thread::spawn(move || {
+                                let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                                let _ = tx.send(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)));
+                            });
+                        }
+                    }
+                });
             }
         });
     }

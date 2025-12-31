@@ -121,6 +121,30 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_gpu_processor_basic() {
+        // Try to initialize GPU; if not available just skip the test
+        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
+            let adj = crate::image_loader::ImageAdjustments {
+                exposure: 0.5,
+                contrast: 1.1,
+                brightness: 10.0,
+                saturation: 1.0,
+                highlights: 0.0,
+                shadows: 0.0,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: 0.0,
+                whites: 0.0,
+                sharpening: 0.0,
+            };
+
+            let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment failed");
+            assert_eq!(out.len(), (16 * 16 * 4) as usize);
+        }
+    }
+
+    #[test]
     fn test_thread_pool_error() {
         use crate::errors::ViewerError;
 

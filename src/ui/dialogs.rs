@@ -173,6 +173,7 @@ impl ImageViewerApp {
                         ui.add_space(4.0);
                         
                         ui.checkbox(&mut self.profiler_enabled, "Enable performance profiling");
+                        ui.checkbox(&mut self.settings.gpu_enabled, "Enable GPU acceleration (experimental)");
                         
                         if self.profiler_enabled {
                             ui.add_space(8.0);

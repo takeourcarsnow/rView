@@ -200,10 +200,34 @@ impl ImageViewerApp {
 
         self.current_image = Some(image.clone());
 
-        // Apply adjustments if any
+        // Apply adjustments if any (use GPU if available)
         let display_image = if !self.adjustments.is_default() && !self.show_original {
             profiler::with_profiler(|p| p.start_timer("apply_adjustments"));
-            let adjusted = image_loader::apply_adjustments(&image, &self.adjustments);
+
+            let adjusted = if let Some(gpu) = &self.gpu_processor {
+                // Try GPU path first
+                match gpu.apply_adjustments(&image, &self.adjustments) {
+                    Ok(pixels) => {
+                        // Convert back to DynamicImage
+                        let width = image.width();
+                        let height = image.height();
+                        if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                            DynamicImage::ImageRgba8(buf)
+                        } else {
+                            // Fallback to CPU
+                            log::warn!("GPU returned unexpected buffer size; falling back to CPU adjustments");
+                            image_loader::apply_adjustments(&image, &self.adjustments)
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("GPU adjustments failed: {}; falling back to CPU", e);
+                        image_loader::apply_adjustments(&image, &self.adjustments)
+                    }
+                }
+            } else {
+                image_loader::apply_adjustments(&image, &self.adjustments)
+            };
+
             profiler::with_profiler(|p| p.end_timer("apply_adjustments"));
             adjusted
         } else {
@@ -341,7 +365,7 @@ impl ImageViewerApp {
         let size = self.settings.thumbnail_size as u32;
         let cache = Arc::clone(&self.image_cache);
 
-        std::thread::spawn(move || {
+        rayon::spawn(move || {
             profiler::with_profiler(|p| p.start_timer("thumbnail_cache_lookup"));
             let cache_hit = cache.get_thumbnail(&path).is_some();
             profiler::with_profiler(|p| p.end_timer("thumbnail_cache_lookup"));

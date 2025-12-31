@@ -12,6 +12,8 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
+use crate::gpu::GpuProcessor;
+
 #[derive(Debug)]
 pub enum LoaderMessage {
     ImageLoaded(PathBuf, DynamicImage),
@@ -120,6 +122,7 @@ impl ImageTab {
 pub enum ViewMode {
     Single,
     Lightbox,
+    Compare,
 }
 
 pub struct ImageViewerApp {
@@ -148,6 +151,9 @@ pub struct ImageViewerApp {
     pub current_image: Option<DynamicImage>,
     pub current_exif: Option<ExifInfo>,
     pub histogram_data: Option<Vec<Vec<u32>>>,
+
+    // EXIF data cached for arbitrary paths (used for compare and overlays)
+    pub compare_exifs: std::collections::HashMap<PathBuf, ExifInfo>,
     pub is_loading: bool,
     pub load_error: Option<String>,
     /// Tracks if we're showing a preview (not full resolution)
@@ -173,6 +179,7 @@ pub struct ImageViewerApp {
     pub image_cache: Arc<ImageCache>,
     pub thumbnail_textures: HashMap<PathBuf, egui::TextureHandle>,
     pub thumbnail_requests: HashSet<PathBuf>,
+    pub compare_large_preview_requests: HashSet<PathBuf>,
 
     // File tree state
     pub expanded_dirs: HashSet<PathBuf>,
@@ -219,6 +226,9 @@ pub struct ImageViewerApp {
     // Context for repaint requests
     pub ctx: Option<egui::Context>,
 
+    // GPU processor (optional)
+    pub gpu_processor: Option<Arc<GpuProcessor>>,
+
     // Status message
     pub status_message: Option<(String, std::time::Instant)>,
 
@@ -229,6 +239,16 @@ pub struct ImageViewerApp {
 
     // Panel visibility
     pub panels_hidden: bool,
+
+    // Compare view interaction state (zoom per side)
+    pub compare_zoom: [f32; 2],
+    pub compare_pan: [egui::Vec2; 2],
+}
+
+impl ImageViewerApp {
+    pub fn set_status_message(&mut self, msg: String) {
+        self.status_message = Some((msg, std::time::Instant::now()));
+    }
 }
 
 impl ImageViewerApp {
@@ -260,6 +280,8 @@ impl ImageViewerApp {
             showing_preview: false,
             focus_peaking_texture: None,
             zebra_texture: None,
+            compare_exifs: HashMap::new(),
+            compare_large_preview_requests: HashSet::new(),
             zoom: 1.0,
             target_zoom: 1.0,
             pan_offset: Vec2::ZERO,
@@ -296,6 +318,9 @@ impl ImageViewerApp {
             loupe_position: None,
             picked_color: None,
             ctx: Some(cc.egui_ctx.clone()),
+            gpu_processor: None,
+            compare_zoom: [1.0, 1.0],
+            compare_pan: [Vec2::ZERO, Vec2::ZERO],
             status_message: None,
             profiler_enabled: cfg!(debug_assertions), // Enabled in debug mode
             cache_stats: CacheStats::default(),
@@ -328,6 +353,22 @@ impl ImageViewerApp {
                 app.load_folder(path);
             }
         }
+
+        // Initialize GPU processor if enabled
+        app.gpu_processor = if app.settings.gpu_enabled {
+            match GpuProcessor::new() {
+                Ok(g) => {
+                    log::info!("GPU processor initialized");
+                    Some(Arc::new(g))
+                }
+                Err(e) => {
+                    log::warn!("Failed to initialize GPU processor: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
 
         app
     }

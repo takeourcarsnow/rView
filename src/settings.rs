@@ -65,6 +65,9 @@ pub struct Settings {
     pub thumbnail_cache_size: usize,
     pub use_embedded_thumbnails: bool,
     pub parallel_thumbnail_threads: usize,
+
+    // GPU acceleration
+    pub gpu_enabled: bool,
     
     // Export presets
     
@@ -139,6 +142,9 @@ impl Default for Settings {
             thumbnail_cache_size: 1000,
             use_embedded_thumbnails: true,
             parallel_thumbnail_threads: 4,
+
+            // GPU
+            gpu_enabled: true,
             
             window_maximized: false,
             window_size: (1400.0, 900.0),

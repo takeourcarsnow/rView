@@ -40,86 +40,92 @@ impl ExifInfo {
         
         if let Ok(file) = File::open(path) {
             let mut bufreader = BufReader::new(file);
-            if let Ok(exif) = Reader::new().read_from_container(&mut bufreader) {
-                if let Some(field) = exif.get_field(Tag::Make, In::PRIMARY) {
-                    info.camera_make = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Model, In::PRIMARY) {
-                    info.camera_model = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::LensModel, In::PRIMARY) {
-                    info.lens = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::FocalLength, In::PRIMARY) {
-                    info.focal_length = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::FNumber, In::PRIMARY) {
-                    info.aperture = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::ExposureTime, In::PRIMARY) {
-                    info.shutter_speed = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::PhotographicSensitivity, In::PRIMARY) {
-                    info.iso = Some(format!("ISO {}", field.display_value()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
-                    info.date_taken = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::ExposureBiasValue, In::PRIMARY) {
-                    info.exposure_compensation = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Flash, In::PRIMARY) {
-                    info.flash = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::WhiteBalance, In::PRIMARY) {
-                    info.white_balance = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::MeteringMode, In::PRIMARY) {
-                    info.metering_mode = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::ExposureProgram, In::PRIMARY) {
-                    info.exposure_program = Some(field.display_value().to_string());
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Copyright, In::PRIMARY) {
-                    info.copyright = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Artist, In::PRIMARY) {
-                    info.artist = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Software, In::PRIMARY) {
-                    info.software = Some(clean_string(&field.display_value().to_string()));
-                }
-                
-                let width = exif.get_field(Tag::PixelXDimension, In::PRIMARY)
-                    .or_else(|| exif.get_field(Tag::ImageWidth, In::PRIMARY));
-                let height = exif.get_field(Tag::PixelYDimension, In::PRIMARY)
-                    .or_else(|| exif.get_field(Tag::ImageLength, In::PRIMARY));
-                
-                if let (Some(w), Some(h)) = (width, height) {
-                    info.dimensions = Some(format!("{} × {}", w.display_value(), h.display_value()));
-                }
-                
-                if let Some(field) = exif.get_field(Tag::Orientation, In::PRIMARY) {
-                    if let exif::Value::Short(ref v) = field.value {
-                        if !v.is_empty() {
-                            info.orientation = Some(v[0] as u32);
+            match Reader::new().read_from_container(&mut bufreader) {
+                Ok(exif) => {
+                    if let Some(field) = exif.get_field(Tag::Make, In::PRIMARY) {
+                        info.camera_make = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Model, In::PRIMARY) {
+                        info.camera_model = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::LensModel, In::PRIMARY) {
+                        info.lens = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::FocalLength, In::PRIMARY) {
+                        info.focal_length = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::FNumber, In::PRIMARY) {
+                        info.aperture = Some(field.display_value().to_string());
+                    }
+
+                    if let Some(field) = exif.get_field(Tag::ExposureTime, In::PRIMARY) {
+                        info.shutter_speed = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::PhotographicSensitivity, In::PRIMARY) {
+                        info.iso = Some(format!("ISO {}", field.display_value()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::DateTimeOriginal, In::PRIMARY) {
+                        info.date_taken = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::ExposureBiasValue, In::PRIMARY) {
+                        info.exposure_compensation = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Flash, In::PRIMARY) {
+                        info.flash = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::WhiteBalance, In::PRIMARY) {
+                        info.white_balance = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::MeteringMode, In::PRIMARY) {
+                        info.metering_mode = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::ExposureProgram, In::PRIMARY) {
+                        info.exposure_program = Some(field.display_value().to_string());
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Copyright, In::PRIMARY) {
+                        info.copyright = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Artist, In::PRIMARY) {
+                        info.artist = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Software, In::PRIMARY) {
+                        info.software = Some(clean_string(&field.display_value().to_string()));
+                    }
+                    
+                    let width = exif.get_field(Tag::PixelXDimension, In::PRIMARY)
+                        .or_else(|| exif.get_field(Tag::ImageWidth, In::PRIMARY));
+                    let height = exif.get_field(Tag::PixelYDimension, In::PRIMARY)
+                        .or_else(|| exif.get_field(Tag::ImageLength, In::PRIMARY));
+                    
+                    if let (Some(w), Some(h)) = (width, height) {
+                        info.dimensions = Some(format!("{} × {}", w.display_value(), h.display_value()));
+                    }
+                    
+                    if let Some(field) = exif.get_field(Tag::Orientation, In::PRIMARY) {
+                        if let exif::Value::Short(ref v) = field.value {
+                            if !v.is_empty() {
+                                info.orientation = Some(v[0] as u32);
+                            }
                         }
                     }
+                }
+                Err(e) => {
+                    // Try a fallback for some RAW formats - log a warning and keep going
+                    log::warn!("Failed to read EXIF via exif::Reader for {}: {}", path.display(), e);
                 }
             }
         }

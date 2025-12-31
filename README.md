@@ -18,7 +18,7 @@ A modern, cross-platform image viewer built with Rust. Supports standard image f
 - **Cross-platform**: Works on Windows, macOS, and Linux
 - **Standard formats**: JPEG, PNG, GIF, BMP, TIFF, WebP, ICO, PNM
 - **RAW support**: CR2, CR3, NEF, ARW, ORF, RW2, DNG, RAF, and many more
-- **GPU-accelerated rendering**: Smooth performance even with large images
+- **GPU-accelerated rendering (experimental)**: Offload per-pixel adjustments to the GPU for faster previews; toggle in Settings → Performance & Diagnostics
 
 ### Navigation & Viewing
 - **Maintain zoom on navigate** ⭐: Compare focus across photos at 100% zoom (like FastStone!)

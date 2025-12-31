@@ -9,6 +9,7 @@ mod metadata;
 mod profiler;
 mod settings;
 mod tests;
+mod gpu;
 mod ui;
 
 use app::ImageViewerApp;

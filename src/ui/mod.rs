@@ -61,6 +61,19 @@ impl eframe::App for ImageViewerApp {
                 }
                 self.render_lightbox(ctx);
             }
+            ViewMode::Compare => {
+                if self.settings.show_toolbar {
+                    self.render_toolbar(ctx);
+                }
+                if !self.panels_hidden {
+                    self.render_sidebar(ctx);
+                }
+                if self.settings.show_statusbar {
+                    self.render_statusbar(ctx);
+                }
+                // Call the public wrapper
+                self.render_compare_view_public(ctx);
+            }
         }
         
         // Process pending navigation actions (deferred to avoid UI blocking)
@@ -146,8 +159,11 @@ impl ImageViewerApp {
                         }
                         LoaderMessage::ExifLoaded(path, exif) => {
                             crate::profiler::with_profiler(|p| p.increment_counter("exif_loaded"));
+                            // Clone the exif info to avoid moving it twice
+                            let exif_val = (*exif).clone();
+                            self.compare_exifs.insert(path.clone(), exif_val.clone());
                             if self.get_current_path().as_ref() == Some(&path) {
-                                self.current_exif = Some(*exif);
+                                self.current_exif = Some(exif_val);
                             }
                         }
                     }
@@ -251,6 +267,14 @@ impl ImageViewerApp {
                 if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
                     self.is_fullscreen = !self.is_fullscreen;
                     ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
+                }
+
+                // Compare mode toggle
+                if i.key_pressed(egui::Key::C) {
+                    self.view_mode = match self.view_mode {
+                        ViewMode::Compare => ViewMode::Single,
+                        _ => ViewMode::Compare,
+                    };
                 }
                 
                 // Delete
