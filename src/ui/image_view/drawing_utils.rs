@@ -110,66 +110,55 @@ impl ImageViewerApp {
             let loupe_zoom = self.settings.loupe_zoom;
 
             // Calculate image rectangle (same as in render_single_view)
-            let _available = ui.available_size();
             let rect = ui.available_rect_before_wrap();
             let tex_size = tex.size_vec2();
             let display_size = tex_size * self.zoom;
+
+            // Guard against degenerate display sizes
+            if display_size.x.abs() < 1e-6 || display_size.y.abs() < 1e-6 {
+                return;
+            }
 
             let image_rect = Rect::from_center_size(
                 rect.center() + self.pan_offset,
                 display_size
             );
 
-            // Loupe circle background (draw slightly larger to hide rectangle corners)
+            // Draw background circle to mask the corners
             ui.painter().circle_filled(*pos, loupe_size / 2.0, Color32::BLACK);
 
-            // Clamp sampling position to image to avoid disappearing when cursor is at edges
-            let sample_pos = egui::pos2(
-                pos.x.clamp(image_rect.left(), image_rect.right()),
-                pos.y.clamp(image_rect.top(), image_rect.bottom()),
-            );
+            // Draw rectangle where the magnified image will be painted (slightly inset to fit inside circle)
+            let draw_size = Vec2::splat(loupe_size * 0.9);
+            let draw_rect = Rect::from_center_size(*pos, draw_size);
 
-            // Inset draw rect so image corners don't show outside the circular border
-            let draw_rect = Rect::from_center_size(*pos, Vec2::splat(loupe_size * 0.9));
+            // Source rectangle in screen (display) coordinates to sample from; center it on the cursor, size = draw_size / loupe_zoom
+            let source_size = draw_size / loupe_zoom;
+            let mut source_rect = Rect::from_center_size(*pos, source_size);
 
-            // Calculate UV coordinates based on sampling position relative to image
-            let relative_pos = sample_pos - image_rect.min;
-            // Avoid division by zero
-            let display_w = if display_size.x.abs() < 1e-6 { 1.0 } else { display_size.x };
-            let display_h = if display_size.y.abs() < 1e-6 { 1.0 } else { display_size.y };
-            let uv = egui::pos2(relative_pos.x / display_w, relative_pos.y / display_h);
-
-            // Calculate UV radius separately for X and Y to respect aspect ratio
-            let mut uv_radius_x = (loupe_size / 2.0) / (display_w * loupe_zoom).max(1e-6);
-            let mut uv_radius_y = (loupe_size / 2.0) / (display_h * loupe_zoom).max(1e-6);
-
-            // Ensure minimum non-zero radius to avoid degenerate uv rects
-            let min_radius_x = 1.0 / tex.size_vec2().x.max(1.0);
-            let min_radius_y = 1.0 / tex.size_vec2().y.max(1.0);
-            if uv_radius_x < min_radius_x { uv_radius_x = min_radius_x; }
-            if uv_radius_y < min_radius_y { uv_radius_y = min_radius_y; }
-
-            let mut uv_min_x = (uv.x - uv_radius_x).clamp(0.0, 1.0);
-            let mut uv_max_x = (uv.x + uv_radius_x).clamp(0.0, 1.0);
-            let mut uv_min_y = (uv.y - uv_radius_y).clamp(0.0, 1.0);
-            let mut uv_max_y = (uv.y + uv_radius_y).clamp(0.0, 1.0);
-
-            // If any axis collapsed (edge cases), expand slightly to create a tiny region
-            if uv_max_x <= uv_min_x {
-                let mid = (uv_min_x + uv_max_x) * 0.5;
-                uv_min_x = (mid - 0.005).clamp(0.0, 1.0);
-                uv_max_x = (mid + 0.005).clamp(0.0, 1.0);
+            // Clamp source_rect to the visible image_rect while preserving its size
+            if source_rect.left() < image_rect.left() {
+                source_rect = source_rect.translate(egui::vec2(image_rect.left() - source_rect.left(), 0.0));
             }
-            if uv_max_y <= uv_min_y {
-                let mid = (uv_min_y + uv_max_y) * 0.5;
-                uv_min_y = (mid - 0.005).clamp(0.0, 1.0);
-                uv_max_y = (mid + 0.005).clamp(0.0, 1.0);
+            if source_rect.right() > image_rect.right() {
+                source_rect = source_rect.translate(egui::vec2(image_rect.right() - source_rect.right(), 0.0));
             }
+            if source_rect.top() < image_rect.top() {
+                source_rect = source_rect.translate(egui::vec2(0.0, image_rect.top() - source_rect.top()));
+            }
+            if source_rect.bottom() > image_rect.bottom() {
+                source_rect = source_rect.translate(egui::vec2(0.0, image_rect.bottom() - source_rect.bottom()));
+            }
+
+            // Convert source_rect (in screen/display pixels) into UV coords relative to image_rect
+            let uv_min_x = ((source_rect.left() - image_rect.left()) / display_size.x).clamp(0.0, 1.0);
+            let uv_min_y = ((source_rect.top() - image_rect.top()) / display_size.y).clamp(0.0, 1.0);
+            let uv_max_x = ((source_rect.right() - image_rect.left()) / display_size.x).clamp(0.0, 1.0);
+            let uv_max_y = ((source_rect.bottom() - image_rect.top()) / display_size.y).clamp(0.0, 1.0);
 
             let uv_min = egui::pos2(uv_min_x, uv_min_y);
             let uv_max = egui::pos2(uv_max_x, uv_max_y);
 
-            // Draw zoomed image portion into inset draw rect
+            // Paint the magnified portion into the draw_rect (this maps the sampled source area to the square draw rect)
             ui.painter().image(
                 tex.id(),
                 draw_rect,

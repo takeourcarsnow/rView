@@ -84,6 +84,8 @@ impl ImageViewerApp {
                             ui.label("Size:");
                             ui.add(egui::Slider::new(&mut self.settings.thumbnail_size, 50.0..=200.0).suffix("px"));
                         });
+
+                        ui.checkbox(&mut self.settings.show_thumbnail_labels, "Show filename and resolution under thumbnails");
                         
                         ui.add_space(12.0);
                         ui.heading("View");

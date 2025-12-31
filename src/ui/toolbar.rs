@@ -210,24 +210,27 @@ impl ImageViewerApp {
                         toolbar_separator(ui);
                         
                         // Sort options
+                        let order_label = match sort_order {
+                            SortOrder::Ascending => "A-Z",
+                            SortOrder::Descending => "Z-A",
+                        };
                         egui::ComboBox::from_id_salt("sort_mode")
-                            .selected_text(format!("{:?}", sort_mode))
-                            .width(80.0)
+                            .selected_text(format!("{:?} ({})", sort_mode, order_label))
+                            .width(120.0)
                             .show_ui(ui, |ui| {
                                 for mode in [SortMode::Name, SortMode::Date, SortMode::Size, SortMode::Type, SortMode::Random] {
                                     if ui.selectable_label(sort_mode == mode, format!("{:?}", mode)).clicked() {
                                         new_sort_mode = Some(mode);
                                     }
                                 }
+                                ui.separator();
+                                ui.horizontal(|ui| {
+                                    ui.label("Order:");
+                                    if ui.button(order_label).clicked() {
+                                        toggle_sort_order = true;
+                                    }
+                                });
                             });
-                        
-                        let order_label = match sort_order {
-                            SortOrder::Ascending => "A-Z",
-                            SortOrder::Descending => "Z-A",
-                        };
-                        if icon_button(ui, order_label, "Toggle sort order").clicked() {
-                            toggle_sort_order = true;
-                        }
                     });
                 });
             });

@@ -30,7 +30,8 @@ impl ImageViewerApp {
         self.prefetch_visible_thumbnails(ctx);
         
         let thumb_size = self.settings.thumbnail_size;
-        let bar_size = thumb_size + 20.0;
+        // Add extra space for optional filename / resolution labels
+        let bar_size = thumb_size + 34.0;
         
         match self.settings.thumbnail_position {
             ThumbnailPosition::Bottom => {
@@ -117,14 +118,19 @@ impl ImageViewerApp {
         
         for (display_idx, path, is_current, is_selected, tex_id, metadata) in thumb_data {
             if let Some(ref path) = path {
+                // Allocate extra vertical space when labels are enabled so text isn't clipped
+                let extra_height = if self.settings.show_thumbnail_labels { 18.0 } else { 0.0 };
                 let (response, painter) = ui.allocate_painter(
-                    Vec2::splat(thumb_size),
+                    Vec2::new(thumb_size, thumb_size + extra_height),
                     egui::Sense::click()
                 );
-                
+
                 let rect = response.rect;
-                
-                // Background and selection
+
+                // The visible image area is the top portion (reserve bottom for optional label)
+                let image_area = Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.min.y + thumb_size));
+
+                // Background and selection (applies only to the image area)
                 let bg_color = if is_current {
                     Color32::from_rgb(70, 130, 255)
                 } else if is_selected {
@@ -134,12 +140,12 @@ impl ImageViewerApp {
                 } else {
                     Color32::from_rgb(35, 35, 40)
                 };
+
+                painter.rect_filled(image_area, Rounding::same(4.0), bg_color);
                 
-                painter.rect_filled(rect, Rounding::same(4.0), bg_color);
-                
-                // Thumbnail image (preserve original aspect ratio)
+                // Thumbnail image (preserve original aspect ratio) inside the reserved image area
                 if let Some(tex_id) = tex_id {
-                    let inner_rect = rect.shrink(3.0);
+                    let inner_rect = image_area.shrink(3.0);
                     // Determine texture pixel size and scale to fit inside inner_rect while preserving aspect ratio
                     let tex_size = self.texture_size_from_id(tex_id);
                     let scale = (inner_rect.width() / tex_size.x).min(inner_rect.height() / tex_size.y);
@@ -157,10 +163,10 @@ impl ImageViewerApp {
                         self.ensure_thumbnail_requested(path, ctx);
                     }
                     
-                    // Loading indicator - spinning animation
+                    // Loading indicator - spinning animation (in image area)
                     let spinner_char = self.spinner_char(ui);
                     painter.text(
-                        rect.center(),
+                        image_area.center(),
                         egui::Align2::CENTER_CENTER,
                         spinner_char,
                         egui::FontId::proportional(18.0),
@@ -174,7 +180,7 @@ impl ImageViewerApp {
                 if let Some(metadata) = &metadata {
                     if metadata.rating > 0 {
                         painter.text(
-                            rect.left_bottom() + Vec2::new(3.0, -3.0),
+                            image_area.left_bottom() + Vec2::new(3.0, -3.0),
                             egui::Align2::LEFT_BOTTOM,
                             "★".repeat(metadata.rating as usize),
                             egui::FontId::proportional(8.0),
@@ -185,12 +191,36 @@ impl ImageViewerApp {
                     // Color label dot (top right)
                     if metadata.color_label != ColorLabel::None {
                         painter.circle_filled(
-                            rect.right_top() + Vec2::new(-6.0, 6.0),
+                            image_area.right_top() + Vec2::new(-6.0, 6.0),
                             4.0,
                             metadata.color_label.to_color(),
                         );
                     }
-                }
+                } // end metadata if
+
+                // Filename and resolution label under thumbnail (optional)
+                    if self.settings.show_thumbnail_labels {
+                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            let mut info = String::new();
+                            // Prefer EXIF-reported dimensions if available; fall back to texture size
+                            let exif = crate::exif_data::ExifInfo::from_file(path);
+                            if let Some(dim) = exif.dimensions { info = dim; }
+                            else if let Some(tex_id) = tex_id {
+                                let tex_size = self.texture_size_from_id(tex_id);
+                                info = format!("{} × {}", tex_size.x as i32, tex_size.y as i32);
+                            }
+
+                            let label = if info.is_empty() { file_name.to_string() } else { format!("{} • {}", file_name, info) };
+                            let label_pos = egui::pos2(rect.center().x, image_area.bottom() + 2.0);
+                            painter.text(
+                                label_pos,
+                                egui::Align2::CENTER_TOP,
+                                label,
+                                egui::FontId::proportional(10.0),
+                                Color32::from_rgb(200, 200, 200),
+                            );
+                        }
+                    }
                 
                 // Click handling
                 if response.clicked() {
