@@ -146,6 +146,10 @@ pub struct ImageViewerApp {
     // Panel visibility
     pub panels_hidden: bool,
 
+    // Panel collapse states
+    pub sidebar_collapsed: bool,
+    pub thumbnail_collapsed: bool,
+
     // Compare view interaction state (zoom per side)
     pub compare_zoom: [f32; 2],
     pub compare_pan: [egui::Vec2; 2],
@@ -229,6 +233,8 @@ impl ImageViewerApp {
             cache_stats: CacheStats::default(),
             loading_diagnostics: LoadingDiagnostics::default(),
             panels_hidden: false,
+            sidebar_collapsed: false,
+            thumbnail_collapsed: false,
         };
 
         // Restore session

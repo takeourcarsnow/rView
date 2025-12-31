@@ -9,51 +9,78 @@ impl ImageViewerApp {
             return;
         }
         
-        egui::SidePanel::right("sidebar")
-            .resizable(true)
-            .default_width(280.0)
-            .min_width(200.0)
-            .max_width(400.0)
-            .frame(egui::Frame::none()
-                .fill(Color32::from_rgb(30, 30, 35))
-                .inner_margin(Margin::same(8.0)))
-            .show(ctx, |ui| {
-                // Allow vertical auto-shrink so the file browser doesn't force an excessively tall panel
-                egui::ScrollArea::vertical()
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
-                        // Folder tree (collapsible)
-                        collapsible_header(ui, "File Browser", true, |ui| {
-                            self.render_folder_tree(ui);
-                        });
-                        ui.add_space(12.0);
-                        
-                        // (recent files removed)
-                        // ui.add_space(12.0);
-                        
-                        // Histogram
-                        if self.settings.show_histogram {
-                            self.render_histogram_panel(ui);
-                            ui.add_space(12.0);
+        if self.sidebar_collapsed {
+            egui::SidePanel::right("sidebar")
+                .resizable(false)
+                .exact_width(24.0)
+                .frame(egui::Frame::none()
+                    .fill(Color32::from_rgb(30, 30, 35))
+                    .inner_margin(Margin::same(2.0)))
+                .show(ctx, |ui| {
+                    ui.vertical_centered(|ui| {
+                        if ui.button("▶").clicked() {
+                            self.sidebar_collapsed = false;
                         }
-                        
-                        // Minimap
-                        if self.zoom > 1.0 {
-                            self.render_minimap(ui);
-                            ui.add_space(12.0);
-                        }
-                        
-                        // EXIF data (full panel only - avoids duplicated summary)
-                        if self.settings.show_exif {
-                            self.render_exif_panel(ui);
-                            ui.add_space(12.0);
-                        }
-                        
-                        // Rating & Labels
-                        self.render_metadata_panel(ui);
-                        ui.add_space(12.0);
                     });
-            });
+                });
+        } else {
+            egui::SidePanel::right("sidebar")
+                .resizable(true)
+                .default_width(280.0)
+                .min_width(200.0)
+                .max_width(400.0)
+                .frame(egui::Frame::none()
+                    .fill(Color32::from_rgb(30, 30, 35))
+                    .inner_margin(Margin::same(8.0)))
+                .show(ctx, |ui| {
+                    // Header
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Sidebar").size(12.0).strong());
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("✕").clicked() {
+                                self.sidebar_collapsed = true;
+                            }
+                        });
+                    });
+                    ui.separator();
+                    
+                    // Allow vertical auto-shrink so the file browser doesn't force an excessively tall panel
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            // Folder tree (collapsible)
+                            collapsible_header(ui, "File Browser", true, |ui| {
+                                self.render_folder_tree(ui);
+                            });
+                            ui.add_space(12.0);
+                            
+                            // (recent files removed)
+                            // ui.add_space(12.0);
+                            
+                            // Histogram
+                            if self.settings.show_histogram {
+                                self.render_histogram_panel(ui);
+                                ui.add_space(12.0);
+                            }
+                            
+                            // Minimap
+                            if self.zoom > 1.0 {
+                                self.render_minimap(ui);
+                                ui.add_space(12.0);
+                            }
+                            
+                            // EXIF data (full panel only - avoids duplicated summary)
+                            if self.settings.show_exif {
+                                self.render_exif_panel(ui);
+                                ui.add_space(12.0);
+                            }
+                            
+                            // Rating & Labels
+                            self.render_metadata_panel(ui);
+                            ui.add_space(12.0);
+                        });
+                });
+        }
     }
 
     fn render_folder_tree(&mut self, ui: &mut egui::Ui) {

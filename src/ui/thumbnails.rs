@@ -35,48 +35,108 @@ impl ImageViewerApp {
         
         match self.settings.thumbnail_position {
             ThumbnailPosition::Bottom => {
-                egui::TopBottomPanel::bottom("thumbnails")
-                    .resizable(false)
-                    .exact_height(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(4.0, 8.0)))
-                    .show(ctx, |ui| {
-                        self.render_thumbnail_contents(ui, ctx, true);
-                    });
+                if self.thumbnail_collapsed {
+                    egui::TopBottomPanel::bottom("thumbnails")
+                        .exact_height(24.0)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)))
+                        .show(ctx, |ui| {
+                            ui.horizontal_centered(|ui| {
+                                if ui.button("⊞").clicked() {
+                                    self.thumbnail_collapsed = false;
+                                }
+                            });
+                        });
+                } else {
+                    egui::TopBottomPanel::bottom("thumbnails")
+                        .resizable(false)
+                        .exact_height(bar_size)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)))
+                        .show(ctx, |ui| {
+                            self.render_thumbnail_contents(ui, ctx, true);
+                        });
+                }
             }
             ThumbnailPosition::Top => {
-                egui::TopBottomPanel::top("thumbnails_top")
-                    .resizable(false)
-                    .exact_height(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(4.0, 8.0)))
-                    .show(ctx, |ui| {
-                        self.render_thumbnail_contents(ui, ctx, true);
-                    });
+                if self.thumbnail_collapsed {
+                    egui::TopBottomPanel::top("thumbnails_top")
+                        .exact_height(24.0)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)))
+                        .show(ctx, |ui| {
+                            ui.horizontal_centered(|ui| {
+                                if ui.button("⊞").clicked() {
+                                    self.thumbnail_collapsed = false;
+                                }
+                            });
+                        });
+                } else {
+                    egui::TopBottomPanel::top("thumbnails_top")
+                        .resizable(false)
+                        .exact_height(bar_size)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)))
+                        .show(ctx, |ui| {
+                            self.render_thumbnail_contents(ui, ctx, true);
+                        });
+                }
             }
             ThumbnailPosition::Left => {
-                egui::SidePanel::left("thumbnails_left")
-                    .resizable(false)
-                    .exact_width(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(8.0, 4.0)))
-                    .show(ctx, |ui| {
-                        self.render_thumbnail_contents(ui, ctx, false);
-                    });
+                if self.thumbnail_collapsed {
+                    egui::SidePanel::left("thumbnails_left")
+                        .exact_width(24.0)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)))
+                        .show(ctx, |ui| {
+                            ui.vertical_centered(|ui| {
+                                if ui.button("⊞").clicked() {
+                                    self.thumbnail_collapsed = false;
+                                }
+                            });
+                        });
+                } else {
+                    egui::SidePanel::left("thumbnails_left")
+                        .resizable(false)
+                        .exact_width(bar_size)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)))
+                        .show(ctx, |ui| {
+                            self.render_thumbnail_contents(ui, ctx, false);
+                        });
+                }
             }
             ThumbnailPosition::Right => {
-                egui::SidePanel::right("thumbnails_right")
-                    .resizable(false)
-                    .exact_width(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(8.0, 4.0)))
-                    .show(ctx, |ui| {
-                        self.render_thumbnail_contents(ui, ctx, false);
-                    });
+                if self.thumbnail_collapsed {
+                    egui::SidePanel::right("thumbnails_right")
+                        .exact_width(24.0)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)))
+                        .show(ctx, |ui| {
+                            ui.vertical_centered(|ui| {
+                                if ui.button("⊞").clicked() {
+                                    self.thumbnail_collapsed = false;
+                                }
+                            });
+                        });
+                } else {
+                    egui::SidePanel::right("thumbnails_right")
+                        .resizable(false)
+                        .exact_width(bar_size)
+                        .frame(egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)))
+                        .show(ctx, |ui| {
+                            self.render_thumbnail_contents(ui, ctx, false);
+                        });
+                }
             }
         }
     }
@@ -97,22 +157,34 @@ impl ImageViewerApp {
             let total_width = total_items as f32 * item_width;
             let content_size = Vec2::new(total_width, item_height);
 
-            egui::ScrollArea::horizontal()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.allocate_space(content_size);
-                    self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
-                });
+            ui.horizontal(|ui| {
+                if ui.small_button("✕").clicked() {
+                    self.thumbnail_collapsed = true;
+                }
+                egui::ScrollArea::horizontal()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.allocate_space(content_size);
+                        self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+                    });
+            });
         } else {
             let total_height = total_items as f32 * item_height;
             let content_size = Vec2::new(item_width, total_height);
 
-            egui::ScrollArea::vertical()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.allocate_space(content_size);
-                    self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    if ui.small_button("✕").clicked() {
+                        self.thumbnail_collapsed = true;
+                    }
                 });
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.allocate_space(content_size);
+                        self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+                    });
+            });
         }
     }
     
