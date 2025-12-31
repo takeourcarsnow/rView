@@ -118,8 +118,14 @@ impl ImageViewerApp {
         }
     }
 
-    pub fn move_to_folder(&mut self, dest_folder: PathBuf) {
+    pub fn move_to_folder(&mut self, dest_folder: std::path::PathBuf) {
         if let Some(path) = self.get_current_path() {
+            // Create the destination folder if it doesn't exist
+            if let Err(e) = std::fs::create_dir_all(&dest_folder) {
+                self.show_status(&format!("Failed to create folder: {}", e));
+                return;
+            }
+
             let filename = path.file_name().unwrap_or_default();
             let dest_path = dest_folder.join(filename);
 
@@ -132,6 +138,9 @@ impl ImageViewerApp {
                 if let Some(&idx) = self.filtered_list.get(self.current_index) {
                     self.image_list.remove(idx);
                 }
+                self.image_cache.remove(&path);
+                self.thumbnail_textures.remove(&path);
+
                 self.apply_filter();
 
                 if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
@@ -140,9 +149,14 @@ impl ImageViewerApp {
 
                 if !self.filtered_list.is_empty() {
                     self.load_current_image();
+                } else {
+                    self.current_texture = None;
+                    self.current_image = None;
                 }
 
                 self.show_status(&format!("Moved to {}", dest_folder.display()));
+            } else {
+                self.show_status("Failed to move image");
             }
         }
     }
@@ -162,45 +176,7 @@ impl ImageViewerApp {
         if let Some(path) = self.get_current_path() {
             if let Some(parent) = path.parent() {
                 let selected_folder = parent.join("selected");
-
-                // Create the selected folder if it doesn't exist
-                if let Err(e) = std::fs::create_dir_all(&selected_folder) {
-                    self.show_status(&format!("Failed to create selected folder: {}", e));
-                    return;
-                }
-
-                let filename = path.file_name().unwrap_or_default();
-                let dest_path = selected_folder.join(filename);
-
-                if std::fs::rename(&path, &dest_path).is_ok() {
-                    self.undo_history.push(FileOperation::Move {
-                        from: path.clone(),
-                        to: dest_path,
-                    });
-
-                    if let Some(&idx) = self.filtered_list.get(self.current_index) {
-                        self.image_list.remove(idx);
-                    }
-                    self.image_cache.remove(&path);
-                    self.thumbnail_textures.remove(&path);
-
-                    self.apply_filter();
-
-                    if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
-                        self.current_index = self.filtered_list.len() - 1;
-                    }
-
-                    if !self.filtered_list.is_empty() {
-                        self.load_current_image();
-                    } else {
-                        self.current_texture = None;
-                        self.current_image = None;
-                    }
-
-                    self.show_status(&format!("Moved to {}", selected_folder.display()));
-                } else {
-                    self.show_status("Failed to move file");
-                }
+                self.move_to_folder(selected_folder);
             }
         }
     }

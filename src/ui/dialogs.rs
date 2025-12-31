@@ -6,6 +6,7 @@ impl ImageViewerApp {
     pub fn render_dialogs(&mut self, ctx: &egui::Context) {
         self.render_settings_dialog(ctx);
         self.render_go_to_dialog(ctx);
+        self.render_move_dialog(ctx);
         self.render_command_palette(ctx);
     }
     
@@ -299,7 +300,36 @@ impl ImageViewerApp {
                 });
             });
     }
-    
+
+    fn render_move_dialog(&mut self, ctx: &egui::Context) {
+        if !self.show_move_dialog {
+            return;
+        }
+
+        egui::Window::new("Move Image to Folder")
+            .collapsible(false)
+            .resizable(false)
+            .default_width(300.0)
+            .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.label("Choose a folder to move the current image to:");
+
+                ui.add_space(8.0);
+
+                ui.horizontal(|ui| {
+                    if ui.button("Choose Folder...").clicked() {
+                        if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                            self.move_to_folder(folder);
+                            self.show_move_dialog = false;
+                        }
+                    }
+                    if ui.button("Cancel").clicked() {
+                        self.show_move_dialog = false;
+                    }
+                });
+            });
+    }
+
     fn render_command_palette(&mut self, ctx: &egui::Context) {
         if !self.command_palette_open {
             return;
@@ -374,6 +404,7 @@ impl ImageViewerApp {
         let all_commands = vec![
             ("Open File", "Ctrl+O", "open_file"),
             ("Open Folder", "Ctrl+Shift+O", "open_folder"),
+            ("Move to Folder", "M", "move"),
             ("Next Image", "→", "next"),
             ("Previous Image", "←", "previous"),
             ("First Image", "Home", "first"),
@@ -411,6 +442,7 @@ impl ImageViewerApp {
         match action {
             "open_file" => self.open_file_dialog(),
             "open_folder" => self.open_folder_dialog(),
+            "move" => self.show_move_dialog = true,
             "next" => self.next_image(),
             "previous" => self.previous_image(),
             "first" => self.go_to_first(),

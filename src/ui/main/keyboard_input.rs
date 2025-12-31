@@ -17,6 +17,10 @@ impl ImageViewerApp {
                 self.show_go_to_dialog = false;
                 return;
             }
+            if self.show_move_dialog {
+                self.show_move_dialog = false;
+                return;
+            }
             if self.slideshow_active {
                 self.slideshow_active = false;
                 return;
@@ -29,7 +33,7 @@ impl ImageViewerApp {
 
         // Don't handle other keys if a dialog is open or text input is focused
         let dialogs_open = self.show_settings_dialog || self.show_go_to_dialog ||
-                          self.command_palette_open;
+                          self.show_move_dialog || self.command_palette_open;
 
         ctx.input(|i| {
             let ctrl = i.modifiers.ctrl;
@@ -103,7 +107,7 @@ impl ImageViewerApp {
 
                 // Move to selected folder
                 if i.key_pressed(egui::Key::M) && !ctrl {
-                    self.move_to_selected_folder();
+                    self.show_move_dialog = true;
                 }
 
                 // Ratings (with Alt modifier)
