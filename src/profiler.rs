@@ -16,7 +16,7 @@ impl Profiler {
             measurements: HashMap::new(),
             counters: HashMap::new(),
         }
-    }
+    } 
 
     pub fn start_timer(&mut self, name: &str) {
         self.timers.insert(name.to_string(), Instant::now());
@@ -81,7 +81,7 @@ pub struct MeasurementStats {
     pub average_time: Duration,
     pub min_time: Duration,
     pub max_time: Duration,
-}
+} 
 
 #[derive(Debug, Clone)]
 pub struct ProfilerStats {
@@ -100,7 +100,7 @@ pub struct CacheStats {
     pub cache_hit_count: u64,
     pub cache_miss_count: u64,
     pub eviction_count: u64,
-}
+} 
 
 impl CacheStats {
     pub fn hit_rate(&self) -> f64 {
@@ -129,7 +129,7 @@ pub struct LoadingDiagnostics {
     pub thumbnails_generated: usize,
     pub errors_encountered: usize,
     pub bottlenecks: Vec<String>,
-}
+} 
 
 impl LoadingDiagnostics {
     pub fn add_bottleneck(&mut self, description: String) {
@@ -143,7 +143,7 @@ impl LoadingDiagnostics {
             self.total_load_time / self.images_loaded as u32
         }
     }
-}
+} 
 
 use std::cell::RefCell;
 use std::thread_local;

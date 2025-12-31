@@ -125,3 +125,6 @@ strip = true
 
 [profile.dev]
 opt-level = 1
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,6 +1,7 @@
 
 use super::ImageViewerApp;
 
+#[allow(dead_code)]
 impl ImageViewerApp {
     pub fn get_cache_stats(&self) -> crate::image_cache::CacheStats {
         self.image_cache.get_stats()

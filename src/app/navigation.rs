@@ -99,7 +99,7 @@ impl ImageViewerApp {
         self.filtered_list.clear();
 
         for (idx, path) in self.image_list.iter().enumerate() {
-            let metadata = self.metadata_db.get(path);
+            let _metadata = self.metadata_db.get(path);
 
             // Filter by search query
             if !self.search_query.is_empty() {

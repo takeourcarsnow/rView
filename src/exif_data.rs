@@ -28,6 +28,7 @@ pub struct ExifInfo {
     pub software: Option<String>,
 }
 
+#[allow(dead_code)]
 impl ExifInfo {
     pub fn from_file(path: &Path) -> Self {
         let mut info = ExifInfo::default();

@@ -11,58 +11,7 @@ lazy_static::lazy_static! {
         .expect("Failed to create RAW processing thread pool");
 }
 
-// GPU-accelerated image processing
-pub struct GpuProcessor {
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-}
-
-impl GpuProcessor {
-    pub async fn new() -> Option<Self> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
-            ..Default::default()
-        });
-
-        let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        }).await?;
-
-        let (device, queue) = adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                label: Some("Image Processing Device"),
-            },
-            None,
-        ).await.ok()?;
-
-        Some(Self { device, queue })
-    }
-
-    pub fn apply_brightness_contrast(&self, image: &DynamicImage, brightness: f32, contrast: f32) -> Option<DynamicImage> {
-        // For now, fall back to CPU processing if GPU fails
-        // Full GPU implementation would require shaders and complex setup
-        Some(apply_brightness_contrast_cpu(image, brightness, contrast))
-    }
-
-    pub fn calculate_histogram_gpu(&self, image: &DynamicImage) -> Option<Vec<Vec<u32>>> {
-        // GPU histogram calculation would be much faster for large images
-        // For now, fall back to CPU
-        Some(calculate_histogram(image))
-    }
-}
-
-lazy_static::lazy_static! {
-    static ref GPU_PROCESSOR: Option<GpuProcessor> = {
-        // Try to initialize GPU processor, but don't fail if unavailable
-        tokio::runtime::Runtime::new()
-            .ok()
-            .and_then(|rt| rt.block_on(GpuProcessor::new()))
-    };
-}
+// GPU acceleration stubs were removed: not used in current codebase.
 
 pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     // Standard formats
@@ -407,29 +356,4 @@ pub fn rotate_image(image: &DynamicImage, degrees: i32) -> DynamicImage {
     }
 }
 
-// Get color at pixel
-pub fn get_pixel_color(image: &DynamicImage, x: u32, y: u32) -> Option<(u8, u8, u8)> {
-    if x < image.width() && y < image.height() {
-        let pixel = image.get_pixel(x, y);
-        Some((pixel[0], pixel[1], pixel[2]))
-    } else {
-        None
-    }
-}
 
-/// CPU-based brightness and contrast adjustment
-pub fn apply_brightness_contrast_cpu(image: &DynamicImage, brightness: f32, contrast: f32) -> DynamicImage {
-    let mut img = image.to_rgba8();
-    let factor = (259.0 * (contrast + 255.0)) / (255.0 * (259.0 - contrast));
-
-    for pixel in img.pixels_mut() {
-        for channel in 0..3 { // Only adjust RGB, leave alpha unchanged
-            let mut value = pixel[channel] as f32;
-            value = factor * (value - 128.0) + 128.0 + brightness;
-            value = value.max(0.0).min(255.0);
-            pixel[channel] = value as u8;
-        }
-    }
-
-    DynamicImage::ImageRgba8(img)
-}

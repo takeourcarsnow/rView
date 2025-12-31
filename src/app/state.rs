@@ -2,7 +2,7 @@ use crate::image_cache::ImageCache;
 use crate::image_loader::{ImageAdjustments};
 use crate::settings::Settings;
 use crate::exif_data::ExifInfo;
-use crate::metadata::{MetadataDb, UndoHistory, RenamePattern};
+use crate::metadata::{MetadataDb, UndoHistory};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
 
 use eframe::egui::{self, TextureHandle, Vec2};
@@ -23,7 +23,6 @@ pub enum LoaderMessage {
 
 #[derive(Debug, Clone)]
 pub struct ImageTab {
-    pub id: String,
     pub name: String,
     pub folder_path: PathBuf,
     pub image_list: Vec<PathBuf>,
@@ -140,15 +139,11 @@ pub struct ImageViewerApp {
     pub pending_navigate_page_down: bool,
     pub pending_fit_to_window: bool,
 
-    // Batch rename
-    pub rename_pattern: RenamePattern,
-
     // Undo history
     pub undo_history: UndoHistory,
 
     // Mouse state
     pub loupe_position: Option<egui::Pos2>,
-    pub color_picker_position: Option<egui::Pos2>,
     pub picked_color: Option<(u8, u8, u8)>,
 
     // Context for repaint requests
@@ -156,9 +151,6 @@ pub struct ImageViewerApp {
 
     // Status message
     pub status_message: Option<(String, std::time::Instant)>,
-
-    // File watcher (for auto-refresh)
-    pub watch_folder: bool,
 
     // Profiler and diagnostics
     pub profiler_enabled: bool,
@@ -232,14 +224,11 @@ impl ImageViewerApp {
             pending_navigate_page_up: false,
             pending_navigate_page_down: false,
             pending_fit_to_window: false,
-            rename_pattern: RenamePattern::default(),
             undo_history: UndoHistory::new(50),
             loupe_position: None,
-            color_picker_position: None,
             picked_color: None,
             ctx: Some(cc.egui_ctx.clone()),
             status_message: None,
-            watch_folder: false,
             profiler_enabled: cfg!(debug_assertions), // Enabled in debug mode
             cache_stats: CacheStats::default(),
             loading_diagnostics: LoadingDiagnostics::default(),

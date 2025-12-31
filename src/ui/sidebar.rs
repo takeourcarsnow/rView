@@ -1,5 +1,4 @@
 use crate::app::ImageViewerApp;
-use crate::image_loader::ImageAdjustments;
 use crate::settings::ColorLabel;
 use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Rect};
 use std::path::PathBuf;
@@ -43,10 +42,8 @@ impl ImageViewerApp {
                         }
                         
                         // EXIF data
-                        if self.settings.show_exif {
-                            self.render_exif_panel(ui);
-                            ui.add_space(12.0);
-                        }
+                        self.render_exif_panel(ui);
+                        ui.add_space(12.0);
                         
                         // Rating & Labels
                         self.render_metadata_panel(ui);

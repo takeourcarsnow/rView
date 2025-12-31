@@ -1,11 +1,11 @@
 use crate::image_loader::{self, SUPPORTED_EXTENSIONS, is_supported_image};
 use eframe::egui;
 use std::path::PathBuf;
-use uuid;
 use walkdir::WalkDir;
 
 use super::ImageViewerApp;
 
+#[allow(dead_code)]
 impl ImageViewerApp {
     // File dialogs
     pub fn open_file_dialog(&mut self) {
@@ -73,7 +73,36 @@ impl ImageViewerApp {
     pub fn toggle_compare_mode(&mut self) {
         if self.view_mode == super::ViewMode::Compare {
             self.view_mode = super::ViewMode::Single;
-        } else if self.compare_index.is_some() {
+        } else if self.compare_index.is_some() || self.selected_indices.len() > 1 {
+            if self.compare_index.is_none() && self.selected_indices.len() > 1 {
+                // Set compare_index to the first selected that's not current
+                if let Some(&idx) = self.selected_indices.iter().find(|&&i| i != self.current_index) {
+                    self.compare_index = Some(idx);
+                }
+            }
+            // Load the compare image if not already loaded
+            if let Some(compare_idx) = self.compare_index {
+                if let Some(path) = self.image_list.get(compare_idx).cloned() {
+                    if let Some(image) = self.image_cache.get(&path) {
+                        self.set_compare_image(&path, image.clone());
+                    } else {
+                        // Load it
+                        let path_clone = path.clone();
+                        self.spawn_loader(move || {
+                            match crate::image_loader::load_image(&path_clone) {
+                                Ok(image) => Some(crate::app::LoaderMessage::ImageLoaded(path_clone, image)),
+                                Err(e) => Some(crate::app::LoaderMessage::LoadError(path_clone, e.to_string())),
+                            }
+                        });
+                    }
+                    // Load EXIF if not already loaded
+                    let path_clone = path.clone();
+                    self.spawn_loader(move || {
+                        let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
+                        Some(crate::app::LoaderMessage::ExifLoaded(path_clone, exif))
+                    });
+                }
+            }
             self.view_mode = super::ViewMode::Compare;
         }
     }
@@ -99,7 +128,6 @@ impl ImageViewerApp {
             .unwrap_or_else(|| "New Tab".to_string());
 
         let tab = super::ImageTab {
-            id: uuid::Uuid::new_v4().to_string(),
             name: tab_name,
             folder_path: folder_path.clone(),
             image_list: Vec::new(),

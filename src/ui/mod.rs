@@ -255,6 +255,7 @@ impl ImageViewerApp {
                 // Fullscreen
                 if i.key_pressed(egui::Key::F11) || (i.key_pressed(egui::Key::F) && !ctrl) {
                     self.is_fullscreen = !self.is_fullscreen;
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
                 }
                 
                 // Delete
@@ -288,9 +289,6 @@ impl ImageViewerApp {
                 }
                 
                 // Toggle panels
-                if i.key_pressed(egui::Key::I) && !ctrl {
-                    self.settings.show_exif = !self.settings.show_exif;
-                }
                 if i.key_pressed(egui::Key::T) && !ctrl {
                     self.settings.show_thumbnails = !self.settings.show_thumbnails;
                 }

@@ -270,7 +270,7 @@ impl FocusPeakingColor {
             FocusPeakingColor::White => egui::Color32::WHITE,
         }
     }
-}
+} 
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GridType {
@@ -342,7 +342,7 @@ pub enum PanelPosition {
     Top,
     Bottom,
     Hidden,
-}
+} 
 
 fn default_panel_positions() -> HashMap<String, PanelPosition> {
     let mut positions = HashMap::new();
@@ -351,7 +351,7 @@ fn default_panel_positions() -> HashMap<String, PanelPosition> {
     positions.insert("toolbar".to_string(), PanelPosition::Top);
     positions.insert("statusbar".to_string(), PanelPosition::Bottom);
     positions
-}
+} 
 
 impl Settings {
     pub fn load() -> Self {

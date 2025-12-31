@@ -5,9 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::fs;
-use std::io::Read;
 use rayon::prelude::*;
-use directories;
 
 pub struct ImageCache {
     cache: Arc<Mutex<HashMap<PathBuf, CachedImage>>>,
@@ -29,14 +27,13 @@ pub struct CachedImage {
 pub enum CachePriority {
     Low = 0,    // Distant images
     Medium = 1, // Adjacent images
-    High = 2,   // Current/very recent images
-}
+} 
 
 impl ImageCache {
     pub fn new(max_cache_size_mb: usize) -> Self {
         let disk_cache_dir = if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer") {
             let cache_dir = proj_dirs.cache_dir().join("thumbnails");
-            if let Err(_) = fs::create_dir_all(&cache_dir) {
+            if fs::create_dir_all(&cache_dir).is_err() {
                 None
             } else {
                 Some(cache_dir)
@@ -44,7 +41,7 @@ impl ImageCache {
         } else {
             None
         };
-
+ 
         Self {
             cache: Arc::new(Mutex::new(HashMap::new())),
             thumbnail_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -54,7 +51,8 @@ impl ImageCache {
         }
     }
     
-    pub fn get(&self, path: &Path) -> Option<DynamicImage> {
+    pub fn get<P: AsRef<Path>>(&self, path: P) -> Option<DynamicImage> {
+        let path = path.as_ref();
         let mut cache = self.cache.lock().unwrap();
         if let Some(cached) = cache.get_mut(path) {
             cached.last_access = std::time::Instant::now();
@@ -63,7 +61,8 @@ impl ImageCache {
         None
     }
     
-    pub fn get_thumbnail(&self, path: &Path) -> Option<DynamicImage> {
+    pub fn get_thumbnail<P: AsRef<Path>>(&self, path: P) -> Option<DynamicImage> {
+        let path = path.as_ref();
         let mut cache = self.thumbnail_cache.lock().unwrap();
         if let Some(cached) = cache.get_mut(path) {
             cached.last_access = std::time::Instant::now();
@@ -84,7 +83,14 @@ impl ImageCache {
 
         None
     }
-    
+
+    pub fn put<P: Into<PathBuf>>(&self, path: P, image: DynamicImage) {
+        self.insert(path.into(), image);
+    }
+
+    pub fn stats(&self) -> CacheStats {
+        self.get_stats()
+    }    
     pub fn insert(&self, path: PathBuf, image: DynamicImage) {
         let size_bytes = estimate_image_size(&image);
         let mut cache = self.cache.lock().unwrap();
@@ -99,19 +105,7 @@ impl ImageCache {
         });
     }
 
-    pub fn insert_with_priority(&self, path: PathBuf, image: DynamicImage, priority: CachePriority) {
-        let size_bytes = estimate_image_size(&image);
-        let mut cache = self.cache.lock().unwrap();
 
-        self.evict_if_needed(&mut cache);
-
-        cache.insert(path, CachedImage {
-            image,
-            last_access: std::time::Instant::now(),
-            size_bytes,
-            priority,
-        });
-    }
 
     pub fn insert_thumbnail(&self, path: PathBuf, image: DynamicImage) {
         let size_bytes = estimate_image_size(&image);
@@ -291,7 +285,7 @@ pub struct CacheStats {
     pub image_size_bytes: usize,
     pub thumbnail_count: usize,
     pub thumbnail_size_bytes: usize,
-}
+} 
 
 fn estimate_image_size(image: &DynamicImage) -> usize {
     let (w, h) = (image.width() as usize, image.height() as usize);

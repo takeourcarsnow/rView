@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use super::ImageViewerApp;
 
+#[allow(dead_code)]
 impl ImageViewerApp {
     // Rotation
     pub fn rotate_left(&mut self) {

@@ -21,6 +21,8 @@ pub struct MetadataDb {
 }
 
 impl MetadataDb {
+    pub fn new() -> Self { Self::default() }
+
     pub fn load() -> Self {
         if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer") {
             let db_path = proj_dirs.data_dir().join("metadata.json");
@@ -46,38 +48,44 @@ impl MetadataDb {
         }
     }
     
-    pub fn get(&self, path: &PathBuf) -> ImageMetadata {
-        self.images.get(path).cloned().unwrap_or_default()
+    pub fn get<P: AsRef<std::path::Path>>(&self, path: P) -> ImageMetadata {
+        self.images.get(path.as_ref()).cloned().unwrap_or_default()
     }
     
-    pub fn set_rating(&mut self, path: PathBuf, rating: u8) {
+    pub fn set_rating<P: Into<PathBuf>>(&mut self, path: P, rating: u8) {
+        let path = path.into();
         let entry = self.images.entry(path).or_default();
         entry.rating = rating.min(5);
     }
     
-    pub fn set_color_label(&mut self, path: PathBuf, color: ColorLabel) {
+    pub fn set_color_label<P: Into<PathBuf>>(&mut self, path: P, color: ColorLabel) {
+        let path = path.into();
         let entry = self.images.entry(path).or_default();
         entry.color_label = color;
     }
     
-    pub fn toggle_flag(&mut self, path: PathBuf) {
+    pub fn toggle_flag<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
         entry.flagged = !entry.flagged;
     }
     
-    pub fn toggle_reject(&mut self, path: PathBuf) {
+    pub fn toggle_reject<P: AsRef<std::path::Path>>(&mut self, path: P) {
+        let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
         entry.rejected = !entry.rejected;
     }
     
-    pub fn add_tag(&mut self, path: PathBuf, tag: String) {
+    pub fn add_tag<P: Into<PathBuf>>(&mut self, path: P, tag: String) {
+        let path = path.into();
         let entry = self.images.entry(path).or_default();
         if !entry.tags.contains(&tag) {
             entry.tags.push(tag);
         }
     }
     
-    pub fn remove_tag(&mut self, path: PathBuf, tag: &str) {
+    pub fn remove_tag<P: AsRef<std::path::Path>>(&mut self, path: P, tag: &str) {
+        let path = path.as_ref().to_path_buf();
         let entry = self.images.entry(path).or_default();
         entry.tags.retain(|t| t != tag);
     }
@@ -94,7 +102,7 @@ pub enum FileOperation {
         original_path: PathBuf,
         trash_path: Option<PathBuf>,
         metadata_backup: Option<String>, // JSON serialized metadata
-    },
+    }, 
     Move {
         from: PathBuf,
         to: PathBuf,
@@ -139,7 +147,7 @@ impl UndoHistory {
             max_size,
             current_index: 0,
         }
-    }
+    } 
 
     pub fn push(&mut self, op: FileOperation) {
         // Remove any operations after current index (for when user does new operation after undo)
@@ -221,60 +229,4 @@ impl UndoHistory {
     }
 }
 
-/// Batch rename pattern
-#[derive(Debug, Clone)]
-pub struct RenamePattern {
-    pub prefix: String,
-    pub suffix: String,
-    pub counter_start: u32,
-    pub counter_digits: u32,
-    pub use_original_name: bool,
-    pub find: String,
-    pub replace: String,
-}
 
-impl Default for RenamePattern {
-    fn default() -> Self {
-        Self {
-            prefix: String::new(),
-            suffix: String::new(),
-            counter_start: 1,
-            counter_digits: 3,
-            use_original_name: true,
-            find: String::new(),
-            replace: String::new(),
-        }
-    }
-}
-
-impl RenamePattern {
-    pub fn apply(&self, original: &str, index: u32) -> String {
-        let mut name = if self.use_original_name {
-            // Get name without extension
-            let parts: Vec<&str> = original.rsplitn(2, '.').collect();
-            if parts.len() == 2 {
-                parts[1].to_string()
-            } else {
-                original.to_string()
-            }
-        } else {
-            String::new()
-        };
-        
-        // Apply find/replace
-        if !self.find.is_empty() {
-            name = name.replace(&self.find, &self.replace);
-        }
-        
-        // Build new name
-        let counter = format!("{:0width$}", self.counter_start + index, width = self.counter_digits as usize);
-        
-        let ext = original.rsplit('.').next().unwrap_or("");
-        
-        if self.use_original_name {
-            format!("{}{}{}.{}", self.prefix, name, self.suffix, ext)
-        } else {
-            format!("{}{}{}.{}", self.prefix, counter, self.suffix, ext)
-        }
-    }
-}

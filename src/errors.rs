@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum ViewerError {
     #[error("Failed to load image '{path}': {message}")]
     ImageLoadError { path: PathBuf, message: String },
@@ -75,6 +76,7 @@ pub enum ViewerError {
 
 pub type Result<T> = std::result::Result<T, ViewerError>;
 
+#[allow(dead_code)]
 impl ViewerError {
     /// Returns true if this error is recoverable (user can retry)
     pub fn is_recoverable(&self) -> bool {

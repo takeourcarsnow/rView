@@ -10,13 +10,13 @@ impl ImageViewerApp {
         let zoom = self.zoom;
         let view_mode = self.view_mode;
         let compare_index = self.compare_index;
+        let selected_count = self.selected_indices.len();
         let is_fullscreen = self.is_fullscreen;
         let slideshow_active = self.slideshow_active;
         let show_focus_peaking = self.settings.show_focus_peaking;
         let show_zebras = self.settings.show_zebras;
         let show_grid_overlay = self.settings.show_grid_overlay;
         let loupe_enabled = self.settings.loupe_enabled;
-        let show_exif = self.settings.show_exif;
         let show_sidebar = self.settings.show_sidebar;
         let sort_mode = self.settings.sort_mode;
         let sort_order = self.settings.sort_order;
@@ -43,7 +43,6 @@ impl ImageViewerApp {
         let mut toggle_zebras = false;
         let mut toggle_grid = false;
         let mut toggle_loupe = false;
-    let mut toggle_exif = false;
     let mut toggle_sidebar = false;
         let mut toggle_panels = false;
         let mut toggle_fullscreen = false;
@@ -157,7 +156,7 @@ impl ImageViewerApp {
                     if toggle_button(ui, "👁", "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
-                    if toggle_button_enabled(ui, "⚖", "Compare view (C)", view_mode == ViewMode::Compare, compare_index.is_some() && compare_index != Some(current_index)).clicked() {
+                    if toggle_button_enabled(ui, "⚖", "Compare view (C)", view_mode == ViewMode::Compare, compare_index.is_some() && compare_index != Some(current_index) || selected_count > 1).clicked() {
                         toggle_compare = true;
                     }
                     if toggle_button(ui, "⊞", "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
@@ -187,9 +186,6 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Panel toggles
-                    if toggle_button(ui, "ⓘ", "EXIF Info (I)", show_exif).clicked() {
-                        toggle_exif = true;
-                    }
                     if toggle_button(ui, "☰", "Sidebar (S)", show_sidebar).clicked() {
                         toggle_sidebar = true;
                     }
@@ -281,10 +277,12 @@ impl ImageViewerApp {
         }
         if toggle_grid { self.settings.show_grid_overlay = !self.settings.show_grid_overlay; }
         if toggle_loupe { self.settings.loupe_enabled = !self.settings.loupe_enabled; }
-        if toggle_exif { self.settings.show_exif = !self.settings.show_exif; }
         if toggle_sidebar { self.settings.show_sidebar = !self.settings.show_sidebar; }
         if toggle_panels { self.toggle_panels(); }
-        if toggle_fullscreen { self.is_fullscreen = !self.is_fullscreen; }
+        if toggle_fullscreen { 
+            self.is_fullscreen = !self.is_fullscreen;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
+        }
         if toggle_slideshow { self.toggle_slideshow(); }
         if show_settings { self.show_settings_dialog = true; }
         if show_command_palette { self.command_palette_open = true; }
