@@ -19,6 +19,7 @@ pub struct Settings {
     /// Whether the small EXIF overlay on the image is visible (separate from the sidebar)
     pub show_exif_overlay: bool,
     pub show_histogram: bool,
+    pub show_adjustments: bool,
     pub show_toolbar: bool,
     pub show_statusbar: bool,
     
@@ -107,6 +108,7 @@ impl Default for Settings {
             show_exif: true,
             show_exif_overlay: true,
             show_histogram: false,
+            show_adjustments: true,
             show_toolbar: true,
             show_statusbar: true,
             

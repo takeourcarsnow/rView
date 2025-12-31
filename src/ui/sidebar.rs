@@ -1,4 +1,6 @@
 use crate::app::ImageViewerApp;
+use crate::image_loader::{ImageAdjustments, FilmPreset};
+use crate::metadata::FileOperation;
 use crate::settings::ColorLabel;
 use egui::{self, Color32, RichText, Vec2, Rounding, Margin};
 use std::path::PathBuf;
@@ -60,6 +62,12 @@ impl ImageViewerApp {
                             // Histogram
                             if self.settings.show_histogram {
                                 self.render_histogram_panel(ui);
+                                ui.add_space(12.0);
+                            }
+                            
+                            // Adjustments
+                            if self.settings.show_adjustments {
+                                self.render_adjustments_panel(ui);
                                 ui.add_space(12.0);
                             }
                             
@@ -459,6 +467,205 @@ impl ImageViewerApp {
                 });
             }
         });
+    }
+}
+
+impl ImageViewerApp {
+    fn render_adjustments_panel(&mut self, ui: &mut egui::Ui) {
+        let previous_adjustments = self.adjustments.clone();
+        let mut adjustments_changed = false;
+        
+        collapsible_header(ui, "Adjustments", true, |ui| {
+            egui::Frame::none()
+                .fill(Color32::from_rgb(25, 25, 30))
+                .rounding(Rounding::same(4.0))
+                .inner_margin(Margin::same(8.0))
+                .show(ui, |ui| {
+                    ui.spacing_mut().slider_width = 120.0;
+                    
+                    // Reset button
+                    if ui.button("Reset").clicked() {
+                        self.adjustments = ImageAdjustments::default();
+                        self.refresh_adjustments();
+                        if let Some(path) = self.get_current_path() {
+                            self.undo_history.push(FileOperation::Adjust {
+                                path,
+                                adjustments: self.adjustments.clone(),
+                                previous_adjustments: previous_adjustments.clone(),
+                            });
+                        }
+                        return; // Don't record another undo after reset
+                    }
+                    
+                    ui.separator();
+                    
+                    // Film presets
+                    ui.horizontal(|ui| {
+                        ui.label("Film Preset:");
+                        egui::ComboBox::from_id_salt("film_preset")
+                            .selected_text(self.current_film_preset.name())
+                            .show_ui(ui, |ui| {
+                                for preset in FilmPreset::all() {
+                                    let selected = *preset == self.current_film_preset;
+                                    if ui.selectable_label(selected, preset.name()).clicked() {
+                                        self.current_film_preset = *preset;
+                                        let prev_adj = self.adjustments.clone();
+                                        self.adjustments.apply_preset(*preset);
+                                        self.refresh_adjustments();
+                                        if let Some(path) = self.get_current_path() {
+                                            self.undo_history.push(FileOperation::Adjust {
+                                                path,
+                                                adjustments: self.adjustments.clone(),
+                                                previous_adjustments: prev_adj,
+                                            });
+                                        }
+                                    }
+                                }
+                            });
+                    });
+                    
+                    ui.separator();
+                    
+                    // Exposure
+                    ui.horizontal(|ui| {
+                        ui.label("Exposure:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.exposure, -3.0..=3.0)
+                            .suffix(" EV")).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Contrast
+                    ui.horizontal(|ui| {
+                        ui.label("Contrast:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.contrast, 0.5..=2.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Brightness
+                    ui.horizontal(|ui| {
+                        ui.label("Brightness:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.brightness, -100.0..=100.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Saturation
+                    ui.horizontal(|ui| {
+                        ui.label("Saturation:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.saturation, 0.0..=2.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    // Temperature
+                    ui.horizontal(|ui| {
+                        ui.label("Temperature:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.temperature, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Tint
+                    ui.horizontal(|ui| {
+                        ui.label("Tint:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.tint, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    // Highlights
+                    ui.horizontal(|ui| {
+                        ui.label("Highlights:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.highlights, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Shadows
+                    ui.horizontal(|ui| {
+                        ui.label("Shadows:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.shadows, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Blacks
+                    ui.horizontal(|ui| {
+                        ui.label("Blacks:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.blacks, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    // Whites
+                    ui.horizontal(|ui| {
+                        ui.label("Whites:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.whites, -1.0..=1.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                    
+                    ui.separator();
+                    
+                    // Sharpening
+                    ui.horizontal(|ui| {
+                        ui.label("Sharpening:");
+                        if ui.add(egui::Slider::new(&mut self.adjustments.sharpening, 0.0..=2.0)).changed() {
+                            adjustments_changed = true;
+                            if self.should_apply_adjustments() {
+                                self.refresh_adjustments();
+                            }
+                        }
+                    });
+                });
+        });
+        
+        // Record undo if adjustments changed
+        if adjustments_changed && self.adjustments != previous_adjustments {
+            if let Some(path) = self.get_current_path() {
+                self.undo_history.push(FileOperation::Adjust {
+                    path,
+                    adjustments: self.adjustments.clone(),
+                    previous_adjustments,
+                });
+            }
+        }
     }
 }
 

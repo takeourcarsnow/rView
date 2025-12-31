@@ -1,5 +1,5 @@
 use crate::errors::{Result, ViewerError};
-use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage};
+use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage, GenericImageView};
 use std::path::Path;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
@@ -379,7 +379,7 @@ pub fn calculate_histogram(image: &DynamicImage) -> Vec<Vec<u32>> {
 }
 
 // Apply basic adjustments (non-destructive preview)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImageAdjustments {
     pub exposure: f32,      // -3.0 to +3.0 (stops)
     pub contrast: f32,      // 0.5 to 2.0 (multiplier)
@@ -425,6 +425,271 @@ impl ImageAdjustments {
         self.blacks == 0.0 &&
         self.whites == 0.0 &&
         self.sharpening == 0.0
+    }
+
+    pub fn apply_preset(&mut self, preset: FilmPreset) {
+        *self = match preset {
+            FilmPreset::None => ImageAdjustments::default(),
+            FilmPreset::Portra400 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.1,
+                brightness: 5.0,
+                saturation: 1.15,
+                highlights: -0.2,
+                shadows: 0.1,
+                temperature: 0.1,
+                tint: 0.05,
+                blacks: 0.1,
+                whites: -0.1,
+                sharpening: 0.3,
+            },
+            FilmPreset::Portra160 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.05,
+                brightness: 8.0,
+                saturation: 1.1,
+                highlights: -0.15,
+                shadows: 0.2,
+                temperature: 0.05,
+                tint: 0.02,
+                blacks: 0.05,
+                whites: -0.05,
+                sharpening: 0.2,
+            },
+            FilmPreset::Portra800 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.15,
+                brightness: 2.0,
+                saturation: 1.2,
+                highlights: -0.25,
+                shadows: 0.05,
+                temperature: 0.15,
+                tint: 0.08,
+                blacks: 0.15,
+                whites: -0.15,
+                sharpening: 0.4,
+            },
+            FilmPreset::TMax400 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.3,
+                brightness: -5.0,
+                saturation: 0.8,
+                highlights: 0.1,
+                shadows: -0.1,
+                temperature: -0.2,
+                tint: -0.1,
+                blacks: -0.1,
+                whites: 0.1,
+                sharpening: 0.8,
+            },
+            FilmPreset::TMax100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.2,
+                brightness: -8.0,
+                saturation: 0.7,
+                highlights: 0.15,
+                shadows: -0.15,
+                temperature: -0.25,
+                tint: -0.15,
+                blacks: -0.15,
+                whites: 0.15,
+                sharpening: 0.6,
+            },
+            FilmPreset::Provia100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.2,
+                brightness: 0.0,
+                saturation: 1.3,
+                highlights: -0.1,
+                shadows: 0.1,
+                temperature: 0.2,
+                tint: 0.1,
+                blacks: 0.05,
+                whites: -0.05,
+                sharpening: 0.5,
+            },
+            FilmPreset::Astia100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.1,
+                brightness: 10.0,
+                saturation: 1.4,
+                highlights: -0.2,
+                shadows: 0.2,
+                temperature: 0.1,
+                tint: 0.05,
+                blacks: 0.1,
+                whites: -0.1,
+                sharpening: 0.3,
+            },
+            FilmPreset::Hp5 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.4,
+                brightness: -10.0,
+                saturation: 0.0,  // B&W film
+                highlights: 0.2,
+                shadows: -0.2,
+                temperature: -0.3,
+                tint: -0.2,
+                blacks: -0.2,
+                whites: 0.2,
+                sharpening: 1.0,
+            },
+            FilmPreset::Velvia50 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.3,
+                brightness: -5.0,
+                saturation: 1.6,
+                highlights: -0.3,
+                shadows: 0.3,
+                temperature: 0.3,
+                tint: 0.2,
+                blacks: 0.2,
+                whites: -0.2,
+                sharpening: 0.7,
+            },
+            FilmPreset::Velvia100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.25,
+                brightness: -3.0,
+                saturation: 1.5,
+                highlights: -0.25,
+                shadows: 0.25,
+                temperature: 0.25,
+                tint: 0.15,
+                blacks: 0.15,
+                whites: -0.15,
+                sharpening: 0.6,
+            },
+            FilmPreset::KodakGold200 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.1,
+                brightness: 5.0,
+                saturation: 1.2,
+                highlights: -0.1,
+                shadows: 0.1,
+                temperature: 0.1,
+                tint: 0.05,
+                blacks: 0.05,
+                whites: -0.05,
+                sharpening: 0.4,
+            },
+            FilmPreset::Fuji400H => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.15,
+                brightness: 3.0,
+                saturation: 1.25,
+                highlights: -0.15,
+                shadows: 0.15,
+                temperature: 0.15,
+                tint: 0.08,
+                blacks: 0.08,
+                whites: -0.08,
+                sharpening: 0.5,
+            },
+            FilmPreset::TriX400 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.35,
+                brightness: -12.0,
+                saturation: 0.0,  // B&W film
+                highlights: 0.25,
+                shadows: -0.25,
+                temperature: -0.35,
+                tint: -0.25,
+                blacks: -0.25,
+                whites: 0.25,
+                sharpening: 1.2,
+            },
+            FilmPreset::Delta3200 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.4,
+                brightness: -15.0,
+                saturation: 0.0,  // B&W film
+                highlights: 0.3,
+                shadows: -0.3,
+                temperature: -0.4,
+                tint: -0.3,
+                blacks: -0.3,
+                whites: 0.3,
+                sharpening: 1.5,
+            },
+            FilmPreset::Ektar100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.2,
+                brightness: 2.0,
+                saturation: 1.4,
+                highlights: -0.2,
+                shadows: 0.2,
+                temperature: 0.2,
+                tint: 0.1,
+                blacks: 0.1,
+                whites: -0.1,
+                sharpening: 0.6,
+            },
+        };
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilmPreset {
+    None,
+    Portra400,
+    Portra160,
+    Portra800,
+    TMax400,
+    TMax100,
+    Provia100,
+    Astia100,
+    Hp5,
+    Velvia50,
+    Velvia100,
+    KodakGold200,
+    Fuji400H,
+    TriX400,
+    Delta3200,
+    Ektar100,
+}
+
+impl FilmPreset {
+    pub fn name(&self) -> &'static str {
+        match self {
+            FilmPreset::None => "None",
+            FilmPreset::Portra400 => "Portra 400",
+            FilmPreset::Portra160 => "Portra 160",
+            FilmPreset::Portra800 => "Portra 800",
+            FilmPreset::TMax400 => "T-Max 400",
+            FilmPreset::TMax100 => "T-Max 100",
+            FilmPreset::Provia100 => "Provia 100",
+            FilmPreset::Astia100 => "Astia 100",
+            FilmPreset::Hp5 => "HP5 Plus",
+            FilmPreset::Velvia50 => "Velvia 50",
+            FilmPreset::Velvia100 => "Velvia 100",
+            FilmPreset::KodakGold200 => "Kodak Gold 200",
+            FilmPreset::Fuji400H => "Fuji 400H",
+            FilmPreset::TriX400 => "Tri-X 400",
+            FilmPreset::Delta3200 => "Delta 3200",
+            FilmPreset::Ektar100 => "Ektar 100",
+        }
+    }
+
+    pub fn all() -> &'static [FilmPreset] {
+        &[
+            FilmPreset::None,
+            FilmPreset::Portra400,
+            FilmPreset::Portra160,
+            FilmPreset::Portra800,
+            FilmPreset::TMax400,
+            FilmPreset::TMax100,
+            FilmPreset::Provia100,
+            FilmPreset::Astia100,
+            FilmPreset::Hp5,
+            FilmPreset::Velvia50,
+            FilmPreset::Velvia100,
+            FilmPreset::KodakGold200,
+            FilmPreset::Fuji400H,
+            FilmPreset::TriX400,
+            FilmPreset::Delta3200,
+            FilmPreset::Ektar100,
+        ]
     }
 }
 

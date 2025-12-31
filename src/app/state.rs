@@ -79,7 +79,9 @@ pub struct ImageViewerApp {
 
     // Adjustments
     pub adjustments: ImageAdjustments,
+    pub current_film_preset: crate::image_loader::FilmPreset,
     pub show_original: bool, // Before/After toggle
+    pub last_adjustment_time: std::time::Instant,
 
     // Cached data
     pub image_cache: Arc<ImageCache>,
@@ -159,6 +161,17 @@ impl ImageViewerApp {
     pub fn set_status_message(&mut self, msg: String) {
         self.status_message = Some((msg, std::time::Instant::now()));
     }
+
+    pub fn should_apply_adjustments(&mut self) -> bool {
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.last_adjustment_time);
+        if elapsed.as_millis() >= 100 { // 100ms debounce
+            self.last_adjustment_time = now;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl ImageViewerApp {
@@ -196,7 +209,9 @@ impl ImageViewerApp {
             rotation: 0.0,
             available_view_size: Vec2::new(800.0, 600.0), // Default fallback
             adjustments: ImageAdjustments::default(),
+            current_film_preset: crate::image_loader::FilmPreset::None,
             show_original: false,
+            last_adjustment_time: std::time::Instant::now(),
             image_cache: Arc::new(ImageCache::new(1024)),
             thumbnail_textures: HashMap::new(),
             thumbnail_requests: HashSet::new(),

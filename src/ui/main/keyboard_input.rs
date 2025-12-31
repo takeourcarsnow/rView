@@ -136,6 +136,9 @@ impl ImageViewerApp {
         if i.key_pressed(egui::Key::H) && !ctrl {
             self.settings.show_histogram = !self.settings.show_histogram;
         }
+        if i.key_pressed(egui::Key::A) && !ctrl && !alt {
+            self.settings.show_adjustments = !self.settings.show_adjustments;
+        }
         if i.key_pressed(egui::Key::P) && !ctrl && !alt {
             self.toggle_panels();
         }

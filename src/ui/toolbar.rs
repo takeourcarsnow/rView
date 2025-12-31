@@ -46,6 +46,7 @@ impl ImageViewerApp {
         let mut new_sort_mode: Option<SortMode> = None;
         let mut toggle_sort_order = false;
         let mut toggle_load_raw = false;
+        let mut toggle_before_after = false;
         
         egui::TopBottomPanel::top("toolbar")
             .frame(egui::Frame::none()
@@ -175,6 +176,13 @@ impl ImageViewerApp {
                     if toggle_button(ui, "ℹ", "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
                         self.settings.show_exif_overlay = !self.settings.show_exif_overlay;
                     }
+
+                    // Before/After toggle (only enabled when adjustments are applied)
+                    if !self.adjustments.is_default() {
+                        if toggle_button(ui, "⬌", "Toggle before/after view (\\)", self.show_original).clicked() {
+                            toggle_before_after = true;
+                        }
+                    }
                     
                     ui.add_space(8.0);
                     toolbar_separator(ui);
@@ -271,6 +279,10 @@ impl ImageViewerApp {
         if toggle_fullscreen { 
             self.is_fullscreen = !self.is_fullscreen;
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
+        }
+        if toggle_before_after {
+            self.show_original = !self.show_original;
+            self.refresh_adjustments();
         }
 
         // Handle RAW load toggle change: flip the setting and, if enabling full RAW and current item is a RAW with only a preview, start full load
