@@ -18,8 +18,9 @@ impl ImageViewerApp {
                 .fill(Color32::from_rgb(30, 30, 35))
                 .inner_margin(Margin::same(8.0)))
             .show(ctx, |ui| {
+                // Allow vertical auto-shrink so the file browser doesn't force an excessively tall panel
                 egui::ScrollArea::vertical()
-                    .auto_shrink([false, false])
+                    .auto_shrink([false, true])
                     .show(ui, |ui| {
                         // Folder tree (collapsible)
                         collapsible_header(ui, "File Browser", true, |ui| {
@@ -63,7 +64,8 @@ impl ImageViewerApp {
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("file_tree")
-                    .auto_shrink([false, false])
+                    // Shrink vertically to content instead of expanding to full panel height
+                    .auto_shrink([false, true])
                     .show(ui, |ui| {
                         // Show drives/root directories
                         #[cfg(windows)]
@@ -120,7 +122,8 @@ impl ImageViewerApp {
             
             // Expand/collapse button
             let expand_response = if path.is_dir() {
-                let icon = if is_expanded { "▼" } else { "▶" };
+                // Use simple ASCII markers to ensure correct rendering on all fonts
+                let icon = if is_expanded { "v" } else { ">" };
                 ui.add(egui::Button::new(RichText::new(icon).size(10.0))
                     .fill(Color32::TRANSPARENT)
                     .stroke(egui::Stroke::NONE)

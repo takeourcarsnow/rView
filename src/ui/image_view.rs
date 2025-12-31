@@ -130,24 +130,34 @@ impl ImageViewerApp {
 
         ui.painter().rect_filled(overlay_rect, Rounding::same(6.0), Color32::from_rgba_unmultiplied(0,0,0,180));
 
-        let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string());
-        let date = exif.date_taken.clone().unwrap_or_else(|| "Unknown Date".to_string());
-        let settings = format!("{} • {} • ISO {}", exif.focal_length_formatted(), exif.aperture_formatted(), exif.iso.clone().unwrap_or_default());
+        if !exif.has_data() {
+            ui.painter().text(
+                overlay_rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "No EXIF data",
+                egui::FontId::proportional(13.0),
+                Color32::WHITE,
+            );
+        } else {
+            let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string());
+            let date = exif.date_taken.clone().unwrap_or_else(|| "Unknown Date".to_string());
+            let settings = format!("{} • {} • ISO {}", exif.focal_length_formatted(), exif.aperture_formatted(), exif.iso.clone().unwrap_or_default());
 
-        ui.painter().text(
-            overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0),
-            egui::Align2::LEFT_TOP,
-            camera,
-            egui::FontId::proportional(13.0),
-            Color32::WHITE,
-        );
-        ui.painter().text(
-            overlay_rect.left_bottom() + egui::Vec2::new(8.0, -6.0),
-            egui::Align2::LEFT_BOTTOM,
-            format!("{} — {}", settings, date),
-            egui::FontId::proportional(11.0),
-            Color32::from_rgb(200,200,200),
-        );
+            ui.painter().text(
+                overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0),
+                egui::Align2::LEFT_TOP,
+                camera,
+                egui::FontId::proportional(13.0),
+                Color32::WHITE,
+            );
+            ui.painter().text(
+                overlay_rect.left_bottom() + egui::Vec2::new(8.0, -6.0),
+                egui::Align2::LEFT_BOTTOM,
+                format!("{} — {}", settings, date),
+                egui::FontId::proportional(11.0),
+                Color32::from_rgb(200,200,200),
+            );
+        }
     }
 
     /// Return the pixel size of a texture given its `TextureId` by inspecting

@@ -22,10 +22,8 @@ impl ImageViewerApp {
         // Collect actions to perform after UI
         let mut open_folder = false;
         let mut open_file = false;
-        let mut go_first = false;
         let mut go_prev = false;
         let mut go_next = false;
-        let mut go_last = false;
         let mut show_go_to = false;
         let mut zoom_out = false;
         let mut zoom_in = false;
@@ -69,10 +67,7 @@ impl ImageViewerApp {
                     toolbar_separator(ui);
                     ui.add_space(8.0);
                     
-                    // Navigation
-                    if icon_button(ui, "⏮", "First image (Home)").clicked() {
-                        go_first = true;
-                    }
+                    // Navigation (previous / next)
                     if icon_button(ui, "⏪", "Previous image (←)").clicked() {
                         go_prev = true;
                     }
@@ -93,9 +88,6 @@ impl ImageViewerApp {
                     
                     if icon_button(ui, "⏩", "Next image (→)").clicked() {
                         go_next = true;
-                    }
-                    if icon_button(ui, "⏭", "Last image (End)").clicked() {
-                        go_last = true;
                     }
                     
                     ui.add_space(8.0);
@@ -119,18 +111,12 @@ impl ImageViewerApp {
                         zoom_in = true;
                     }
                     
-                    // Zoom presets
-                    egui::ComboBox::from_id_salt("zoom_preset")
-                        .selected_text(format!("{:.0}%", zoom * 100.0))
-                        .width(60.0)
-                        .show_ui(ui, |ui| {
-                            if ui.selectable_label(false, "Fit").clicked() { fit_window = true; }
-                            if ui.selectable_label(false, "Fill").clicked() { fill_window = true; }
-                            ui.separator();
-                            if ui.selectable_label(false, "100%").clicked() {
-                                new_zoom = Some(1.0);
-                            }
-                        });
+                    // Zoom presets as buttons (Fit / Fill / 100%)
+                    ui.horizontal(|ui| {
+                        if ui.add(egui::Button::new("Fit").min_size(Vec2::new(48.0, 22.0))).clicked() { fit_window = true; }
+                        if ui.add(egui::Button::new("Fill").min_size(Vec2::new(48.0, 22.0))).clicked() { fill_window = true; }
+                        if ui.add(egui::Button::new("100%").min_size(Vec2::new(48.0, 22.0))).clicked() { new_zoom = Some(1.0); }
+                    });
                     
                     ui.add_space(8.0);
                     toolbar_separator(ui);
@@ -194,7 +180,7 @@ impl ImageViewerApp {
                     
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Settings
+                        // Settings (toggle)
                         if icon_button(ui, "⚙", "Settings").clicked() {
                             show_settings = true;
                         }
@@ -223,11 +209,11 @@ impl ImageViewerApp {
                                 }
                             });
                         
-                        let order_icon = match sort_order {
-                            SortOrder::Ascending => "↑",
-                            SortOrder::Descending => "↓",
+                        let order_label = match sort_order {
+                            SortOrder::Ascending => "A-Z",
+                            SortOrder::Descending => "Z-A",
                         };
-                        if icon_button(ui, order_icon, "Toggle sort order").clicked() {
+                        if icon_button(ui, order_label, "Toggle sort order").clicked() {
                             toggle_sort_order = true;
                         }
                     });
@@ -238,11 +224,10 @@ impl ImageViewerApp {
         // Apply actions after UI
         if open_folder { self.open_folder_dialog(); }
         if open_file { self.open_file_dialog(); }
-        if go_first { self.go_to_first(); }
         if go_prev { self.previous_image(); }
         if go_next { self.next_image(); }
-        if go_last { self.go_to_last(); }
         if show_go_to { self.show_go_to_dialog = true; }
+        if show_settings { self.show_settings_dialog = !self.show_settings_dialog; }
         if zoom_out { self.zoom_out(); }
         if zoom_in { self.zoom_in(); }
         if let Some(z) = new_zoom { self.zoom_to(z); }
