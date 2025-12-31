@@ -185,14 +185,14 @@ impl ImageViewerApp {
             let path_clone = path.clone();
             self.spawn_loader(move || {
                 let exif = ExifInfo::from_file(&path_clone);
-                Some(super::LoaderMessage::ExifLoaded(path_clone, exif))
+                Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
             });
 
             self.preload_adjacent();
         }
     }
 
-    pub fn set_current_image(&mut self, path: &PathBuf, image: DynamicImage) {
+    pub fn set_current_image(&mut self, path: &std::path::Path, image: DynamicImage) {
         let ctx = match &self.ctx {
             Some(c) => c.clone(),
             None => return,
@@ -243,10 +243,10 @@ impl ImageViewerApp {
         }
 
         // Cache the image
-        self.image_cache.insert(path.clone(), image);
+        self.image_cache.insert(path.to_path_buf(), image);
     }
 
-    pub fn set_compare_image(&mut self, path: &PathBuf, image: DynamicImage) {
+    pub fn set_compare_image(&mut self, path: &std::path::Path, image: DynamicImage) {
         let ctx = match &self.ctx {
             Some(c) => c.clone(),
             None => return,

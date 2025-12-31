@@ -255,7 +255,7 @@ impl ImageCache {
             if let Some(key) = self.get_cache_key(path) {
                 let cache_path = cache_dir.join(format!("{}.png", key));
                 let mut buffer = std::io::Cursor::new(Vec::new());
-                if let Ok(_) = image.to_rgba8().write_to(&mut buffer, image::ImageFormat::Png) {
+                if image.to_rgba8().write_to(&mut buffer, image::ImageFormat::Png).is_ok() {
                     let _ = fs::write(cache_path, buffer.into_inner());
                 }
             }

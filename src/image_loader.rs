@@ -1,5 +1,5 @@
 use crate::errors::{Result, ViewerError};
-use image::{DynamicImage, ImageBuffer, RgbImage, GenericImageView, Rgba, RgbaImage};
+use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage};
 use std::path::Path;
 use rayon::ThreadPoolBuilder;
 

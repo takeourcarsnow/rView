@@ -47,7 +47,7 @@ impl ImageViewerApp {
         }
     }
 
-    pub fn open_in_external_editor(&self, editor_path: &PathBuf) {
+    pub fn open_in_external_editor(&self, editor_path: &std::path::Path) {
         if let Some(path) = self.get_current_path() {
             let _ = std::process::Command::new(editor_path)
                 .arg(&path)
@@ -99,7 +99,7 @@ impl ImageViewerApp {
                     let path_clone = path.clone();
                     self.spawn_loader(move || {
                         let exif = crate::exif_data::ExifInfo::from_file(&path_clone);
-                        Some(crate::app::LoaderMessage::ExifLoaded(path_clone, exif))
+                        Some(crate::app::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
                     });
                 }
             }

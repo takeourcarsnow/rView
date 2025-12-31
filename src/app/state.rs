@@ -18,7 +18,7 @@ pub enum LoaderMessage {
     PreviewLoaded(PathBuf, DynamicImage),
     ThumbnailLoaded(PathBuf, DynamicImage),
     LoadError(PathBuf, String),
-    ExifLoaded(PathBuf, ExifInfo),
+    ExifLoaded(PathBuf, Box<ExifInfo>),
 }
 
 #[derive(Debug, Clone)]

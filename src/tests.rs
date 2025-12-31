@@ -1,6 +1,5 @@
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod unit_tests {
     use std::path::PathBuf;
     use crate::metadata::{MetadataDb, UndoHistory, FileOperation};
     use crate::settings::ColorLabel;
@@ -79,16 +78,11 @@ mod tests {
     fn test_cache_stats() {
         use crate::profiler::CacheStats;
 
-        let mut stats = CacheStats::default();
+        let stats = CacheStats { cache_hit_count: 100, cache_miss_count: 25, cache_memory_usage: 1024 * 1024, thumbnail_memory_usage: 512 * 1024, ..Default::default() };
 
         // Simulate some cache operations
-        stats.cache_hit_count = 100;
-        stats.cache_miss_count = 25;
 
         assert_eq!(stats.hit_rate(), 0.8); // 100/125 = 0.8
-
-        stats.cache_memory_usage = 1024 * 1024; // 1 MB
-        stats.thumbnail_memory_usage = 512 * 1024; // 0.5 MB
 
         assert_eq!(stats.memory_usage_mb(), 1.5);
     }
@@ -144,7 +138,6 @@ mod tests {
 
 #[cfg(test)]
 mod integration_tests {
-    use super::*;
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
@@ -218,8 +211,6 @@ mod integration_tests {
 
 #[cfg(test)]
 mod benchmark_tests {
-    use super::*;
-    use std::time::{Duration, Instant};
     // benching disabled: test crate/bench unsupported in stable
 
     #[ignore]

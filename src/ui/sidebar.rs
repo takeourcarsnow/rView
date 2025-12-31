@@ -278,7 +278,7 @@ impl ImageViewerApp {
                         .unwrap_or(1) as f32;
                     
                     // Draw histograms
-                    for i in 0..256.min(histogram[0].len()) {
+                    for (i, _) in histogram[0].iter().enumerate().take(256.min(histogram[0].len())) {
                         let x = rect.left() + (i as f32 / 255.0) * w;
                         
                         // Red
