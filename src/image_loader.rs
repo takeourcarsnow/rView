@@ -446,7 +446,8 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     let sharpen_strength = adj.sharpening * 0.5;
     
     // Process pixels in parallel for maximum CPU utilization
-    let raw_pixels = img.as_mut();
+    let mut samples = img.as_flat_samples_mut();
+    let raw_pixels = samples.as_mut_slice();
     let pixels_per_chunk = (raw_pixels.len() / num_cpus::get()).max(4); // 4 bytes per pixel (RGBA)
     
     raw_pixels.par_chunks_mut(pixels_per_chunk).for_each(|chunk| {
@@ -484,7 +485,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
             // Highlights adjustment (compress highlights)
             if highlight_compress > 0.0 {
                 let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                let highlight_mask = ((luminance - 0.5) / 0.5).max(0.0).min(1.0);
+                let highlight_mask = ((luminance - 0.5f32) / 0.5f32).max(0.0).min(1.0);
                 let compress = 1.0 - highlight_compress * highlight_mask;
                 r *= compress;
                 g *= compress;

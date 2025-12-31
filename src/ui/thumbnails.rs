@@ -83,202 +83,251 @@ impl ImageViewerApp {
     
     fn render_thumbnail_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, horizontal: bool) {
         let thumb_size = self.settings.thumbnail_size;
-        
+        let spacing = if horizontal { 4.0 } else { 4.0 };
+        let extra_height = if self.settings.show_thumbnail_labels { 18.0 } else { 0.0 };
+        let item_width = if horizontal { thumb_size + spacing } else { thumb_size };
+        let item_height = thumb_size + extra_height + if horizontal { 0.0 } else { spacing };
+
+        let total_items = self.filtered_list.len();
+        if total_items == 0 {
+            return;
+        }
+
         if horizontal {
+            let total_width = total_items as f32 * item_width;
+            let content_size = Vec2::new(total_width, item_height);
+
             egui::ScrollArea::horizontal()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                        self.render_thumbnails_inner(ui, ctx, thumb_size);
-                    });
+                    ui.allocate_space(content_size);
+                    self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
                 });
         } else {
+            let total_height = total_items as f32 * item_height;
+            let content_size = Vec2::new(item_width, total_height);
+
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing = Vec2::new(0.0, 4.0);
-                        self.render_thumbnails_inner(ui, ctx, thumb_size);
-                    });
+                    ui.allocate_space(content_size);
+                    self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
                 });
         }
     }
     
-    fn render_thumbnails_inner(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32) {
-        // Collect data first to avoid borrow issues
-        let thumb_data: Vec<_> = self.filtered_list.iter().enumerate().map(|(display_idx, &real_idx)| {
-            let path = self.image_list.get(real_idx).cloned();
-            let is_current = display_idx == self.current_index;
-            let is_selected = self.selected_indices.contains(&display_idx);
-            let tex_id = path.as_ref().and_then(|p| self.thumbnail_textures.get(p).map(|h| h.id()));
-            let metadata = path.as_ref().map(|p| self.metadata_db.get(p));
-            (display_idx, path, is_current, is_selected, tex_id, metadata)
-        }).collect();
-        
-        for (display_idx, path, is_current, is_selected, tex_id, metadata) in thumb_data {
-            if let Some(ref path) = path {
-                // Allocate extra vertical space when labels are enabled so text isn't clipped
-                let extra_height = if self.settings.show_thumbnail_labels { 18.0 } else { 0.0 };
-                let (response, painter) = ui.allocate_painter(
-                    Vec2::new(thumb_size, thumb_size + extra_height),
-                    egui::Sense::click()
-                );
+    fn render_visible_thumbnails(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, horizontal: bool, spacing: f32, extra_height: f32, item_width: f32, item_height: f32) {
+        let visible_rect = ui.clip_rect();
+        let content_rect = ui.min_rect();
 
-                let rect = response.rect;
+        let item_width = if horizontal { thumb_size + spacing } else { thumb_size };
+        let item_height = thumb_size + extra_height + if horizontal { 0.0 } else { spacing };
 
-                // The visible image area is the top portion (reserve bottom for optional label)
-                let image_area = Rect::from_min_max(rect.min, egui::pos2(rect.max.x, rect.min.y + thumb_size));
+        let (scroll_offset, visible_size) = if horizontal {
+            (-content_rect.left(), visible_rect.width())
+        } else {
+            (-content_rect.top(), visible_rect.height())
+        };
 
-                // Background and selection (applies only to the image area)
-                let bg_color = if is_current {
-                    Color32::from_rgb(70, 130, 255)
-                } else if is_selected {
-                    Color32::from_rgb(50, 90, 180)
-                } else if response.hovered() {
-                    Color32::from_rgb(50, 50, 55)
-                } else {
-                    Color32::from_rgb(35, 35, 40)
-                };
+        let step = if horizontal { item_width } else { item_height };
 
-                painter.rect_filled(image_area, Rounding::same(4.0), bg_color);
-                
-                // Thumbnail image (preserve original aspect ratio) inside the reserved image area
-                if let Some(tex_id) = tex_id {
-                    let inner_rect = image_area.shrink(3.0);
-                    // Determine texture pixel size and scale to fit inside inner_rect while preserving aspect ratio
-                    let tex_size = self.texture_size_from_id(tex_id);
-                    let scale = (inner_rect.width() / tex_size.x).min(inner_rect.height() / tex_size.y);
-                    let display_size = tex_size * scale;
-                    let image_rect = Rect::from_center_size(inner_rect.center(), display_size);
-                    painter.image(
-                        tex_id,
-                        image_rect,
-                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                        Color32::WHITE,
-                    );
-                } else {
-                    // Request thumbnail to be loaded if not already requested
-                    if !self.thumbnail_requests.contains(path) {
-                        self.ensure_thumbnail_requested(path, ctx);
+        let start_idx = (scroll_offset / step).floor() as usize;
+        let end_idx = ((scroll_offset + visible_size) / step).ceil() as usize;
+        let end_idx = end_idx.min(self.filtered_list.len());
+
+        // Request thumbnails and EXIF for visible items
+        for display_idx in start_idx..end_idx {
+            if let Some(&real_idx) = self.filtered_list.get(display_idx) {
+                if let Some(path) = self.image_list.get(real_idx).cloned() {
+                    if !self.thumbnail_textures.contains_key(&path) && !self.thumbnail_requests.contains(&path) {
+                        self.ensure_thumbnail_requested(&path, ctx);
                     }
-                    
-                    // Loading indicator - spinning animation (in image area)
-                    let spinner_char = self.spinner_char(ui);
-                    painter.text(
-                        image_area.center(),
-                        egui::Align2::CENTER_CENTER,
-                        spinner_char,
-                        egui::FontId::proportional(18.0),
-                        Color32::from_rgb(100, 100, 100),
-                    );
-                    // Request repaint for animation
-                    ui.ctx().request_repaint();
-                }
-                
-                // Rating stars (bottom left)
-                if let Some(metadata) = &metadata {
-                    if metadata.rating > 0 {
-                        painter.text(
-                            image_area.left_bottom() + Vec2::new(3.0, -3.0),
-                            egui::Align2::LEFT_BOTTOM,
-                            "★".repeat(metadata.rating as usize),
-                            egui::FontId::proportional(8.0),
-                            Color32::from_rgb(255, 200, 50),
-                        );
-                    }
-                    
-                    // Color label dot (top right)
-                    if metadata.color_label != ColorLabel::None {
-                        painter.circle_filled(
-                            image_area.right_top() + Vec2::new(-6.0, 6.0),
-                            4.0,
-                            metadata.color_label.to_color(),
-                        );
-                    }
-                } // end metadata if
-
-                // Filename and resolution label under thumbnail (optional)
-                    if self.settings.show_thumbnail_labels {
-                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                            let mut info = String::new();
-                            // Prefer EXIF-reported dimensions if available; fall back to texture size
-                            let exif = crate::exif_data::ExifInfo::from_file(path);
-                            if let Some(dim) = exif.dimensions { info = dim; }
-                            else if let Some(tex_id) = tex_id {
-                                let tex_size = self.texture_size_from_id(tex_id);
-                                info = format!("{} × {}", tex_size.x as i32, tex_size.y as i32);
-                            }
-
-                            let label = if info.is_empty() { file_name.to_string() } else { format!("{} • {}", file_name, info) };
-                            let label_pos = egui::pos2(rect.center().x, image_area.bottom() + 2.0);
-                            painter.text(
-                                label_pos,
-                                egui::Align2::CENTER_TOP,
-                                label,
-                                egui::FontId::proportional(10.0),
-                                Color32::from_rgb(200, 200, 200),
-                            );
-                        }
-                    }
-                
-                // Click handling
-                if response.clicked() {
-                    if ui.input(|i| i.modifiers.ctrl) {
-                        // Multi-select
-                        if self.selected_indices.contains(&display_idx) {
-                            self.selected_indices.remove(&display_idx);
-                        } else {
-                            self.selected_indices.insert(display_idx);
-                        }
-                    } else if ui.input(|i| i.modifiers.shift) {
-                        // Range select
-                        let start = self.current_index.min(display_idx);
-                        let end = self.current_index.max(display_idx);
-                        for i in start..=end {
-                            self.selected_indices.insert(i);
-                        }
-                    } else {
-                        // Single select
-                        self.selected_indices.clear();
-                        self.current_index = display_idx;
-                        self.load_current_image();
+                    // Request EXIF if not cached and labels are enabled
+                    if self.settings.show_thumbnail_labels && !self.compare_exifs.contains_key(&path) {
+                        self.load_exif_data(&path);
                     }
                 }
-                
-                // Double-click: open image
-                if response.double_clicked() {
-                    self.current_index = display_idx;
-                    self.load_current_image();
-                }
-                
-                // Context menu
-                response.context_menu(|ui| {
-                    if ui.button("View").clicked() {
-                        self.current_index = display_idx;
-                        self.load_current_image();
-                        ui.close_menu();
-                    }
-
-                    ui.separator();
-                    if ui.button("Delete").clicked() {
-                        self.current_index = display_idx;
-                        self.delete_current_image();
-                        ui.close_menu();
-                    }
-                    ui.separator();
-                    ui.menu_button("Rating", |ui| {
-                        for r in 0..=5 {
-                            let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
-                            if ui.button(stars).clicked() {
-                                self.current_index = display_idx;
-                                self.set_rating(r as u8);
-                                ui.close_menu();
-                            }
-                        }
-                    });
-                });
             }
         }
+
+        // Render visible thumbnails
+        for display_idx in start_idx..end_idx {
+            if let Some(&real_idx) = self.filtered_list.get(display_idx) {
+                if let Some(path) = self.image_list.get(real_idx).cloned() {
+                    let pos = if horizontal {
+                        egui::pos2(content_rect.left() + display_idx as f32 * item_width, content_rect.top())
+                    } else {
+                        egui::pos2(content_rect.left(), content_rect.top() + display_idx as f32 * item_height)
+                    };
+
+                    self.render_single_thumbnail(ui, ctx, thumb_size, extra_height, pos, display_idx, &path);
+                }
+            }
+        }
+    }
+}
+
+impl ImageViewerApp {
+    fn render_single_thumbnail(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, extra_height: f32, pos: egui::Pos2, display_idx: usize, path: &std::path::PathBuf) {
+        let is_current = display_idx == self.current_index;
+        let is_selected = self.selected_indices.contains(&display_idx);
+        let tex_id = self.thumbnail_textures.get(path).map(|h| h.id());
+        let metadata = self.metadata_db.get(path);
+
+        let rect = Rect::from_min_size(pos, Vec2::new(thumb_size, thumb_size + extra_height));
+        let image_area = Rect::from_min_size(pos, Vec2::new(thumb_size, thumb_size));
+
+        // Check if this thumbnail is visible
+        if !ui.clip_rect().intersects(rect) {
+            return;
+        }
+
+        let painter = ui.painter();
+
+        // Background and selection (applies only to the image area)
+        let bg_color = if is_current {
+            Color32::from_rgb(70, 130, 255)
+        } else if is_selected {
+            Color32::from_rgb(50, 90, 180)
+        } else if rect.contains(ui.input(|i| i.pointer.hover_pos().unwrap_or_default())) {
+            Color32::from_rgb(50, 50, 55)
+        } else {
+            Color32::from_rgb(35, 35, 40)
+        };
+
+        painter.rect_filled(image_area, Rounding::same(4.0), bg_color);
+
+        // Thumbnail image (preserve original aspect ratio) inside the reserved image area
+        if let Some(tex_id) = tex_id {
+            let inner_rect = image_area.shrink(3.0);
+            // Determine texture pixel size and scale to fit inside inner_rect while preserving aspect ratio
+            let tex_size = self.texture_size_from_id(tex_id);
+            let scale = (inner_rect.width() / tex_size.x).min(inner_rect.height() / tex_size.y);
+            let display_size = tex_size * scale;
+            let image_rect = Rect::from_center_size(inner_rect.center(), display_size);
+            painter.image(
+                tex_id,
+                image_rect,
+                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        } else {
+            // Loading indicator - spinning animation (in image area)
+            let spinner_char = self.spinner_char(ui);
+            painter.text(
+                image_area.center(),
+                egui::Align2::CENTER_CENTER,
+                spinner_char,
+                egui::FontId::proportional(18.0),
+                Color32::from_rgb(100, 100, 100),
+            );
+            // Request repaint for animation
+            ui.ctx().request_repaint();
+        }
+
+        // Rating stars (bottom left)
+        if metadata.rating > 0 {
+            painter.text(
+                image_area.left_bottom() + Vec2::new(3.0, -3.0),
+                egui::Align2::LEFT_BOTTOM,
+                "★".repeat(metadata.rating as usize),
+                egui::FontId::proportional(8.0),
+                Color32::from_rgb(255, 200, 50),
+            );
+        }
+
+        // Color label dot (top right)
+        if metadata.color_label != ColorLabel::None {
+            painter.circle_filled(
+                image_area.right_top() + Vec2::new(-6.0, 6.0),
+                4.0,
+                metadata.color_label.to_color(),
+            );
+        }
+
+        // Filename and resolution label under thumbnail (optional)
+        if self.settings.show_thumbnail_labels {
+            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                let mut info = String::new();
+                // Prefer cached EXIF dimensions if available, else texture size
+                if let Some(exif) = self.compare_exifs.get(path) {
+                    if let Some(dim) = exif.dimensions.clone() {
+                        info = dim;
+                    }
+                } else if let Some(tex_id) = tex_id {
+                    let tex_size = self.texture_size_from_id(tex_id);
+                    info = format!("{} × {}", tex_size.x as i32, tex_size.y as i32);
+                }
+
+                let label = if info.is_empty() { file_name.to_string() } else { format!("{} • {}", file_name, info) };
+                let label_pos = egui::pos2(rect.center().x, image_area.bottom() + 2.0);
+                painter.text(
+                    label_pos,
+                    egui::Align2::CENTER_TOP,
+                    label,
+                    egui::FontId::proportional(10.0),
+                    Color32::from_rgb(200, 200, 200),
+                );
+            }
+        }
+
+        // Handle interactions
+        let response = ui.interact(rect, egui::Id::new(format!("thumb_{}", display_idx)), egui::Sense::click());
+
+        if response.clicked() {
+            if ui.input(|i| i.modifiers.ctrl) {
+                // Multi-select
+                if self.selected_indices.contains(&display_idx) {
+                    self.selected_indices.remove(&display_idx);
+                } else {
+                    self.selected_indices.insert(display_idx);
+                }
+            } else if ui.input(|i| i.modifiers.shift) {
+                // Range select
+                let start = self.current_index.min(display_idx);
+                let end = self.current_index.max(display_idx);
+                for i in start..=end {
+                    self.selected_indices.insert(i);
+                }
+            } else {
+                // Single select
+                self.selected_indices.clear();
+                self.current_index = display_idx;
+                self.load_current_image();
+            }
+        }
+
+        // Double-click: open image
+        if response.double_clicked() {
+            self.current_index = display_idx;
+            self.load_current_image();
+        }
+
+        // Context menu
+        response.context_menu(|ui| {
+            if ui.button("View").clicked() {
+                self.current_index = display_idx;
+                self.load_current_image();
+                ui.close_menu();
+            }
+
+            ui.separator();
+            if ui.button("Delete").clicked() {
+                self.current_index = display_idx;
+                self.delete_current_image();
+                ui.close_menu();
+            }
+            ui.separator();
+            ui.menu_button("Rating", |ui| {
+                for r in 0..=5 {
+                    let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
+                    if ui.button(stars).clicked() {
+                        self.current_index = display_idx;
+                        self.set_rating(r as u8);
+                        ui.close_menu();
+                    }
+                }
+            });
+        });
     }
 }

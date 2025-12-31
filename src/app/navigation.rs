@@ -246,7 +246,7 @@ impl ImageViewerApp {
         });
     }
 
-    fn load_exif_data(&self, path: &PathBuf) {
+    pub fn load_exif_data(&self, path: &PathBuf) {
         let path_clone = path.clone();
         self.spawn_loader(move || {
             let exif = ExifInfo::from_file(&path_clone);
@@ -433,6 +433,11 @@ impl ImageViewerApp {
 
     pub fn request_thumbnail(&mut self, path: PathBuf, ctx: egui::Context) {
         if self.thumbnail_requests.contains(&path) {
+            return;
+        }
+
+        // Limit concurrent thumbnail loads to prevent overwhelming the system
+        if self.thumbnail_requests.len() >= 10 {
             return;
         }
 
