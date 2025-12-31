@@ -120,47 +120,32 @@ impl ImageViewerApp {
 
     pub fn move_to_folder(&mut self, dest_folder: std::path::PathBuf) {
         if let Some(path) = self.get_current_path() {
-            // Create the destination folder if it doesn't exist
-            if let Err(e) = std::fs::create_dir_all(&dest_folder) {
-                self.show_status(&format!("Failed to create folder: {}", e));
-                return;
-            }
-
-            let filename = path.file_name().unwrap_or_default();
-            let dest_path = dest_folder.join(filename);
-
-            if std::fs::rename(&path, &dest_path).is_ok() {
-                self.undo_history.push(FileOperation::Move {
-                    from: path.clone(),
-                    to: dest_path,
-                });
-
-                if let Some(&idx) = self.filtered_list.get(self.current_index) {
-                    self.image_list.remove(idx);
-                }
-                self.image_cache.remove(&path);
-                self.thumbnail_textures.remove(&path);
-
-                self.apply_filter();
-
-                if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
-                    self.current_index = self.filtered_list.len() - 1;
+            let tx = self.loader_tx.clone();
+            let ctx = self.ctx.clone();
+            let path = path.clone();
+            let dest_folder = dest_folder.clone();
+            std::thread::spawn(move || {
+                // Create the destination folder if it doesn't exist
+                if let Err(e) = std::fs::create_dir_all(&dest_folder) {
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: false, error: Some(format!("Failed to create folder: {}", e)) });
+                    if let Some(ctx) = ctx {
+                        ctx.request_repaint();
+                    }
+                    return;
                 }
 
-                if !self.filtered_list.is_empty() {
-                    self.load_current_image();
+                let filename = path.file_name().unwrap_or_default();
+                let dest_path = dest_folder.join(filename);
+
+                if std::fs::rename(&path, &dest_path).is_ok() {
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: true, error: None });
                 } else {
-                    self.current_texture = None;
-                    self.current_image = None;
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: false, error: Some("Failed to move image".to_string()) });
                 }
-
-                self.show_status(&format!("Moved to {}", dest_folder.display()));
-
-                // Add to quick move folders history
-                self.settings.add_quick_move_folder(dest_folder);
-            } else {
-                self.show_status("Failed to move image");
-            }
+                if let Some(ctx) = ctx {
+                    ctx.request_repaint();
+                }
+            });
         }
     }
 

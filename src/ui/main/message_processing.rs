@@ -1,4 +1,5 @@
 use crate::app::{ImageViewerApp, LoaderMessage};
+use crate::metadata::FileOperation;
 use egui::ColorImage;
 
 impl ImageViewerApp {
@@ -75,6 +76,38 @@ impl ImageViewerApp {
                             self.compare_exifs.insert(path.clone(), exif_val.clone());
                             if self.get_current_path().as_ref() == Some(&path) {
                                 self.current_exif = Some(exif_val);
+                            }
+                        }
+                        LoaderMessage::MoveCompleted { from, dest_folder, success, error } => {
+                            if success {
+                                let filename = from.file_name().unwrap_or_default();
+                                let to = dest_folder.join(filename);
+                                self.undo_history.push(FileOperation::Move { from: from.clone(), to: to.clone() });
+
+                                if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                                    self.image_list.remove(idx);
+                                }
+                                self.image_cache.remove(&from);
+                                self.thumbnail_textures.remove(&from);
+
+                                self.apply_filter();
+
+                                if self.current_index >= self.filtered_list.len() && !self.filtered_list.is_empty() {
+                                    self.current_index = self.filtered_list.len() - 1;
+                                }
+
+                                if !self.filtered_list.is_empty() {
+                                    self.load_current_image();
+                                } else {
+                                    self.current_texture = None;
+                                    self.current_image = None;
+                                }
+
+                                self.show_status(&format!("Moved to {}", dest_folder.display()));
+
+                                self.settings.add_quick_move_folder(dest_folder);
+                            } else {
+                                self.show_status(&format!("Failed to move image: {}", error.unwrap_or_else(|| "Unknown error".to_string())));
                             }
                         }
                     }
