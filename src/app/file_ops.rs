@@ -1,5 +1,6 @@
 use crate::image_loader::{SUPPORTED_EXTENSIONS, is_supported_image};
 use eframe::egui;
+use image::DynamicImage;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
@@ -67,6 +68,71 @@ impl ImageViewerApp {
             if let Ok(mut clipboard) = arboard::Clipboard::new() {
                 let _ = clipboard.set_text(path.display().to_string());
             }
+        }
+    }
+
+    pub fn export_image(&mut self) {
+        if let Some(image) = &self.current_image {
+            let extensions = vec!["jpg", "jpeg", "png", "bmp", "tiff", "tif"];
+
+            // Generate default filename based on current image path
+            let default_filename = if let Some(current_path) = self.get_current_path() {
+                if let Some(file_stem) = current_path.file_stem() {
+                    if let Some(extension) = current_path.extension() {
+                        format!("{}_rView.{}", file_stem.to_string_lossy(), extension.to_string_lossy())
+                    } else {
+                        format!("{}_rView.jpg", file_stem.to_string_lossy())
+                    }
+                } else {
+                    "exported_image_rView.jpg".to_string()
+                }
+            } else {
+                "exported_image_rView.jpg".to_string()
+            };
+
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Images", &extensions)
+                .set_file_name(&default_filename)
+                .save_file()
+            {
+                // Apply current adjustments to the image before saving
+                let image_to_save = if !self.adjustments.is_default() && !self.show_original {
+                    // Try GPU first, fallback to CPU
+                    if let Some(gpu) = &self.gpu_processor {
+                        match gpu.apply_adjustments(&image, &self.adjustments) {
+                            Ok(pixels) => {
+                                let width = image.width();
+                                let height = image.height();
+                                if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                                    DynamicImage::ImageRgba8(buf)
+                                } else {
+                                    // Fallback to CPU
+                                    crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                                }
+                            }
+                            Err(_) => {
+                                // Fallback to CPU
+                                crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                            }
+                        }
+                    } else {
+                        crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                    }
+                } else {
+                    image.clone()
+                };
+
+                match image_to_save.save(&path) {
+                    Ok(_) => {
+                        self.show_status(&format!("Exported to {}", path.display()));
+                    }
+                    Err(e) => {
+                        self.show_status(&format!("Failed to export image: {}", e));
+                    }
+                }
+            }
+        } else {
+            self.show_status("No image to export");
         }
     }
 

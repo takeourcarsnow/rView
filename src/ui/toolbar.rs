@@ -23,6 +23,7 @@ impl ImageViewerApp {
         let mut open_folder = false;
         let mut open_file = false;
         let mut show_move = false;
+        let mut export_image = false;
         let mut go_prev = false;
         let mut go_next = false;
         let mut show_go_to = false;
@@ -66,6 +67,9 @@ impl ImageViewerApp {
                     }
                     if icon_button(ui, "\u{21A9}", "Move to folder (M)").clicked() {
                         show_move = true;
+                    }
+                    if icon_button(ui, "\u{1F4BE}", "Export image (Ctrl+S)").clicked() {
+                        export_image = true;
                     }
                     
                     ui.add_space(8.0);
@@ -243,6 +247,7 @@ impl ImageViewerApp {
         if open_folder { self.open_folder_dialog(); }
         if open_file { self.open_file_dialog(); }
         if show_move { self.show_move_dialog = true; }
+        if export_image { self.export_image(); }
         if go_prev { self.previous_image(); }
         if go_next { self.next_image(); }
         if show_go_to { self.show_go_to_dialog = true; }

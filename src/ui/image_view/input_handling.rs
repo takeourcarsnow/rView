@@ -80,6 +80,11 @@ impl ImageViewerApp {
                 ui.close_menu();
             }
             ui.separator();
+            if ui.button("Export Image").clicked() {
+                self.export_image();
+                ui.close_menu();
+            }
+            ui.separator();
             if ui.button("Delete").clicked() {
                 self.delete_current_image();
                 ui.close_menu();

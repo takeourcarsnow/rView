@@ -191,6 +191,9 @@ impl ImageViewerApp {
         if ctrl && i.key_pressed(egui::Key::C) {
             self.copy_to_clipboard();
         }
+        if ctrl && i.key_pressed(egui::Key::S) {
+            self.export_image();
+        }
     }
     
     fn handle_modifier_keys(&mut self, i: &egui::InputState) {
