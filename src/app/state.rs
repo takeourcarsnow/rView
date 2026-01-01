@@ -287,21 +287,6 @@ impl ImageViewerApp {
 
         app
     }
-
-    /// Initialize the GPU processor asynchronously
-    pub async fn initialize_gpu(&mut self) {
-        match GpuProcessor::new().await {
-            Ok(processor) => {
-                self.gpu_processor = Some(Arc::new(processor));
-                self.set_status_message("GPU acceleration enabled".to_string());
-            }
-            Err(e) => {
-                eprintln!("Failed to initialize GPU processor: {}", e);
-                self.set_status_message(format!("GPU initialization failed: {}", e));
-                // GPU processor remains None, CPU fallbacks will be used
-            }
-        }
-    }
 }
 
 fn configure_style(ctx: &egui::Context) {

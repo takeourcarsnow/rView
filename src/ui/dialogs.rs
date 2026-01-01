@@ -250,6 +250,31 @@ impl ImageViewerApp {
                                 crate::profiler::with_profiler(|p| p.reset());
                             }
                         }
+
+                        // GPU Information
+                        if let Some(ref gpu) = self.gpu_processor {
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("GPU Information").strong());
+                            ui.add_space(2.0);
+
+                            let perf_info = gpu.get_performance_info();
+                            ui.label(format!("Adapter: {}", perf_info.adapter_name));
+                            ui.label(format!("Backend: {}", perf_info.backend));
+                            ui.label(format!("Device Type: {}", perf_info.device_type));
+                            ui.label(format!("Texture Operations: {}", if perf_info.supports_texture_operations { "Supported" } else { "Not Supported" }));
+                            ui.label(format!("RAW Demosaic: {}", if perf_info.supports_raw_demosaic { "Supported" } else { "Not Supported" }));
+
+                            let adapter_info = gpu.adapter_info();
+                            ui.label(format!("Driver: {}", adapter_info.driver));
+                            ui.label(format!("Driver Info: {}", adapter_info.driver_info));
+                            ui.label(format!("Vendor ID: {}", adapter_info.vendor));
+                            ui.label(format!("Device ID: {}", adapter_info.device));
+                        } else {
+                            ui.add_space(8.0);
+                            ui.label(RichText::new("GPU Information").strong());
+                            ui.add_space(2.0);
+                            ui.label(RichText::new("GPU acceleration not available").color(Color32::YELLOW));
+                        }
                     });
                 
                 ui.add_space(8.0);
