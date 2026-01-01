@@ -527,7 +527,7 @@ impl ImageViewerApp {
                     ui.separator();
                     
                     // Exposure
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Exposure:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.exposure, -3.0..=3.0)
                             .suffix(" EV")).changed() {
@@ -539,7 +539,7 @@ impl ImageViewerApp {
                     });
                     
                     // Contrast
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Contrast:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.contrast, 0.5..=2.0)).changed() {
                             adjustments_changed = true;
@@ -550,7 +550,7 @@ impl ImageViewerApp {
                     });
                     
                     // Brightness
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Brightness:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.brightness, -100.0..=100.0)).changed() {
                             adjustments_changed = true;
@@ -561,7 +561,7 @@ impl ImageViewerApp {
                     });
                     
                     // Saturation
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Saturation:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.saturation, 0.0..=2.0)).changed() {
                             adjustments_changed = true;
@@ -574,7 +574,7 @@ impl ImageViewerApp {
                     ui.separator();
                     
                     // Temperature
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Temperature:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.temperature, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -585,7 +585,7 @@ impl ImageViewerApp {
                     });
                     
                     // Tint
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Tint:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.tint, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -598,7 +598,7 @@ impl ImageViewerApp {
                     ui.separator();
                     
                     // Highlights
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Highlights:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.highlights, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -609,7 +609,7 @@ impl ImageViewerApp {
                     });
                     
                     // Shadows
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Shadows:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.shadows, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -620,7 +620,7 @@ impl ImageViewerApp {
                     });
                     
                     // Blacks
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Blacks:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.blacks, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -631,7 +631,7 @@ impl ImageViewerApp {
                     });
                     
                     // Whites
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Whites:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.whites, -1.0..=1.0)).changed() {
                             adjustments_changed = true;
@@ -644,7 +644,7 @@ impl ImageViewerApp {
                     ui.separator();
                     
                     // Sharpening
-                    ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
                         ui.label("Sharpening:");
                         if ui.add(egui::Slider::new(&mut self.adjustments.sharpening, 0.0..=2.0)).changed() {
                             adjustments_changed = true;

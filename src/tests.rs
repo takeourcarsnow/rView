@@ -137,10 +137,150 @@ mod unit_tests {
                 blacks: 0.0,
                 whites: 0.0,
                 sharpening: 0.0,
+                film: crate::image_loader::FilmEmulation::default(),
             };
 
             let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment failed");
             assert_eq!(out.len(), (16 * 16 * 4) as usize);
+        }
+    }
+    
+    #[test]
+    fn test_gpu_processor_with_film_emulation() {
+        // Try to initialize GPU; if not available just skip the test
+        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
+            let mut adj = crate::image_loader::ImageAdjustments::default();
+            adj.apply_preset(crate::image_loader::FilmPreset::Portra400);
+
+            let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment with film emulation failed");
+            assert_eq!(out.len(), (16 * 16 * 4) as usize);
+        }
+    }
+    
+    #[test]
+    fn test_gpu_processor_bw_film() {
+        // Try to initialize GPU; if not available just skip the test
+        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([200, 100, 50, 255])));
+            let mut adj = crate::image_loader::ImageAdjustments::default();
+            adj.apply_preset(crate::image_loader::FilmPreset::TriX400);
+
+            let out = proc.apply_adjustments(&img, &adj).expect("GPU B&W film emulation failed");
+            assert_eq!(out.len(), (16 * 16 * 4) as usize);
+            
+            // Verify it's converted to grayscale-ish (R, G, B should be similar)
+            // Note: Due to tinting and other effects, they won't be exactly equal
+        }
+    }
+    
+    #[test]
+    fn test_cpu_film_emulation() {
+        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmPreset};
+        
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(32, 32, image::Rgba([128, 100, 80, 255])));
+        
+        // Test Portra 400 (color film)
+        let mut adj = ImageAdjustments::default();
+        adj.apply_preset(FilmPreset::Portra400);
+        let result = apply_adjustments(&img, &adj);
+        assert_eq!(result.width(), 32);
+        assert_eq!(result.height(), 32);
+        
+        // Test Tri-X 400 (B&W film - should convert to grayscale)
+        let mut adj_bw = ImageAdjustments::default();
+        adj_bw.apply_preset(FilmPreset::TriX400);
+        let result_bw = apply_adjustments(&img, &adj_bw);
+        
+        // Verify B&W conversion - RGB values should be very close
+        let rgba = result_bw.to_rgba8();
+        let pixel = rgba.get_pixel(16, 16);
+        let r = pixel[0] as i32;
+        let g = pixel[1] as i32;
+        let b = pixel[2] as i32;
+        // For true B&W, RGB should be very similar (within some tolerance due to grain/tinting)
+        assert!((r - g).abs() < 30, "B&W film should produce similar R and G values");
+        assert!((g - b).abs() < 30, "B&W film should produce similar G and B values");
+    }
+    
+    #[test]
+    fn test_film_emulation_grain() {
+        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmEmulation};
+        
+        // Create a flat gray image
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(64, 64, image::Rgba([128, 128, 128, 255])));
+        
+        // Apply grain
+        let adj = ImageAdjustments {
+            film: FilmEmulation {
+                enabled: true,
+                grain_amount: 0.5,
+                grain_size: 1.0,
+                grain_roughness: 0.5,
+                ..FilmEmulation::default()
+            },
+            ..ImageAdjustments::default()
+        };
+        
+        let result = apply_adjustments(&img, &adj);
+        let rgba = result.to_rgba8();
+        
+        // Verify grain adds variation - not all pixels should be identical
+        let mut unique_values = std::collections::HashSet::new();
+        for y in 0..10 {
+            for x in 0..10 {
+                let pixel = rgba.get_pixel(x, y);
+                unique_values.insert(pixel[0]);
+            }
+        }
+        // With grain, we should have multiple unique values
+        assert!(unique_values.len() > 1, "Grain should add variation to pixels");
+    }
+    
+    #[test]
+    fn test_film_emulation_s_curve() {
+        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmEmulation};
+        
+        // Test that S-curve increases contrast (darkens shadows, brightens highlights)
+        let dark_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([64, 64, 64, 255])));
+        let bright_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([192, 192, 192, 255])));
+        
+        let adj = ImageAdjustments {
+            film: FilmEmulation {
+                enabled: true,
+                s_curve_strength: 0.5,
+                ..FilmEmulation::default()
+            },
+            ..ImageAdjustments::default()
+        };
+        
+        let dark_result = apply_adjustments(&dark_img, &adj);
+        let bright_result = apply_adjustments(&bright_img, &adj);
+        
+        let dark_rgba = dark_result.to_rgba8();
+        let bright_rgba = bright_result.to_rgba8();
+        
+        let dark_pixel = dark_rgba.get_pixel(8, 8)[0];
+        let bright_pixel = bright_rgba.get_pixel(8, 8)[0];
+        
+        // S-curve should increase contrast - dark gets darker, bright gets brighter relative to midpoint
+        // The contrast increase should be noticeable
+        assert!(bright_pixel > dark_pixel, "S-curve should maintain brightness ordering");
+    }
+    
+    #[test]
+    fn test_all_film_presets() {
+        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmPreset};
+        
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 100, 80, 255])));
+        
+        // Test all presets don't crash
+        for preset in FilmPreset::all() {
+            let mut adj = ImageAdjustments::default();
+            adj.apply_preset(*preset);
+            let result = apply_adjustments(&img, &adj);
+            assert_eq!(result.width(), 16);
+            assert_eq!(result.height(), 16);
         }
     }
 

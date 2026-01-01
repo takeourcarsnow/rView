@@ -81,40 +81,7 @@ impl ImageViewerApp {
         }
     }
 
-    fn compare_paths_with_mode(&self, a: &PathBuf, b: &PathBuf, sort_mode: crate::settings::SortMode) -> std::cmp::Ordering {
-        match sort_mode {
-            crate::settings::SortMode::Name => {
-                let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                natord::compare(&a_name, &b_name)
-            },
-            crate::settings::SortMode::Date | crate::settings::SortMode::DateTaken => {
-                let a_time = a.metadata().and_then(|m| m.modified()).ok();
-                let b_time = b.metadata().and_then(|m| m.modified()).ok();
-                a_time.cmp(&b_time)
-            },
-            crate::settings::SortMode::Size => {
-                let a_size = a.metadata().map(|m| m.len()).unwrap_or(0);
-                let b_size = b.metadata().map(|m| m.len()).unwrap_or(0);
-                a_size.cmp(&b_size)
-            },
-            crate::settings::SortMode::Type => {
-                let a_ext = a.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                let b_ext = b.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
-                a_ext.cmp(&b_ext).then_with(|| {
-                    let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    let b_name = b.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
-                    natord::compare(&a_name, &b_name)
-                })
-            },
-            crate::settings::SortMode::Rating => {
-                let a_rating = self.metadata_db.get(a).rating;
-                let b_rating = self.metadata_db.get(b).rating;
-                b_rating.cmp(&a_rating) // Descending
-            },
-            crate::settings::SortMode::Random => unreachable!("Random sorting handled separately"),
-        }
-    }
+
 
     pub fn apply_filter(&mut self) {
         self.filtered_list.clear();

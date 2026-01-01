@@ -378,6 +378,94 @@ pub fn calculate_histogram(image: &DynamicImage) -> Vec<Vec<u32>> {
     histogram
 }
 
+// Film emulation parameters for realistic analog film simulation
+#[derive(Debug, Clone, PartialEq)]
+pub struct FilmEmulation {
+    pub enabled: bool,
+    pub is_bw: bool,                    // Whether this is a B&W film (converts color to mono)
+    
+    // Tone curve control points (shadows, midtones, highlights) - values 0.0 to 1.0
+    pub tone_curve_shadows: f32,        // Lift/lower shadows (-1.0 to 1.0)
+    pub tone_curve_midtones: f32,       // Adjust midtones (-1.0 to 1.0)
+    pub tone_curve_highlights: f32,     // Compress/expand highlights (-1.0 to 1.0)
+    
+    // S-curve strength for contrast (film characteristic curve)
+    pub s_curve_strength: f32,          // 0.0 to 1.0
+    
+    // Film grain simulation
+    pub grain_amount: f32,              // 0.0 to 1.0 (intensity)
+    pub grain_size: f32,                // 0.5 to 2.0 (1.0 = normal)
+    pub grain_roughness: f32,           // 0.0 to 1.0 (organic variation)
+    
+    // Halation (light bloom around bright areas, characteristic of film)
+    pub halation_amount: f32,           // 0.0 to 1.0
+    pub halation_radius: f32,           // Spread of the halation effect
+    pub halation_color: [f32; 3],       // RGB tint for halation (usually warm/red)
+    
+    // Color channel crossover/crosstalk (film layers interact)
+    pub red_in_green: f32,              // -0.2 to 0.2
+    pub red_in_blue: f32,               // -0.2 to 0.2
+    pub green_in_red: f32,              // -0.2 to 0.2
+    pub green_in_blue: f32,             // -0.2 to 0.2
+    pub blue_in_red: f32,               // -0.2 to 0.2
+    pub blue_in_green: f32,             // -0.2 to 0.2
+    
+    // Color response curves (per-channel gamma/lift)
+    pub red_gamma: f32,                 // 0.8 to 1.2
+    pub green_gamma: f32,               // 0.8 to 1.2
+    pub blue_gamma: f32,                // 0.8 to 1.2
+    
+    // Black point and white point (film base density and max density)
+    pub black_point: f32,               // 0.0 to 0.1 (raised blacks = faded look)
+    pub white_point: f32,               // 0.9 to 1.0 (compressed highlights)
+    
+    // Color cast/tint in shadows and highlights
+    pub shadow_tint: [f32; 3],          // RGB tint for shadows
+    pub highlight_tint: [f32; 3],       // RGB tint for highlights
+    
+    // Vignette (natural lens falloff)
+    pub vignette_amount: f32,           // 0.0 to 1.0
+    pub vignette_softness: f32,         // 0.5 to 2.0
+    
+    // Film latitude (dynamic range compression)
+    pub latitude: f32,                  // 0.0 to 1.0 (higher = more DR recovery)
+}
+
+impl Default for FilmEmulation {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            is_bw: false,
+            tone_curve_shadows: 0.0,
+            tone_curve_midtones: 0.0,
+            tone_curve_highlights: 0.0,
+            s_curve_strength: 0.0,
+            grain_amount: 0.0,
+            grain_size: 1.0,
+            grain_roughness: 0.5,
+            halation_amount: 0.0,
+            halation_radius: 1.0,
+            halation_color: [1.0, 0.3, 0.1], // Warm red/orange
+            red_in_green: 0.0,
+            red_in_blue: 0.0,
+            green_in_red: 0.0,
+            green_in_blue: 0.0,
+            blue_in_red: 0.0,
+            blue_in_green: 0.0,
+            red_gamma: 1.0,
+            green_gamma: 1.0,
+            blue_gamma: 1.0,
+            black_point: 0.0,
+            white_point: 1.0,
+            shadow_tint: [0.0, 0.0, 0.0],
+            highlight_tint: [0.0, 0.0, 0.0],
+            vignette_amount: 0.0,
+            vignette_softness: 1.0,
+            latitude: 0.0,
+        }
+    }
+}
+
 // Apply basic adjustments (non-destructive preview)
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageAdjustments {
@@ -392,6 +480,7 @@ pub struct ImageAdjustments {
     pub blacks: f32,        // -1.0 to +1.0
     pub whites: f32,        // -1.0 to +1.0
     pub sharpening: f32,    // 0.0 to 2.0
+    pub film: FilmEmulation, // Film emulation parameters
 }
 
 impl Default for ImageAdjustments {
@@ -408,6 +497,7 @@ impl Default for ImageAdjustments {
             blacks: 0.0,
             whites: 0.0,
             sharpening: 0.0,
+            film: FilmEmulation::default(),
         }
     }
 }
@@ -424,206 +514,702 @@ impl ImageAdjustments {
         self.tint == 0.0 &&
         self.blacks == 0.0 &&
         self.whites == 0.0 &&
-        self.sharpening == 0.0
+        self.sharpening == 0.0 &&
+        !self.film.enabled
     }
 
     pub fn apply_preset(&mut self, preset: FilmPreset) {
         *self = match preset {
             FilmPreset::None => ImageAdjustments::default(),
+            
+            // Kodak Portra 400 - Professional portrait film
+            // Known for: Warm tones, excellent skin tones, subtle grain, wide latitude
             FilmPreset::Portra400 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.1,
-                brightness: 5.0,
-                saturation: 1.15,
-                highlights: -0.2,
-                shadows: 0.1,
-                temperature: 0.1,
-                tint: 0.05,
-                blacks: 0.1,
-                whites: -0.1,
-                sharpening: 0.3,
+                contrast: 1.05,
+                brightness: 3.0,
+                saturation: 0.95,
+                highlights: -0.15,
+                shadows: 0.15,
+                temperature: 0.08,
+                tint: 0.03,
+                blacks: 0.08,
+                whites: -0.08,
+                sharpening: 0.2,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.1,
+                    tone_curve_midtones: 0.02,
+                    tone_curve_highlights: -0.08,
+                    s_curve_strength: 0.15,
+                    grain_amount: 0.12,
+                    grain_size: 1.0,
+                    grain_roughness: 0.4,
+                    halation_amount: 0.05,
+                    halation_radius: 1.2,
+                    halation_color: [1.0, 0.4, 0.2],
+                    red_in_green: 0.02,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.01,
+                    green_in_blue: 0.01,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.02,
+                    red_gamma: 0.98,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.02,
+                    black_point: 0.02,
+                    white_point: 0.98,
+                    shadow_tint: [0.02, 0.01, 0.0],
+                    highlight_tint: [0.02, 0.01, -0.01],
+                    vignette_amount: 0.08,
+                    vignette_softness: 1.5,
+                    latitude: 0.7,
+                },
             },
+            
+            // Kodak Portra 160 - Fine grain portrait film  
+            // Known for: Very fine grain, softer contrast, excellent for overexposure
             FilmPreset::Portra160 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.05,
-                brightness: 8.0,
-                saturation: 1.1,
-                highlights: -0.15,
-                shadows: 0.2,
+                contrast: 1.0,
+                brightness: 5.0,
+                saturation: 0.92,
+                highlights: -0.1,
+                shadows: 0.18,
                 temperature: 0.05,
                 tint: 0.02,
                 blacks: 0.05,
                 whites: -0.05,
-                sharpening: 0.2,
+                sharpening: 0.15,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.12,
+                    tone_curve_midtones: 0.03,
+                    tone_curve_highlights: -0.06,
+                    s_curve_strength: 0.1,
+                    grain_amount: 0.06,
+                    grain_size: 0.8,
+                    grain_roughness: 0.35,
+                    halation_amount: 0.03,
+                    halation_radius: 1.0,
+                    halation_color: [1.0, 0.45, 0.25],
+                    red_in_green: 0.015,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.01,
+                    green_in_blue: 0.01,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.015,
+                    red_gamma: 0.99,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.01,
+                    black_point: 0.015,
+                    white_point: 0.99,
+                    shadow_tint: [0.015, 0.008, 0.0],
+                    highlight_tint: [0.015, 0.008, -0.005],
+                    vignette_amount: 0.06,
+                    vignette_softness: 1.6,
+                    latitude: 0.8,
+                },
             },
+            
+            // Kodak Portra 800 - High-speed portrait film
+            // Known for: More grain, warm tones, good in low light
             FilmPreset::Portra800 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.15,
+                contrast: 1.08,
                 brightness: 2.0,
-                saturation: 1.2,
-                highlights: -0.25,
-                shadows: 0.05,
-                temperature: 0.15,
-                tint: 0.08,
-                blacks: 0.15,
-                whites: -0.15,
-                sharpening: 0.4,
+                saturation: 0.98,
+                highlights: -0.18,
+                shadows: 0.1,
+                temperature: 0.12,
+                tint: 0.05,
+                blacks: 0.1,
+                whites: -0.1,
+                sharpening: 0.25,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.08,
+                    tone_curve_midtones: 0.03,
+                    tone_curve_highlights: -0.1,
+                    s_curve_strength: 0.18,
+                    grain_amount: 0.22,
+                    grain_size: 1.15,
+                    grain_roughness: 0.5,
+                    halation_amount: 0.06,
+                    halation_radius: 1.3,
+                    halation_color: [1.0, 0.38, 0.18],
+                    red_in_green: 0.025,
+                    red_in_blue: 0.01,
+                    green_in_red: 0.015,
+                    green_in_blue: 0.015,
+                    blue_in_red: 0.005,
+                    blue_in_green: 0.025,
+                    red_gamma: 0.97,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.03,
+                    black_point: 0.025,
+                    white_point: 0.97,
+                    shadow_tint: [0.025, 0.012, 0.0],
+                    highlight_tint: [0.025, 0.012, -0.01],
+                    vignette_amount: 0.1,
+                    vignette_softness: 1.4,
+                    latitude: 0.65,
+                },
             },
+            
+            // Kodak T-Max 400 - Professional B&W film
+            // Known for: Fine grain for speed, high acutance, modern T-grain
             FilmPreset::TMax400 => ImageAdjustments {
-                exposure: 0.0,
-                contrast: 1.3,
-                brightness: -5.0,
-                saturation: 0.8,
-                highlights: 0.1,
-                shadows: -0.1,
-                temperature: -0.2,
-                tint: -0.1,
-                blacks: -0.1,
-                whites: 0.1,
-                sharpening: 0.8,
-            },
-            FilmPreset::TMax100 => ImageAdjustments {
-                exposure: 0.0,
-                contrast: 1.2,
-                brightness: -8.0,
-                saturation: 0.7,
-                highlights: 0.15,
-                shadows: -0.15,
-                temperature: -0.25,
-                tint: -0.15,
-                blacks: -0.15,
-                whites: 0.15,
-                sharpening: 0.6,
-            },
-            FilmPreset::Provia100 => ImageAdjustments {
                 exposure: 0.0,
                 contrast: 1.2,
                 brightness: 0.0,
-                saturation: 1.3,
-                highlights: -0.1,
-                shadows: 0.1,
-                temperature: 0.2,
-                tint: 0.1,
-                blacks: 0.05,
-                whites: -0.05,
+                saturation: 1.0, // Will be converted to B&W by film emulation
+                highlights: 0.05,
+                shadows: -0.05,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: -0.05,
+                whites: 0.05,
                 sharpening: 0.5,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: true,
+                    tone_curve_shadows: -0.05,
+                    tone_curve_midtones: 0.05,
+                    tone_curve_highlights: 0.08,
+                    s_curve_strength: 0.25,
+                    grain_amount: 0.15,
+                    grain_size: 0.9,
+                    grain_roughness: 0.45,
+                    halation_amount: 0.02,
+                    halation_radius: 0.8,
+                    halation_color: [0.8, 0.8, 0.8],
+                    red_in_green: 0.0,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.0,
+                    green_in_blue: 0.0,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.0,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.01,
+                    white_point: 0.99,
+                    shadow_tint: [0.0, 0.0, 0.0],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.05,
+                    vignette_softness: 1.3,
+                    latitude: 0.6,
+                },
             },
+            
+            // Kodak T-Max 100 - Ultra fine grain B&W
+            // Known for: Extremely fine grain, high resolution, smooth tones
+            FilmPreset::TMax100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.15,
+                brightness: 2.0,
+                saturation: 1.0,
+                highlights: 0.08,
+                shadows: -0.08,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: -0.08,
+                whites: 0.08,
+                sharpening: 0.4,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: true,
+                    tone_curve_shadows: -0.03,
+                    tone_curve_midtones: 0.03,
+                    tone_curve_highlights: 0.06,
+                    s_curve_strength: 0.2,
+                    grain_amount: 0.08,
+                    grain_size: 0.7,
+                    grain_roughness: 0.35,
+                    halation_amount: 0.015,
+                    halation_radius: 0.7,
+                    halation_color: [0.85, 0.85, 0.85],
+                    red_in_green: 0.0,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.0,
+                    green_in_blue: 0.0,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.0,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.008,
+                    white_point: 0.995,
+                    shadow_tint: [0.0, 0.0, 0.0],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.04,
+                    vignette_softness: 1.4,
+                    latitude: 0.55,
+                },
+            },
+            
+            // Fujifilm Provia 100F - Professional slide film
+            // Known for: Neutral colors, fine grain, accurate reproduction
+            FilmPreset::Provia100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.15,
+                brightness: 0.0,
+                saturation: 1.1,
+                highlights: -0.08,
+                shadows: 0.05,
+                temperature: 0.03,
+                tint: 0.02,
+                blacks: 0.02,
+                whites: -0.03,
+                sharpening: 0.35,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.03,
+                    tone_curve_midtones: 0.0,
+                    tone_curve_highlights: -0.05,
+                    s_curve_strength: 0.22,
+                    grain_amount: 0.08,
+                    grain_size: 0.85,
+                    grain_roughness: 0.4,
+                    halation_amount: 0.02,
+                    halation_radius: 0.9,
+                    halation_color: [0.9, 0.5, 0.3],
+                    red_in_green: 0.01,
+                    red_in_blue: 0.005,
+                    green_in_red: 0.01,
+                    green_in_blue: 0.01,
+                    blue_in_red: 0.005,
+                    blue_in_green: 0.01,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 0.99,
+                    black_point: 0.01,
+                    white_point: 0.99,
+                    shadow_tint: [0.005, 0.0, 0.005],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.05,
+                    vignette_softness: 1.5,
+                    latitude: 0.4,
+                },
+            },
+            
+            // Fujifilm Astia 100F - Soft portrait slide film
+            // Known for: Soft contrast, pleasing skin tones, subtle colors
             FilmPreset::Astia100 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.1,
-                brightness: 10.0,
-                saturation: 1.4,
-                highlights: -0.2,
-                shadows: 0.2,
-                temperature: 0.1,
-                tint: 0.05,
-                blacks: 0.1,
-                whites: -0.1,
-                sharpening: 0.3,
+                contrast: 1.08,
+                brightness: 3.0,
+                saturation: 1.05,
+                highlights: -0.12,
+                shadows: 0.1,
+                temperature: 0.02,
+                tint: 0.01,
+                blacks: 0.05,
+                whites: -0.05,
+                sharpening: 0.25,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.08,
+                    tone_curve_midtones: 0.02,
+                    tone_curve_highlights: -0.06,
+                    s_curve_strength: 0.15,
+                    grain_amount: 0.07,
+                    grain_size: 0.8,
+                    grain_roughness: 0.38,
+                    halation_amount: 0.025,
+                    halation_radius: 1.0,
+                    halation_color: [0.95, 0.55, 0.35],
+                    red_in_green: 0.015,
+                    red_in_blue: 0.005,
+                    green_in_red: 0.01,
+                    green_in_blue: 0.01,
+                    blue_in_red: 0.005,
+                    blue_in_green: 0.015,
+                    red_gamma: 0.99,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.012,
+                    white_point: 0.99,
+                    shadow_tint: [0.01, 0.005, 0.01],
+                    highlight_tint: [0.005, 0.0, 0.0],
+                    vignette_amount: 0.06,
+                    vignette_softness: 1.6,
+                    latitude: 0.45,
+                },
             },
+            
+            // Ilford HP5 Plus 400 - Classic B&W film
+            // Known for: Wide latitude, punchy contrast, classic grain structure
             FilmPreset::Hp5 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.4,
-                brightness: -10.0,
-                saturation: 0.0,  // B&W film
-                highlights: 0.2,
-                shadows: -0.2,
-                temperature: -0.3,
-                tint: -0.2,
-                blacks: -0.2,
-                whites: 0.2,
-                sharpening: 1.0,
+                contrast: 1.25,
+                brightness: -2.0,
+                saturation: 1.0,
+                highlights: 0.1,
+                shadows: -0.1,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: -0.1,
+                whites: 0.1,
+                sharpening: 0.6,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: true,
+                    tone_curve_shadows: -0.08,
+                    tone_curve_midtones: 0.08,
+                    tone_curve_highlights: 0.12,
+                    s_curve_strength: 0.3,
+                    grain_amount: 0.25,
+                    grain_size: 1.1,
+                    grain_roughness: 0.6,
+                    halation_amount: 0.03,
+                    halation_radius: 1.0,
+                    halation_color: [0.75, 0.75, 0.75],
+                    red_in_green: 0.0,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.0,
+                    green_in_blue: 0.0,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.0,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.015,
+                    white_point: 0.98,
+                    shadow_tint: [0.0, 0.0, 0.0],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.08,
+                    vignette_softness: 1.2,
+                    latitude: 0.7,
+                },
             },
+            
+            // Fujifilm Velvia 50 - Vivid slide film
+            // Known for: Extremely saturated colors, high contrast, punchy
             FilmPreset::Velvia50 => ImageAdjustments {
-                exposure: 0.0,
-                contrast: 1.3,
-                brightness: -5.0,
-                saturation: 1.6,
-                highlights: -0.3,
-                shadows: 0.3,
-                temperature: 0.3,
-                tint: 0.2,
-                blacks: 0.2,
-                whites: -0.2,
-                sharpening: 0.7,
-            },
-            FilmPreset::Velvia100 => ImageAdjustments {
                 exposure: 0.0,
                 contrast: 1.25,
                 brightness: -3.0,
-                saturation: 1.5,
-                highlights: -0.25,
-                shadows: 0.25,
-                temperature: 0.25,
-                tint: 0.15,
-                blacks: 0.15,
-                whites: -0.15,
-                sharpening: 0.6,
+                saturation: 1.35,
+                highlights: -0.2,
+                shadows: 0.15,
+                temperature: 0.1,
+                tint: 0.08,
+                blacks: 0.1,
+                whites: -0.12,
+                sharpening: 0.5,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.05,
+                    tone_curve_midtones: -0.03,
+                    tone_curve_highlights: -0.1,
+                    s_curve_strength: 0.35,
+                    grain_amount: 0.06,
+                    grain_size: 0.75,
+                    grain_roughness: 0.35,
+                    halation_amount: 0.04,
+                    halation_radius: 1.1,
+                    halation_color: [1.0, 0.35, 0.15],
+                    red_in_green: -0.02,
+                    red_in_blue: -0.01,
+                    green_in_red: -0.01,
+                    green_in_blue: 0.02,
+                    blue_in_red: -0.01,
+                    blue_in_green: -0.02,
+                    red_gamma: 0.95,
+                    green_gamma: 0.98,
+                    blue_gamma: 1.02,
+                    black_point: 0.008,
+                    white_point: 0.98,
+                    shadow_tint: [0.02, 0.0, 0.01],
+                    highlight_tint: [0.01, 0.005, -0.01],
+                    vignette_amount: 0.07,
+                    vignette_softness: 1.4,
+                    latitude: 0.35,
+                },
             },
+            
+            // Fujifilm Velvia 100 - Vivid slide film (more latitude)
+            // Known for: Saturated but slightly less extreme than Velvia 50
+            FilmPreset::Velvia100 => ImageAdjustments {
+                exposure: 0.0,
+                contrast: 1.2,
+                brightness: -2.0,
+                saturation: 1.28,
+                highlights: -0.15,
+                shadows: 0.12,
+                temperature: 0.08,
+                tint: 0.06,
+                blacks: 0.08,
+                whites: -0.1,
+                sharpening: 0.45,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.06,
+                    tone_curve_midtones: -0.02,
+                    tone_curve_highlights: -0.08,
+                    s_curve_strength: 0.3,
+                    grain_amount: 0.07,
+                    grain_size: 0.8,
+                    grain_roughness: 0.38,
+                    halation_amount: 0.035,
+                    halation_radius: 1.05,
+                    halation_color: [1.0, 0.38, 0.18],
+                    red_in_green: -0.015,
+                    red_in_blue: -0.008,
+                    green_in_red: -0.008,
+                    green_in_blue: 0.015,
+                    blue_in_red: -0.008,
+                    blue_in_green: -0.015,
+                    red_gamma: 0.96,
+                    green_gamma: 0.98,
+                    blue_gamma: 1.01,
+                    black_point: 0.01,
+                    white_point: 0.985,
+                    shadow_tint: [0.015, 0.0, 0.008],
+                    highlight_tint: [0.008, 0.004, -0.008],
+                    vignette_amount: 0.06,
+                    vignette_softness: 1.45,
+                    latitude: 0.4,
+                },
+            },
+            
+            // Kodak Gold 200 - Consumer color negative
+            // Known for: Warm tones, nostalgic look, moderate saturation
             FilmPreset::KodakGold200 => ImageAdjustments {
                 exposure: 0.0,
                 contrast: 1.1,
-                brightness: 5.0,
-                saturation: 1.2,
-                highlights: -0.1,
-                shadows: 0.1,
-                temperature: 0.1,
+                brightness: 4.0,
+                saturation: 1.08,
+                highlights: -0.08,
+                shadows: 0.08,
+                temperature: 0.15,
                 tint: 0.05,
                 blacks: 0.05,
                 whites: -0.05,
-                sharpening: 0.4,
+                sharpening: 0.3,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.1,
+                    tone_curve_midtones: 0.03,
+                    tone_curve_highlights: -0.06,
+                    s_curve_strength: 0.18,
+                    grain_amount: 0.15,
+                    grain_size: 1.05,
+                    grain_roughness: 0.55,
+                    halation_amount: 0.05,
+                    halation_radius: 1.25,
+                    halation_color: [1.0, 0.45, 0.2],
+                    red_in_green: 0.025,
+                    red_in_blue: 0.01,
+                    green_in_red: 0.02,
+                    green_in_blue: 0.015,
+                    blue_in_red: 0.005,
+                    blue_in_green: 0.02,
+                    red_gamma: 0.96,
+                    green_gamma: 0.99,
+                    blue_gamma: 1.04,
+                    black_point: 0.02,
+                    white_point: 0.975,
+                    shadow_tint: [0.03, 0.015, 0.0],
+                    highlight_tint: [0.02, 0.01, -0.01],
+                    vignette_amount: 0.1,
+                    vignette_softness: 1.3,
+                    latitude: 0.6,
+                },
             },
+            
+            // Fujifilm 400H - Professional portrait film (discontinued)
+            // Known for: Pastel colors, lifted shadows, creamy skin tones
             FilmPreset::Fuji400H => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.15,
-                brightness: 3.0,
-                saturation: 1.25,
-                highlights: -0.15,
-                shadows: 0.15,
-                temperature: 0.15,
-                tint: 0.08,
-                blacks: 0.08,
+                contrast: 1.02,
+                brightness: 5.0,
+                saturation: 0.9,
+                highlights: -0.12,
+                shadows: 0.2,
+                temperature: 0.05,
+                tint: 0.03,
+                blacks: 0.12,
                 whites: -0.08,
-                sharpening: 0.5,
+                sharpening: 0.2,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.15,
+                    tone_curve_midtones: 0.05,
+                    tone_curve_highlights: -0.05,
+                    s_curve_strength: 0.1,
+                    grain_amount: 0.12,
+                    grain_size: 0.95,
+                    grain_roughness: 0.45,
+                    halation_amount: 0.04,
+                    halation_radius: 1.15,
+                    halation_color: [0.9, 0.5, 0.35],
+                    red_in_green: 0.02,
+                    red_in_blue: 0.015,
+                    green_in_red: 0.015,
+                    green_in_blue: 0.02,
+                    blue_in_red: 0.01,
+                    blue_in_green: 0.025,
+                    red_gamma: 0.98,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.02,
+                    black_point: 0.03,
+                    white_point: 0.98,
+                    shadow_tint: [0.01, 0.015, 0.02],
+                    highlight_tint: [0.01, 0.005, 0.0],
+                    vignette_amount: 0.07,
+                    vignette_softness: 1.5,
+                    latitude: 0.75,
+                },
             },
+            
+            // Kodak Tri-X 400 - Classic B&W film
+            // Known for: Iconic grain, high contrast, great tonal range
             FilmPreset::TriX400 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.35,
-                brightness: -12.0,
-                saturation: 0.0,  // B&W film
-                highlights: 0.25,
-                shadows: -0.25,
-                temperature: -0.35,
-                tint: -0.25,
-                blacks: -0.25,
-                whites: 0.25,
-                sharpening: 1.2,
+                contrast: 1.3,
+                brightness: -3.0,
+                saturation: 1.0,
+                highlights: 0.12,
+                shadows: -0.12,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: -0.12,
+                whites: 0.12,
+                sharpening: 0.7,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: true,
+                    tone_curve_shadows: -0.1,
+                    tone_curve_midtones: 0.1,
+                    tone_curve_highlights: 0.15,
+                    s_curve_strength: 0.35,
+                    grain_amount: 0.3,
+                    grain_size: 1.2,
+                    grain_roughness: 0.65,
+                    halation_amount: 0.035,
+                    halation_radius: 1.1,
+                    halation_color: [0.7, 0.7, 0.7],
+                    red_in_green: 0.0,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.0,
+                    green_in_blue: 0.0,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.0,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.012,
+                    white_point: 0.975,
+                    shadow_tint: [0.0, 0.0, 0.0],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.1,
+                    vignette_softness: 1.15,
+                    latitude: 0.65,
+                },
             },
+            
+            // Ilford Delta 3200 - High speed B&W film
+            // Known for: Very coarse grain, excellent low light, gritty look
             FilmPreset::Delta3200 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.4,
-                brightness: -15.0,
-                saturation: 0.0,  // B&W film
-                highlights: 0.3,
-                shadows: -0.3,
-                temperature: -0.4,
-                tint: -0.3,
-                blacks: -0.3,
-                whites: 0.3,
-                sharpening: 1.5,
+                contrast: 1.35,
+                brightness: -5.0,
+                saturation: 1.0,
+                highlights: 0.15,
+                shadows: -0.15,
+                temperature: 0.0,
+                tint: 0.0,
+                blacks: -0.15,
+                whites: 0.15,
+                sharpening: 0.8,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: true,
+                    tone_curve_shadows: -0.12,
+                    tone_curve_midtones: 0.12,
+                    tone_curve_highlights: 0.18,
+                    s_curve_strength: 0.4,
+                    grain_amount: 0.45,
+                    grain_size: 1.5,
+                    grain_roughness: 0.75,
+                    halation_amount: 0.04,
+                    halation_radius: 1.3,
+                    halation_color: [0.65, 0.65, 0.65],
+                    red_in_green: 0.0,
+                    red_in_blue: 0.0,
+                    green_in_red: 0.0,
+                    green_in_blue: 0.0,
+                    blue_in_red: 0.0,
+                    blue_in_green: 0.0,
+                    red_gamma: 1.0,
+                    green_gamma: 1.0,
+                    blue_gamma: 1.0,
+                    black_point: 0.02,
+                    white_point: 0.97,
+                    shadow_tint: [0.0, 0.0, 0.0],
+                    highlight_tint: [0.0, 0.0, 0.0],
+                    vignette_amount: 0.12,
+                    vignette_softness: 1.1,
+                    latitude: 0.55,
+                },
             },
+            
+            // Kodak Ektar 100 - Fine grain color negative
+            // Known for: Extremely fine grain, vivid colors, high saturation
             FilmPreset::Ektar100 => ImageAdjustments {
                 exposure: 0.0,
-                contrast: 1.2,
-                brightness: 2.0,
-                saturation: 1.4,
-                highlights: -0.2,
-                shadows: 0.2,
-                temperature: 0.2,
-                tint: 0.1,
-                blacks: 0.1,
-                whites: -0.1,
-                sharpening: 0.6,
+                contrast: 1.18,
+                brightness: 0.0,
+                saturation: 1.25,
+                highlights: -0.1,
+                shadows: 0.08,
+                temperature: 0.05,
+                tint: 0.03,
+                blacks: 0.03,
+                whites: -0.05,
+                sharpening: 0.4,
+                film: FilmEmulation {
+                    enabled: true,
+                    is_bw: false,
+                    tone_curve_shadows: 0.04,
+                    tone_curve_midtones: -0.02,
+                    tone_curve_highlights: -0.08,
+                    s_curve_strength: 0.25,
+                    grain_amount: 0.05,
+                    grain_size: 0.7,
+                    grain_roughness: 0.3,
+                    halation_amount: 0.025,
+                    halation_radius: 0.9,
+                    halation_color: [1.0, 0.4, 0.2],
+                    red_in_green: -0.01,
+                    red_in_blue: -0.005,
+                    green_in_red: -0.005,
+                    green_in_blue: 0.01,
+                    blue_in_red: -0.005,
+                    blue_in_green: -0.01,
+                    red_gamma: 0.97,
+                    green_gamma: 0.99,
+                    blue_gamma: 1.02,
+                    black_point: 0.008,
+                    white_point: 0.99,
+                    shadow_tint: [0.01, 0.005, 0.0],
+                    highlight_tint: [0.005, 0.002, -0.005],
+                    vignette_amount: 0.05,
+                    vignette_softness: 1.5,
+                    latitude: 0.5,
+                },
             },
         };
     }
@@ -737,19 +1323,119 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     // Sharpening (simplified)
     let sharpen_strength = adj.sharpening * 0.5;
     
+    // Film emulation parameters
+    let film = &adj.film;
+    let film_enabled = film.enabled;
+    
+    // Pre-generate grain texture for consistent grain pattern
+    // Using a simple hash-based pseudo-random for reproducibility
+    let grain_seed = 12345u64;
+    
     // Process pixels in parallel for maximum CPU utilization
     let mut samples = img.as_flat_samples_mut();
     let raw_pixels = samples.as_mut_slice();
     let pixels_per_chunk = (raw_pixels.len() / num_cpus::get()).max(4); // 4 bytes per pixel (RGBA)
     
-    raw_pixels.par_chunks_mut(pixels_per_chunk).for_each(|chunk| {
-        for pixel in chunk.chunks_mut(4) {
+    // Calculate center for vignette
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+    let max_dist = (center_x * center_x + center_y * center_y).sqrt();
+    
+    raw_pixels.par_chunks_mut(pixels_per_chunk).enumerate().for_each(|(chunk_idx, chunk)| {
+        let chunk_start = chunk_idx * pixels_per_chunk;
+        
+        for (local_idx, pixel) in chunk.chunks_mut(4).enumerate() {
             if pixel.len() < 4 { continue; } // Skip incomplete pixels
             
-            let mut r = pixel[0] as f32;
-            let mut g = pixel[1] as f32;
-            let mut b = pixel[2] as f32;
+            let pixel_idx = chunk_start / 4 + local_idx;
+            let px = (pixel_idx % width as usize) as f32;
+            let py = (pixel_idx / width as usize) as f32;
+            
+            let mut r = pixel[0] as f32 / 255.0;
+            let mut g = pixel[1] as f32 / 255.0;
+            let mut b = pixel[2] as f32 / 255.0;
             let a = pixel[3] as f32;
+            
+            // ============ FILM EMULATION (applied first for characteristic curve) ============
+            if film_enabled {
+                // B&W conversion for monochrome films (uses proper luminance weights)
+                if film.is_bw {
+                    // Use film-like spectral sensitivity (red-sensitive for classic B&W look)
+                    let luminance = 0.30 * r + 0.59 * g + 0.11 * b;
+                    r = luminance;
+                    g = luminance;
+                    b = luminance;
+                }
+                
+                // Color channel crossover/crosstalk (film layer interaction)
+                if !film.is_bw {
+                    let orig_r = r;
+                    let orig_g = g;
+                    let orig_b = b;
+                    r = orig_r + orig_g * film.green_in_red + orig_b * film.blue_in_red;
+                    g = orig_g + orig_r * film.red_in_green + orig_b * film.blue_in_green;
+                    b = orig_b + orig_r * film.red_in_blue + orig_g * film.green_in_blue;
+                }
+                
+                // Per-channel gamma (color response curves)
+                r = r.max(0.0).powf(film.red_gamma);
+                g = g.max(0.0).powf(film.green_gamma);
+                b = b.max(0.0).powf(film.blue_gamma);
+                
+                // Film latitude (dynamic range compression - recover shadows/highlights)
+                if film.latitude > 0.0 {
+                    let latitude_factor = film.latitude * 0.5;
+                    // Soft-clip highlights
+                    r = r / (1.0 + r * latitude_factor);
+                    g = g / (1.0 + g * latitude_factor);
+                    b = b / (1.0 + b * latitude_factor);
+                    // Compensate for compression
+                    let comp = 1.0 + latitude_factor * 0.5;
+                    r *= comp;
+                    g *= comp;
+                    b *= comp;
+                }
+                
+                // Tone curve (S-curve for film characteristic curve)
+                if film.s_curve_strength > 0.0 {
+                    let s = film.s_curve_strength;
+                    // Apply sigmoid-like S-curve
+                    r = apply_s_curve(r, s);
+                    g = apply_s_curve(g, s);
+                    b = apply_s_curve(b, s);
+                }
+                
+                // Tone curve control points (shadows, midtones, highlights)
+                r = apply_tone_curve(r, film.tone_curve_shadows, film.tone_curve_midtones, film.tone_curve_highlights);
+                g = apply_tone_curve(g, film.tone_curve_shadows, film.tone_curve_midtones, film.tone_curve_highlights);
+                b = apply_tone_curve(b, film.tone_curve_shadows, film.tone_curve_midtones, film.tone_curve_highlights);
+                
+                // Black point and white point (film base density)
+                let bp = film.black_point;
+                let wp = film.white_point;
+                let range = wp - bp;
+                if range > 0.01 {
+                    r = bp + r * range;
+                    g = bp + g * range;
+                    b = bp + b * range;
+                }
+                
+                // Shadow and highlight tinting
+                let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+                let shadow_amount = (1.0 - luminance * 2.0).max(0.0).min(1.0);
+                let highlight_amount = ((luminance - 0.5) * 2.0).max(0.0).min(1.0);
+                
+                r += film.shadow_tint[0] * shadow_amount + film.highlight_tint[0] * highlight_amount;
+                g += film.shadow_tint[1] * shadow_amount + film.highlight_tint[1] * highlight_amount;
+                b += film.shadow_tint[2] * shadow_amount + film.highlight_tint[2] * highlight_amount;
+            }
+            
+            // Convert to 0-255 range for standard adjustments
+            r *= 255.0;
+            g *= 255.0;
+            b *= 255.0;
+            
+            // ============ STANDARD ADJUSTMENTS ============
             
             // Apply exposure
             r *= exposure_mult;
@@ -769,15 +1455,15 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
             // Shadows adjustment (gamma-like curve for shadows)
             if shadow_lift < 0.0 {
                 let gamma = 1.0 - shadow_lift;
-                r = r.powf(gamma);
-                g = g.powf(gamma);
-                b = b.powf(gamma);
+                r = r.max(0.0).powf(gamma);
+                g = g.max(0.0).powf(gamma);
+                b = b.max(0.0).powf(gamma);
             }
             
             // Highlights adjustment (compress highlights)
             if highlight_compress > 0.0 {
                 let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                let highlight_mask = ((luminance - 0.5f32) / 0.5f32).max(0.0).min(1.0);
+                let highlight_mask = ((luminance - 127.5) / 127.5).max(0.0).min(1.0);
                 let compress = 1.0 - highlight_compress * highlight_mask;
                 r *= compress;
                 g *= compress;
@@ -803,20 +1489,70 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
             g -= tint_g_sub;
             b += tint_b_add;
             
-            // Saturation
-            let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            r = gray + (r - gray) * sat_factor;
-            g = gray + (g - gray) * sat_factor;
-            b = gray + (b - gray) * sat_factor;
+            // Saturation (skip for B&W film)
+            if !film_enabled || !film.is_bw {
+                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                r = gray + (r - gray) * sat_factor;
+                g = gray + (g - gray) * sat_factor;
+                b = gray + (b - gray) * sat_factor;
+            }
             
             // Basic sharpening (simplified unsharp mask approximation)
             if sharpen_strength > 0.0 {
+                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
                 let sharpened = r + (r - gray) * sharpen_strength;
                 r = r + (sharpened - r) * sharpen_strength;
                 let sharpened = g + (g - gray) * sharpen_strength;
                 g = g + (sharpened - g) * sharpen_strength;
                 let sharpened = b + (b - gray) * sharpen_strength;
                 b = b + (sharpened - b) * sharpen_strength;
+            }
+            
+            // ============ FILM POST-PROCESSING ============
+            if film_enabled {
+                // Vignette (natural lens falloff)
+                if film.vignette_amount > 0.0 {
+                    let dx = px - center_x;
+                    let dy = py - center_y;
+                    let dist = (dx * dx + dy * dy).sqrt() / max_dist;
+                    let vignette = 1.0 - film.vignette_amount * (dist / film.vignette_softness).powf(2.0);
+                    let vignette = vignette.max(0.0).min(1.0);
+                    r *= vignette;
+                    g *= vignette;
+                    b *= vignette;
+                }
+                
+                // Film grain (applied last for realistic appearance)
+                if film.grain_amount > 0.0 {
+                    // Generate pseudo-random grain based on pixel position
+                    let grain = generate_film_grain(
+                        px as u32, 
+                        py as u32, 
+                        grain_seed,
+                        film.grain_size,
+                        film.grain_roughness
+                    );
+                    
+                    // Grain intensity varies with luminance (more visible in midtones)
+                    let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                    let grain_mask = 4.0 * lum * (1.0 - lum); // Peaks at midtones
+                    let grain_strength = film.grain_amount * 255.0 * 0.15 * grain_mask;
+                    
+                    r += grain * grain_strength;
+                    g += grain * grain_strength;
+                    b += grain * grain_strength;
+                }
+                
+                // Halation (subtle glow around bright areas)
+                // Note: Full halation requires multi-pass blur, this is a simplified version
+                if film.halation_amount > 0.0 {
+                    let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                    let halation_mask = ((luminance - 0.7) / 0.3).max(0.0).min(1.0);
+                    let halation_strength = film.halation_amount * halation_mask * 30.0;
+                    r += film.halation_color[0] * halation_strength;
+                    g += film.halation_color[1] * halation_strength;
+                    b += film.halation_color[2] * halation_strength;
+                }
             }
             
             // Clamp values
@@ -828,6 +1564,76 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     });
     
     DynamicImage::ImageRgba8(img)
+}
+
+/// Apply S-curve contrast enhancement (film characteristic curve)
+#[inline]
+fn apply_s_curve(x: f32, strength: f32) -> f32 {
+    // Attempt to simulate Hurter-Driffield (H&D) curve
+    let x = x.clamp(0.0, 1.0);
+    let midpoint = 0.5;
+    let steepness = 1.0 + strength * 3.0;
+    
+    // Sigmoid function centered at midpoint
+    let sigmoid = 1.0 / (1.0 + (-steepness * (x - midpoint)).exp());
+    // Normalize to 0-1 range
+    let min_sig = 1.0 / (1.0 + (steepness * midpoint).exp());
+    let max_sig = 1.0 / (1.0 + (-steepness * (1.0 - midpoint)).exp());
+    
+    let normalized = (sigmoid - min_sig) / (max_sig - min_sig);
+    // Blend between linear and S-curve based on strength
+    x * (1.0 - strength) + normalized * strength
+}
+
+/// Apply tone curve adjustments for shadows, midtones, and highlights
+#[inline]
+fn apply_tone_curve(x: f32, shadows: f32, midtones: f32, highlights: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    
+    // Shadow region (0-0.33)
+    // Midtone region (0.33-0.66)  
+    // Highlight region (0.66-1.0)
+    
+    let shadow_weight = (1.0 - x * 3.0).max(0.0).min(1.0);
+    let highlight_weight = ((x - 0.66) * 3.0).max(0.0).min(1.0);
+    let midtone_weight = 1.0 - shadow_weight - highlight_weight;
+    
+    // Apply adjustments weighted by region
+    let adjustment = shadows * shadow_weight * 0.15 
+                   + midtones * midtone_weight * 0.1
+                   + highlights * highlight_weight * 0.15;
+    
+    (x + adjustment).clamp(0.0, 1.0)
+}
+
+/// Generate film grain using pseudo-random noise
+#[inline]
+fn generate_film_grain(x: u32, y: u32, seed: u64, size: f32, roughness: f32) -> f32 {
+    // Scale coordinates by grain size
+    let scale = 1.0 / size;
+    let sx = (x as f32 * scale) as u32;
+    let sy = (y as f32 * scale) as u32;
+    
+    // Simple hash function for pseudo-random values
+    let mut hash = seed;
+    hash ^= sx as u64;
+    hash = hash.wrapping_mul(0x517cc1b727220a95);
+    hash ^= sy as u64;
+    hash = hash.wrapping_mul(0x517cc1b727220a95);
+    hash ^= hash >> 32;
+    
+    // Convert to -1 to 1 range
+    let noise = (hash as f32 / u64::MAX as f32) * 2.0 - 1.0;
+    
+    // Add roughness variation (multi-octave noise approximation)
+    let mut rough_noise = noise;
+    if roughness > 0.0 {
+        hash = hash.wrapping_mul(0x517cc1b727220a95);
+        let noise2 = (hash as f32 / u64::MAX as f32) * 2.0 - 1.0;
+        rough_noise = noise * (1.0 - roughness * 0.5) + noise2 * roughness * 0.5;
+    }
+    
+    rough_noise
 }
 
 // Rotate image losslessly (for JPEG, just update EXIF, for others, actually rotate)

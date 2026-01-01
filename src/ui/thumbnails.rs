@@ -188,7 +188,7 @@ impl ImageViewerApp {
         }
     }
     
-    fn render_visible_thumbnails(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, horizontal: bool, spacing: f32, extra_height: f32, item_width: f32, item_height: f32) {
+    fn render_visible_thumbnails(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, horizontal: bool, spacing: f32, extra_height: f32, _item_width: f32, _item_height: f32) {
         let visible_rect = ui.clip_rect();
         let content_rect = ui.min_rect();
 
@@ -240,7 +240,7 @@ impl ImageViewerApp {
 }
 
 impl ImageViewerApp {
-    fn render_single_thumbnail(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, extra_height: f32, pos: egui::Pos2, display_idx: usize, path: &std::path::PathBuf) {
+    fn render_single_thumbnail(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context, thumb_size: f32, extra_height: f32, pos: egui::Pos2, display_idx: usize, path: &std::path::PathBuf) {
         let is_current = display_idx == self.current_index;
         let is_selected = self.selected_indices.contains(&display_idx);
         let tex_id = self.thumbnail_textures.get(path).map(|h| h.id());
