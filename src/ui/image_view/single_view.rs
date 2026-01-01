@@ -77,16 +77,62 @@ impl ImageViewerApp {
                 );
             }
         } else if self.is_loading {
-            // Loading indicator with animation
+            // Enhanced loading indicator with animation and progress
             let time = ui.input(|i| i.time);
-            let dots = ".".repeat(((time * 2.0) as usize % 4) + 1);
-            ui.painter().text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                format!("Loading{}", dots),
-                egui::FontId::proportional(24.0),
-                Color32::from_rgb(180, 180, 180),
+            let _spinner_phase = (time * 2.0) % (std::f64::consts::PI * 2.0);
+            let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let spinner_idx = ((time * 10.0) as usize) % spinner_chars.len();
+            
+            let loading_text = if self.showing_preview {
+                format!("{} Loading full resolution...", spinner_chars[spinner_idx])
+            } else {
+                format!("{} Loading image...", spinner_chars[spinner_idx])
+            };
+            
+            // Draw a subtle background
+            let bg_rect = Rect::from_center_size(rect.center(), Vec2::new(300.0, 80.0));
+            ui.painter().rect_filled(
+                bg_rect,
+                Rounding::same(12.0),
+                Color32::from_rgba_unmultiplied(20, 20, 25, 220)
             );
+            
+            ui.painter().text(
+                rect.center() + Vec2::new(0.0, -10.0),
+                egui::Align2::CENTER_CENTER,
+                &loading_text,
+                egui::FontId::proportional(16.0),
+                Color32::from_rgb(220, 220, 220),
+            );
+            
+            // Add a simple progress bar animation
+            let progress_width = 200.0;
+            let progress_height = 4.0;
+            let progress_rect = Rect::from_center_size(
+                rect.center() + Vec2::new(0.0, 15.0),
+                Vec2::new(progress_width, progress_height)
+            );
+            
+            // Background
+            ui.painter().rect_filled(
+                progress_rect,
+                Rounding::same(2.0),
+                Color32::from_rgb(60, 60, 65)
+            );
+            
+            // Animated progress fill
+            let progress_fill = (time.sin() * 0.5 + 0.5) * 0.7 + 0.1; // 10% to 80%
+            let fill_width = progress_width * progress_fill as f32;
+            let fill_rect = Rect::from_min_size(
+                progress_rect.left_top(),
+                Vec2::new(fill_width, progress_height)
+            );
+            ui.painter().rect_filled(
+                fill_rect,
+                Rounding::same(2.0),
+                Color32::from_rgb(100, 150, 255)
+            );
+            
             ui.ctx().request_repaint();
         } else if let Some(ref error) = self.load_error {
             // Error message

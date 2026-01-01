@@ -52,12 +52,40 @@ impl ImageViewerApp {
 
                     // Spacer
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Status message
+                            // Status message
                         if let Some((msg, time)) = &self.status_message {
                             if time.elapsed().as_secs() < 3 {
                                 ui.label(RichText::new(msg).color(Color32::from_rgb(100, 200, 100)).size(11.0));
                             }
                         }
+
+                        // Compact sort control (moved from filmstrip)
+                        let order_label = match self.settings.sort_order {
+                            crate::settings::SortOrder::Ascending => "A-Z",
+                            crate::settings::SortOrder::Descending => "Z-A",
+                        };
+                        egui::ComboBox::from_id_salt("statusbar_sort")
+                            .selected_text(format!("{:?} ({})", self.settings.sort_mode, order_label))
+                            .width(140.0)
+                            .show_ui(ui, |ui| {
+                                for mode in [crate::settings::SortMode::Name, crate::settings::SortMode::Date, crate::settings::SortMode::Size, crate::settings::SortMode::Type, crate::settings::SortMode::Random] {
+                                    if ui.selectable_label(self.settings.sort_mode == mode, format!("{:?}", mode)).clicked() {
+                                        self.settings.sort_mode = mode;
+                                        self.sort_file_list();
+                                    }
+                                }
+                                ui.separator();
+                                ui.horizontal(|ui| {
+                                    ui.label("Order:");
+                                    if ui.button(order_label).clicked() {
+                                        self.settings.sort_order = match self.settings.sort_order {
+                                            crate::settings::SortOrder::Ascending => { self.settings.sort_ascending = false; crate::settings::SortOrder::Descending }
+                                            crate::settings::SortOrder::Descending => { self.settings.sort_ascending = true; crate::settings::SortOrder::Ascending }
+                                        };
+                                        self.sort_file_list();
+                                    }
+                                });
+                            });
 
                         // Zoom level
                         ui.label(RichText::new(format!("{:.0}%", self.zoom * 100.0))

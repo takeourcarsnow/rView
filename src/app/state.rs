@@ -112,6 +112,7 @@ pub struct ImageViewerApp {
     pub show_move_dialog: bool,
     pub go_to_input: String,
     pub search_query: String,
+    pub search_visible: bool,
     pub command_palette_open: bool,
     pub command_palette_query: String,
 
@@ -230,6 +231,7 @@ impl ImageViewerApp {
             show_move_dialog: false,
             go_to_input: String::new(),
             search_query: String::new(),
+            search_visible: false,
             command_palette_open: false,
             command_palette_query: String::new(),
             pending_navigate_next: false,

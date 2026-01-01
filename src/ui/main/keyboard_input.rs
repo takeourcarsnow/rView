@@ -17,6 +17,12 @@ impl ImageViewerApp {
                 return;
             }
             
+            // Handle Ctrl+F for search toggle
+            if i.key_pressed(egui::Key::F) && i.modifiers.ctrl {
+                self.search_visible = !self.search_visible;
+                return;
+            }
+            
             // Other keys only work when no dialogs are open
             if !dialogs_open && !self.show_move_dialog {
                 self.handle_zoom_keys(i);
@@ -48,6 +54,11 @@ impl ImageViewerApp {
         
         if self.slideshow_active {
             self.slideshow_active = false;
+            return;
+        }
+        
+        if self.search_visible {
+            self.search_visible = false;
             return;
         }
         

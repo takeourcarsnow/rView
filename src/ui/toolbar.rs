@@ -1,5 +1,5 @@
 use crate::app::{ImageViewerApp, ViewMode};
-use crate::settings::{SortMode, SortOrder};
+
 use egui::{self, Color32, RichText, Vec2, Rounding, Margin, FontFamily, FontId};
 use iconflow::{try_icon, Pack, Size, Style};
 
@@ -31,8 +31,7 @@ impl ImageViewerApp {
         let show_grid_overlay = self.settings.show_grid_overlay;
         let loupe_enabled = self.settings.loupe_enabled;
         let load_raw_full_size = self.settings.load_raw_full_size;
-        let sort_mode = self.settings.sort_mode;
-        let sort_order = self.settings.sort_order;
+
         
         // Collect actions to perform after UI
         let mut open_folder = false;
@@ -59,10 +58,11 @@ impl ImageViewerApp {
         let mut toggle_fullscreen = false;
         let mut show_settings = false;
         let mut show_command_palette = false;
-        let mut new_sort_mode: Option<SortMode> = None;
-        let mut toggle_sort_order = false;
+
         let mut toggle_load_raw = false;
         let mut toggle_before_after = false;
+        let mut search_changed = false;
+        let mut toggle_search = false;
         
         egui::TopBottomPanel::top("toolbar")
             .frame(egui::Frame::none()
@@ -90,6 +90,36 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
+                    
+                    // Search button
+                    if toggle_button(ui, &lucide("search").to_string(), "Toggle search (Ctrl+F)", self.search_visible).clicked() {
+                        toggle_search = true;
+                    }
+                    
+                    // Search bar (only shown when toggled on)
+                    if self.search_visible {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("🔍").size(14.0));
+                            let search_response = ui.add(
+                                egui::TextEdit::singleline(&mut self.search_query)
+                                    .hint_text("Search images...")
+                                    .desired_width(150.0)
+                            );
+                            if search_response.changed() {
+                                search_changed = true;
+                            }
+                            if !self.search_query.is_empty() {
+                                if ui.add(egui::Button::new("✕").small()).on_hover_text("Clear search").clicked() {
+                                    self.search_query.clear();
+                                    search_changed = true;
+                                }
+                            }
+                        });
+                        
+                        ui.add_space(8.0);
+                        toolbar_separator(ui);
+                        ui.add_space(8.0);
+                    }
                     
                     // Navigation (previous / next)
                     if icon_button(ui, &lucide("chevron-left").to_string(), "Previous image (←)").clicked() {
@@ -213,6 +243,11 @@ impl ImageViewerApp {
                     
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Help button
+                        if icon_button(ui, &lucide("help-circle").to_string(), "Keyboard shortcuts:\n←/→: Navigate\nSpace: Next\nBackspace: Previous\n1/0: 100%/Fit\nH: Toggle panels\nG: Grid view\nCtrl+F: Search\nF11: Fullscreen\nEsc: Close dialogs").clicked() {
+                            // Just show tooltip, no action needed
+                        }
+                        
                         // Settings (toggle)
                         if icon_button(ui, &lucide("settings").to_string(), "Settings").clicked() {
                             show_settings = true;
@@ -230,28 +265,7 @@ impl ImageViewerApp {
                         // (Slideshow removed per user preference)
                         toolbar_separator(ui);
                         
-                        // Sort options
-                        let order_label = match sort_order {
-                            SortOrder::Ascending => "A-Z",
-                            SortOrder::Descending => "Z-A",
-                        };
-                        egui::ComboBox::from_id_salt("sort_mode")
-                            .selected_text(format!("{:?} ({})", sort_mode, order_label))
-                            .width(120.0)
-                            .show_ui(ui, |ui| {
-                                for mode in [SortMode::Name, SortMode::Date, SortMode::Size, SortMode::Type, SortMode::Random] {
-                                    if ui.selectable_label(sort_mode == mode, format!("{:?}", mode)).clicked() {
-                                        new_sort_mode = Some(mode);
-                                    }
-                                }
-                                ui.separator();
-                                ui.horizontal(|ui| {
-                                    ui.label("Order:");
-                                    if ui.button(order_label).clicked() {
-                                        toggle_sort_order = true;
-                                    }
-                                });
-                            });
+
                     });
                 });
             });
@@ -325,23 +339,12 @@ impl ImageViewerApp {
         }
 
         if show_command_palette { self.command_palette_open = true; }
-        if let Some(mode) = new_sort_mode {
-            self.settings.sort_mode = mode;
-            self.sort_file_list();
+
+        if toggle_search {
+            self.search_visible = !self.search_visible;
         }
-        if toggle_sort_order {
-            // Toggle enum and keep the legacy boolean in sync
-            self.settings.sort_order = match self.settings.sort_order {
-                SortOrder::Ascending => {
-                    self.settings.sort_ascending = false;
-                    SortOrder::Descending
-                },
-                SortOrder::Descending => {
-                    self.settings.sort_ascending = true;
-                    SortOrder::Ascending
-                },
-            };
-            self.sort_file_list();
+        if search_changed {
+            self.apply_filter();
         }
     }
 }

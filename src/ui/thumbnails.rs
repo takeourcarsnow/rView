@@ -157,16 +157,22 @@ impl ImageViewerApp {
             let total_width = total_items as f32 * item_width;
             let content_size = Vec2::new(total_width, item_height);
 
-            ui.horizontal(|ui| {
-                if ui.small_button("✕").clicked() {
-                    self.thumbnail_collapsed = true;
-                }
-                egui::ScrollArea::horizontal()
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        ui.allocate_space(content_size);
-                        self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
-                    });
+            ui.vertical(|ui| {
+
+
+                // Thumbnail row with collapse button and thumbnails scroll area
+                ui.horizontal(|ui| {
+                    if ui.small_button("✕").clicked() {
+                        self.thumbnail_collapsed = true;
+                    }
+
+                    egui::ScrollArea::horizontal()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            ui.allocate_space(content_size);
+                            self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+                        });
+                });
             });
         } else {
             let total_height = total_items as f32 * item_height;

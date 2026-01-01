@@ -519,12 +519,9 @@ impl ImageViewerApp {
     /// Return a single-frame spinner character used in small UI elements (thumbnails)
     pub fn spinner_char(&self, ui: &egui::Ui) -> &'static str {
         let time = ui.input(|i| i.time);
-        match (time as i32) % 4 {
-            0 => "◐",
-            1 => "◓",
-            2 => "◑",
-            _ => "◒",
-        }
+        let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let idx = ((time * 10.0) as usize) % spinner_chars.len();
+        spinner_chars[idx]
     }
 
     pub fn reset_view(&mut self) {
