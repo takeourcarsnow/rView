@@ -113,6 +113,7 @@ regex = "1"
 
 # Memory-mapped I/O
 memmap2 = "0.9"
+iconflow = { version = "1.0.0", features = ["pack-lucide"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["shellapi", "winuser"] }

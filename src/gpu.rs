@@ -2,51 +2,983 @@ use anyhow::{anyhow, Result};
 use wgpu::util::DeviceExt;
 use crate::image_loader::ImageAdjustments;
 use image::DynamicImage;
+use tokio::sync::oneshot;
 
+/// GPU performance and capability information
+#[derive(Debug, Clone)]
+pub struct GpuPerformanceInfo {
+    pub adapter_name: String,
+    pub backend: String,
+    pub device_type: String,
+    pub supports_texture_operations: bool,
+    pub supports_raw_demosaic: bool,
+}
+
+/// GPU-accelerated image processing with advanced features
+#[derive(Debug)]
 pub struct GpuProcessor {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
+    buffer_bind_group_layout: wgpu::BindGroupLayout,
+    adjustment_pipeline: wgpu::ComputePipeline,
+    histogram_bind_group_layout: wgpu::BindGroupLayout,
+    histogram_pipeline: wgpu::ComputePipeline,
+    overlay_pipeline: wgpu::ComputePipeline,
+    raw_demosaic_pipeline: Option<wgpu::ComputePipeline>,
+    adapter_info: wgpu::AdapterInfo,
 }
 
 impl GpuProcessor {
-    pub fn new() -> Result<Self> {
-        // Create instance / adapter / device synchronously
+    pub async fn new() -> Result<Self> {
+        // Request high-performance adapter with compute capabilities
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
-        // Use the primary adapter (power preference default)
-        let adapter = pollster::block_on(async {
-            instance
-                .request_adapter(&wgpu::RequestAdapterOptions {
-                    power_preference: wgpu::PowerPreference::HighPerformance,
-                    compatible_surface: None,
-                    force_fallback_adapter: false,
-                })
-                .await
-        })
-        .ok_or_else(|| anyhow!("No suitable GPU adapter found"))?;
 
-        let (device, queue) = pollster::block_on(async {
-            adapter
-                .request_device(
-                    &wgpu::DeviceDescriptor {
-                        label: Some("image_viewer_device"),
-                        required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
-                        required_limits: wgpu::Limits {
-                            max_compute_workgroup_size_x: 256,
-                            ..wgpu::Limits::downlevel_defaults()
-                        },
-                        memory_hints: wgpu::MemoryHints::Performance,
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::HighPerformance,
+                compatible_surface: None,
+                force_fallback_adapter: false,
+            })
+            .await
+            .ok_or_else(|| anyhow!("No suitable GPU adapter found"))?;
+
+        let adapter_info = adapter.get_info();
+
+        // Request device with advanced features
+        let (device, queue) = adapter
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    label: Some("image_viewer_gpu_device"),
+                    required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+                        | wgpu::Features::BUFFER_BINDING_ARRAY
+                        | wgpu::Features::UNIFORM_BUFFER_AND_STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,
+                    required_limits: wgpu::Limits {
+                        max_compute_workgroup_size_x: 1024,
+                        max_compute_workgroup_size_y: 1024,
+                        max_compute_workgroup_size_z: 64,
+                        max_storage_buffers_per_shader_stage: 8,
+                        max_storage_textures_per_shader_stage: 8,
+                        max_uniform_buffers_per_shader_stage: 4,
+                        max_texture_dimension_2d: 16384,
+                        ..wgpu::Limits::downlevel_defaults()
                     },
-                    None,
-                )
-                .await
-        })?;
+                    memory_hints: wgpu::MemoryHints::Performance,
+                },
+                None,
+            )
+            .await?;
 
-        Ok(Self { device, queue })
+        log::info!("GPU initialized: {} ({})", adapter_info.name, adapter_info.backend.to_str());
+
+        // Create bind group layouts
+        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("texture_bind_group_layout"),
+            entries: &[
+                // Input texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // Output texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                // Parameters
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let buffer_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("buffer_bind_group_layout"),
+            entries: &[
+                // Input buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Output buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Parameters
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        // Create pipelines
+        let adjustment_pipeline = Self::create_adjustment_pipeline(&device, &texture_bind_group_layout);
+        let (histogram_bind_group_layout, histogram_pipeline) = Self::create_histogram_pipeline(&device);
+        let overlay_pipeline = Self::create_overlay_pipeline(&device, &texture_bind_group_layout);
+        let raw_demosaic_pipeline = Self::create_raw_demosaic_pipeline(&device, &buffer_bind_group_layout);
+
+        Ok(Self {
+            device,
+            queue,
+            texture_bind_group_layout,
+            buffer_bind_group_layout,
+            adjustment_pipeline,
+            histogram_bind_group_layout,
+            histogram_pipeline,
+            overlay_pipeline,
+            raw_demosaic_pipeline,
+            adapter_info,
+        })
     }
 
-    /// Apply a small set of adjustments to the provided RGBA8 image using a compute shader.
-    /// Returns an RGBA8 Vec<u8> on success.
+    fn create_adjustment_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> wgpu::ComputePipeline {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("adjustment_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/adjustments.wgsl").into()),
+        });
+
+        device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("adjustment_pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("adjustment_pipeline_layout"),
+                bind_group_layouts: &[layout],
+                push_constant_ranges: &[],
+            })),
+            module: &shader,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        })
+    }
+
+    fn create_histogram_pipeline(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::ComputePipeline) {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("histogram_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/histogram.wgsl").into()),
+        });
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("histogram_bind_group_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("histogram_pipeline_layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
+
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("histogram_pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        (bind_group_layout, pipeline)
+    }
+
+    fn create_overlay_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> wgpu::ComputePipeline {
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("overlay_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/overlays.wgsl").into()),
+        });
+
+        device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("overlay_pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("overlay_pipeline_layout"),
+                bind_group_layouts: &[layout],
+                push_constant_ranges: &[],
+            })),
+            module: &shader,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        })
+    }
+
+    fn create_raw_demosaic_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Option<wgpu::ComputePipeline> {
+        // Only create if we have the necessary features
+        if !device.features().contains(wgpu::Features::BUFFER_BINDING_ARRAY) {
+            return None;
+        }
+
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("raw_demosaic_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/raw_demosaic.wgsl").into()),
+        });
+
+        Some(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("raw_demosaic_pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("raw_demosaic_pipeline_layout"),
+                bind_group_layouts: &[layout],
+                push_constant_ranges: &[],
+            })),
+            module: &shader,
+            entry_point: "main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        }))
+    }
+
+    /// Apply adjustments using texture-based processing for better performance
+    pub async fn apply_adjustments_texture(&self, image: &DynamicImage, adj: &ImageAdjustments) -> Result<DynamicImage> {
+        let rgba = image.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        // Create input texture
+        let input_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("input_texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        // Create output texture
+        let output_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("output_texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+
+        // Upload input data
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &input_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        // Create parameter buffer
+        let params = Self::create_adjustment_params(adj, width, height);
+        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("adjustment_params"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        // Create bind group
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("adjustment_bind_group"),
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&input_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: param_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // Execute compute pass
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("adjustment_encoder"),
+        });
+
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("adjustment_pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.adjustment_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+        }
+
+        // Download result
+        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("output_buffer"),
+            size: (width * height * 4) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(Some(encoder.finish()));
+
+        // Read back result
+        let buffer_slice = output_buffer.slice(..);
+        let (tx, rx) = oneshot::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+            let _ = tx.send(res);
+        });
+
+        self.device.poll(wgpu::Maintain::Wait);
+        rx.await??;
+
+        let data = buffer_slice.get_mapped_range();
+        let result = image::ImageBuffer::from_raw(width, height, data.to_vec())
+            .ok_or_else(|| anyhow!("Failed to create result image"))?;
+
+        output_buffer.unmap();
+
+        Ok(DynamicImage::ImageRgba8(result))
+    }
+
+    /// Compute histogram using GPU acceleration
+    pub async fn compute_histogram(&self, image: &DynamicImage) -> Result<Vec<Vec<u32>>> {
+        let rgba = image.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        // Create input texture
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("histogram_input"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        // Create histogram buffer (4 channels × 256 bins)
+        let histogram_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("histogram_buffer"),
+            size: (4 * 256 * std::mem::size_of::<u32>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Clear histogram buffer
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        encoder.clear_buffer(&histogram_buffer, 0, None);
+        self.queue.submit(Some(encoder.finish()));
+
+        // Create bind group for histogram computation
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("histogram_bind_group"),
+            layout: &self.histogram_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: histogram_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // Execute histogram computation
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("histogram_encoder"),
+        });
+
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("histogram_pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.histogram_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+        }
+
+        // Download histogram
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("histogram_staging"),
+            size: (4 * 256 * std::mem::size_of::<u32>()) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_buffer_to_buffer(&histogram_buffer, 0, &staging_buffer, 0, 4 * 256 * std::mem::size_of::<u32>() as u64);
+        self.queue.submit(Some(encoder.finish()));
+
+        // Read back result
+        let buffer_slice = staging_buffer.slice(..);
+        let (tx, rx) = oneshot::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+            let _ = tx.send(res);
+        });
+
+        self.device.poll(wgpu::Maintain::Wait);
+        rx.await??;
+
+        // Process the data and drop the view before unmapping
+        let result = {
+            let data = buffer_slice.get_mapped_range();
+            let histogram_data: &[u32] = bytemuck::cast_slice(&data);
+
+            let mut result = vec![vec![0u32; 256]; 4];
+            for (i, &value) in histogram_data.iter().enumerate() {
+                let channel = i / 256;
+                let bin = i % 256;
+                result[channel][bin] = value;
+            }
+            result
+        };
+
+        staging_buffer.unmap();
+
+        Ok(result)
+    }
+
+    /// Generate focus peaking overlay using GPU
+    pub async fn generate_focus_peaking_overlay(&self, image: &DynamicImage, threshold: f32) -> Result<DynamicImage> {
+        let rgba = image.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        // Create input texture
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("focus_peaking_input"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        // Create output texture
+        let output_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("focus_peaking_output"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+
+        // Create parameter buffer
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct OverlayParams {
+            mode: u32,        // 0 = focus peaking, 1 = zebra
+            threshold: f32,   // focus peaking threshold
+            high_threshold: f32, // zebra high threshold
+            low_threshold: f32,  // zebra low threshold
+            width: u32,
+            height: u32,
+        }
+
+        let params = OverlayParams {
+            mode: 0, // focus peaking
+            threshold,
+            high_threshold: 0.0,
+            low_threshold: 0.0,
+            width,
+            height,
+        };
+
+        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("focus_peaking_params"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        // Create bind group
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("focus_peaking_bind_group"),
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: param_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // Execute
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("focus_peaking_encoder"),
+        });
+
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("focus_peaking_pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.overlay_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+        }
+
+        // Download result
+        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("focus_peaking_output_buffer"),
+            size: (width * height * 4) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(Some(encoder.finish()));
+
+        // Read back result
+        let buffer_slice = output_buffer.slice(..);
+        let (tx, rx) = oneshot::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+            let _ = tx.send(res);
+        });
+
+        self.device.poll(wgpu::Maintain::Wait);
+        rx.await??;
+
+        // Process the data and drop the view before unmapping
+        let result = {
+            let data = buffer_slice.get_mapped_range();
+            image::ImageBuffer::from_raw(width, height, data.to_vec())
+                .ok_or_else(|| anyhow!("Failed to create focus peaking overlay"))?
+        };
+
+        output_buffer.unmap();
+
+        Ok(DynamicImage::ImageRgba8(result))
+    }
+
+    /// Generate zebra overlay using GPU acceleration
+    pub async fn generate_zebra_overlay(&self, image: &DynamicImage, high_threshold: f32, low_threshold: f32) -> Result<DynamicImage> {
+        let rgba = image.to_rgba8();
+        let (width, height) = rgba.dimensions();
+
+        // Create input texture
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("zebra_input"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        self.queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &rgba,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        // Create output texture
+        let output_texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("zebra_output"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+
+        // Create parameter buffer
+        #[repr(C)]
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        struct OverlayParams {
+            mode: u32,        // 0 = focus peaking, 1 = zebra
+            threshold: f32,   // focus peaking threshold
+            high_threshold: f32, // zebra high threshold
+            low_threshold: f32,  // zebra low threshold
+            width: u32,
+            height: u32,
+        }
+
+        let params = OverlayParams {
+            mode: 1, // zebra
+            threshold: 0.0,
+            high_threshold,
+            low_threshold,
+            width,
+            height,
+        };
+
+        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("zebra_params"),
+            contents: bytemuck::bytes_of(&params),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        // Create bind group
+        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("zebra_bind_group"),
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: param_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // Execute
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("zebra_encoder"),
+        });
+
+        {
+            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("zebra_pass"),
+                timestamp_writes: None,
+            });
+            cpass.set_pipeline(&self.overlay_pipeline);
+            cpass.set_bind_group(0, &bind_group, &[]);
+            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+        }
+
+        // Download result
+        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("zebra_output_buffer"),
+            size: (width * height * 4) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: &output_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: &output_buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: Some(height),
+                },
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        self.queue.submit(Some(encoder.finish()));
+
+        // Read back result
+        let buffer_slice = output_buffer.slice(..);
+        let (tx, rx) = oneshot::channel();
+        buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+            let _ = tx.send(res);
+        });
+
+        self.device.poll(wgpu::Maintain::Wait);
+        rx.await??;
+
+        // Process the data and drop the view before unmapping
+        let result = {
+            let data = buffer_slice.get_mapped_range();
+            image::ImageBuffer::from_raw(width, height, data.to_vec())
+                .ok_or_else(|| anyhow!("Failed to create zebra overlay"))?
+        };
+
+        output_buffer.unmap();
+
+        Ok(DynamicImage::ImageRgba8(result))
+    }
+
+    /// Get GPU information
+    pub fn adapter_info(&self) -> &wgpu::AdapterInfo {
+        &self.adapter_info
+    }
+
+    /// Check if RAW demosaicing is supported
+    pub fn supports_raw_demosaic(&self) -> bool {
+        self.raw_demosaic_pipeline.is_some()
+    }
+
+    /// Get GPU performance information
+    pub fn get_performance_info(&self) -> GpuPerformanceInfo {
+        GpuPerformanceInfo {
+            adapter_name: self.adapter_info.name.clone(),
+            backend: self.adapter_info.backend.to_str().to_string(),
+            device_type: match self.adapter_info.device_type {
+                wgpu::DeviceType::DiscreteGpu => "Discrete GPU".to_string(),
+                wgpu::DeviceType::IntegratedGpu => "Integrated GPU".to_string(),
+                wgpu::DeviceType::VirtualGpu => "Virtual GPU".to_string(),
+                wgpu::DeviceType::Cpu => "CPU".to_string(),
+                _ => "Unknown".to_string(),
+            },
+            supports_texture_operations: true,
+            supports_raw_demosaic: self.raw_demosaic_pipeline.is_some(),
+        }
+    }
+
+    fn create_adjustment_params(adj: &ImageAdjustments, width: u32, height: u32) -> AdjustmentParams {
+        let film = &adj.film;
+        AdjustmentParams {
+            exposure: adj.exposure,
+            brightness: adj.brightness,
+            contrast: adj.contrast,
+            saturation: adj.saturation,
+            highlights: adj.highlights,
+            shadows: adj.shadows,
+            temperature: adj.temperature,
+            tint: adj.tint,
+            blacks: adj.blacks,
+            whites: adj.whites,
+            sharpening: adj.sharpening,
+            width,
+            height,
+            film_enabled: if film.enabled { 1 } else { 0 },
+            film_is_bw: if film.is_bw { 1 } else { 0 },
+            tone_curve_shadows: film.tone_curve_shadows,
+            tone_curve_midtones: film.tone_curve_midtones,
+            tone_curve_highlights: film.tone_curve_highlights,
+            s_curve_strength: film.s_curve_strength,
+            grain_amount: film.grain_amount,
+            grain_size: film.grain_size,
+            grain_roughness: film.grain_roughness,
+            halation_amount: film.halation_amount,
+            vignette_amount: film.vignette_amount,
+            vignette_softness: film.vignette_softness,
+            latitude: film.latitude,
+            red_gamma: film.red_gamma,
+            green_gamma: film.green_gamma,
+            blue_gamma: film.blue_gamma,
+            black_point: film.black_point,
+            white_point: film.white_point,
+        }
+    }
+
+    // Legacy buffer-based method for backward compatibility
     pub fn apply_adjustments(&self, image: &DynamicImage, adj: &ImageAdjustments) -> Result<Vec<u8>> {
+        self.apply_adjustments_legacy(image, adj)
+    }
+
+    // Keep the legacy implementation for now
+    fn apply_adjustments_legacy(&self, image: &DynamicImage, adj: &ImageAdjustments) -> Result<Vec<u8>> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
         let pixel_count = (width * height) as usize;
@@ -254,67 +1186,66 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
         rgb.z = rgb.z + params.shadow_tint_b * shadow_amount + params.highlight_tint_b * highlight_amount;
     }
 
+    // Convert to 0-255 range for standard adjustments
+    rgb = rgb * 255.0;
+    
     // ============ STANDARD ADJUSTMENTS ============
     
-    // Exposure (stops): multiply
+    // Apply exposure
     let exposure_mult = pow(2.0, params.exposure);
     rgb = rgb * exposure_mult;
-
+    
     // Blacks adjustment (lift shadows)
-    rgb = rgb + vec3<f32>(params.blacks * 0.1);
-
+    rgb = rgb + vec3<f32>(params.blacks * 25.5);
+    
     // Whites adjustment (reduce highlights)
-    let white_factor = 1.0 - params.whites * 0.1;
-    rgb = rgb * white_factor;
-
+    rgb = rgb * (1.0 - params.whites * 0.1);
+    
     // Shadows adjustment (gamma-like curve for shadows)
-    let shadow_lift = params.shadows * 0.2;
-    rgb = mix(rgb, pow(rgb, vec3<f32>(1.0 - shadow_lift)), step(0.0, -shadow_lift));
-
+    if (params.shadows < 0.0) {
+        let gamma = 1.0 - params.shadows;
+        rgb = pow(max(rgb / 255.0, vec3<f32>(0.0)), vec3<f32>(gamma)) * 255.0;
+    }
+    
     // Highlights adjustment (compress highlights)
-    let highlight_compress = params.highlights * 0.3;
-    let luminance = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-    let highlight_mask = smoothstep(0.5, 1.0, luminance);
-    rgb = mix(rgb, rgb * (1.0 - highlight_compress * highlight_mask), step(0.0, highlight_compress));
-
-    // Brightness (mapped -100..100 -> -1..1)
-    rgb = rgb + vec3<f32>(params.brightness / 100.0);
-
-    // Contrast: params.contrast is multiplier (0..inf)
-    rgb = ((rgb - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5));
-
-    // Temperature adjustment (blue/yellow shift)
-    if (params.temperature > 0.0) {
-        rgb.x = rgb.x + params.temperature * 0.1;
-        rgb.y = rgb.y + params.temperature * 0.05;
-        rgb.z = rgb.z - params.temperature * 0.08;
-    } else {
-        rgb.x = rgb.x + params.temperature * 0.08;
-        rgb.y = rgb.y + params.temperature * 0.05;
-        rgb.z = rgb.z - params.temperature * 0.1;
+    if (params.highlights > 0.0) {
+        let luminance = 0.299 * rgb.x + 0.587 * rgb.y + 0.114 * rgb.z;
+        let highlight_mask = clamp((luminance - 127.5) / 127.5, 0.0, 1.0);
+        let compress = 1.0 - params.highlights * highlight_mask;
+        rgb = rgb * compress;
     }
-
-    // Tint adjustment (green/magenta shift)
-    if (params.tint > 0.0) {
-        rgb.x = rgb.x + params.tint * 0.05;
-        rgb.z = rgb.z + params.tint * 0.05;
-    } else {
-        rgb.y = rgb.y - params.tint * 0.08;
-    }
-
+    
+    // Brightness
+    rgb = rgb + vec3<f32>(params.brightness * 2.55);
+    
+    // Contrast
+    rgb = ((rgb / 255.0 - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5)) * 255.0;
+    
+    // Temperature
+    rgb.x = rgb.x + params.temperature * 25.5;
+    rgb.z = rgb.z - params.temperature * 15.3;
+    
+    // Tint
+    rgb.x = rgb.x + params.tint * 12.75;
+    rgb.y = rgb.y - params.tint * 20.4;
+    rgb.z = rgb.z + params.tint * 12.75;
+    
     // Saturation (skip for B&W film)
     if (!film_enabled || !film_is_bw) {
-        let gray = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-        rgb = mix(vec3<f32>(gray), rgb, params.saturation);
+        let gray = 0.299 * rgb.x + 0.587 * rgb.y + 0.114 * rgb.z;
+        rgb = vec3<f32>(gray) + (rgb - vec3<f32>(gray)) * params.saturation;
     }
-
+    
     // Basic sharpening
     if (params.sharpening > 0.0) {
-        let gray = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-        let sharpened = rgb + (rgb - vec3<f32>(gray)) * params.sharpening * 0.5;
-        rgb = mix(rgb, sharpened, params.sharpening);
+        let gray = 0.299 * rgb.x + 0.587 * rgb.y + 0.114 * rgb.z;
+        let sharpened = rgb + (rgb - vec3<f32>(gray)) * params.sharpening;
+        rgb = rgb + (sharpened - rgb) * params.sharpening;
     }
-
+    
+    // Convert back to 0-1 range
+    rgb = rgb / 255.0;
+    
     // ============ FILM POST-PROCESSING ============
     if (film_enabled) {
         // Vignette
@@ -341,22 +1272,24 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             
             let lum = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
             let grain_mask = 4.0 * lum * (1.0 - lum);
-            let grain_strength = params.grain_amount * 0.15 * grain_mask;
+            let grain_strength = params.grain_amount * 255.0 * 0.15 * grain_mask;
             
-            rgb = rgb + vec3<f32>(grain * grain_strength);
+            rgb.x = rgb.x + grain * grain_strength / 255.0;
+            rgb.y = rgb.y + grain * grain_strength / 255.0;
+            rgb.z = rgb.z + grain * grain_strength / 255.0;
         }
         
         // Halation
         if (params.halation_amount > 0.0) {
-            let lum = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
-            let halation_mask = clamp((lum - 0.7) / 0.3, 0.0, 1.0);
-            let halation_strength = params.halation_amount * halation_mask * 0.12;
+            let luminance = dot(rgb, vec3<f32>(0.299, 0.587, 0.114));
+            let halation_mask = clamp((luminance - 0.7) / 0.3, 0.0, 1.0);
+            let halation_strength = params.halation_amount * halation_mask * 30.0 / 255.0;
             rgb.x = rgb.x + params.halation_color_r * halation_strength;
             rgb.y = rgb.y + params.halation_color_g * halation_strength;
             rgb.z = rgb.z + params.halation_color_b * halation_strength;
         }
     }
-
+    
     // Clamp
     rgb = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
     c = vec4<f32>(rgb, c.w);
@@ -663,4 +1596,40 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
 
         Ok(out)
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct AdjustmentParams {
+    exposure: f32,
+    brightness: f32,
+    contrast: f32,
+    saturation: f32,
+    highlights: f32,
+    shadows: f32,
+    temperature: f32,
+    tint: f32,
+    blacks: f32,
+    whites: f32,
+    sharpening: f32,
+    width: u32,
+    height: u32,
+    film_enabled: u32,
+    film_is_bw: u32,
+    tone_curve_shadows: f32,
+    tone_curve_midtones: f32,
+    tone_curve_highlights: f32,
+    s_curve_strength: f32,
+    grain_amount: f32,
+    grain_size: f32,
+    grain_roughness: f32,
+    halation_amount: f32,
+    vignette_amount: f32,
+    vignette_softness: f32,
+    latitude: f32,
+    red_gamma: f32,
+    green_gamma: f32,
+    blue_gamma: f32,
+    black_point: f32,
+    white_point: f32,
 }

@@ -14,7 +14,35 @@ mod ui;
 mod logging;
 
 use app::ImageViewerApp;
-use eframe::egui;
+use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
+use std::sync::Arc;
+
+/// Install icon fonts from iconflow (Lucide icons)
+fn install_icon_fonts(ctx: &egui::Context) {
+    let mut definitions = FontDefinitions::default();
+    let fallback_fonts: Vec<String> = definitions.font_data.keys().cloned().collect();
+
+    for font in iconflow::fonts() {
+        definitions.font_data.insert(
+            font.family.to_string(),
+            Arc::new(FontData::from_static(font.bytes)),
+        );
+        let family = definitions
+            .families
+            .entry(FontFamily::Name(font.family.into()))
+            .or_default();
+        family.insert(0, font.family.to_string());
+        
+        // Add fallback fonts for text rendering
+        for fallback in &fallback_fonts {
+            if fallback != font.family {
+                family.push(fallback.clone());
+            }
+        }
+    }
+
+    ctx.set_fonts(definitions);
+}
 
 fn main() -> eframe::Result<()> {
     // Get command line arguments for opening files/folders and detect debug flag
@@ -46,6 +74,9 @@ fn main() -> eframe::Result<()> {
         Box::new(move |cc| {
             // Enable image loading
             egui_extras::install_image_loaders(&cc.egui_ctx);
+            
+            // Install Lucide icon fonts
+            install_icon_fonts(&cc.egui_ctx);
             
             // Create app
             let mut app = ImageViewerApp::new(cc);

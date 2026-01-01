@@ -107,7 +107,7 @@ impl Default for Settings {
             show_thumbnail_labels: false,
             show_exif: true,
             show_exif_overlay: true,
-            show_histogram: false,
+            show_histogram: true,
             show_adjustments: true,
             show_toolbar: true,
             show_statusbar: true,

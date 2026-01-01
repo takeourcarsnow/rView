@@ -155,6 +155,9 @@ pub struct ImageViewerApp {
     // Compare view interaction state (zoom per side)
     pub compare_zoom: [f32; 2],
     pub compare_pan: [egui::Vec2; 2],
+
+    // GPU initialization state
+    pub gpu_initialization_attempted: bool,
 }
 
 impl ImageViewerApp {
@@ -250,6 +253,7 @@ impl ImageViewerApp {
             panels_hidden: false,
             sidebar_collapsed: false,
             thumbnail_collapsed: false,
+            gpu_initialization_attempted: false,
         };
 
         // Restore session
@@ -278,23 +282,25 @@ impl ImageViewerApp {
             }
         }
 
-        // Initialize GPU processor if enabled
-        app.gpu_processor = if app.settings.gpu_enabled {
-            match GpuProcessor::new() {
-                Ok(g) => {
-                    log::info!("GPU processor initialized");
-                    Some(Arc::new(g))
-                }
-                Err(e) => {
-                    log::warn!("Failed to initialize GPU processor: {}", e);
-                    None
-                }
-            }
-        } else {
-            None
-        };
+        // GPU processor will be initialized asynchronously later
+        app.gpu_processor = None;
 
         app
+    }
+
+    /// Initialize the GPU processor asynchronously
+    pub async fn initialize_gpu(&mut self) {
+        match GpuProcessor::new().await {
+            Ok(processor) => {
+                self.gpu_processor = Some(Arc::new(processor));
+                self.set_status_message("GPU acceleration enabled".to_string());
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize GPU processor: {}", e);
+                self.set_status_message(format!("GPU initialization failed: {}", e));
+                // GPU processor remains None, CPU fallbacks will be used
+            }
+        }
     }
 }
 

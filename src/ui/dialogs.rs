@@ -85,7 +85,17 @@ impl ImageViewerApp {
                             ui.add(egui::Slider::new(&mut self.settings.thumbnail_size, 50.0..=200.0).suffix("px"));
                         });
 
-                        ui.checkbox(&mut self.settings.show_thumbnail_labels, "Show filename and resolution under thumbnails");
+                        ui.add_space(12.0);
+                        ui.heading("Panels");
+                        ui.add_space(4.0);
+                        
+                        ui.checkbox(&mut self.settings.show_sidebar, "Show sidebar");
+                        ui.checkbox(&mut self.settings.show_thumbnails, "Show thumbnails");
+                        ui.checkbox(&mut self.settings.show_exif, "Show EXIF panel");
+                        ui.checkbox(&mut self.settings.show_histogram, "Show histogram");
+                        ui.checkbox(&mut self.settings.show_adjustments, "Show adjustments panel");
+                        ui.checkbox(&mut self.settings.show_toolbar, "Show toolbar");
+                        ui.checkbox(&mut self.settings.show_statusbar, "Show status bar");
                         
                         ui.add_space(12.0);
                         ui.heading("View");

@@ -2,6 +2,7 @@ use crate::image_loader::{SUPPORTED_EXTENSIONS, is_supported_image};
 use eframe::egui;
 use image::DynamicImage;
 use std::path::PathBuf;
+use std::sync::Arc;
 use walkdir::WalkDir;
 
 use super::ImageViewerApp;
@@ -99,20 +100,31 @@ impl ImageViewerApp {
                 let image_to_save = if !self.adjustments.is_default() && !self.show_original {
                     // Try GPU first, fallback to CPU
                     if let Some(gpu) = &self.gpu_processor {
-                        match gpu.apply_adjustments(&image, &self.adjustments) {
-                            Ok(pixels) => {
-                                let width = image.width();
-                                let height = image.height();
-                                if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
-                                    DynamicImage::ImageRgba8(buf)
-                                } else {
-                                    // Fallback to CPU
-                                    crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                        let gpu_clone = Arc::clone(gpu);
+                        let image_clone = image.clone();
+                        let adjustments_clone = self.adjustments.clone();
+
+                        match tokio::runtime::Handle::current().block_on(async {
+                            gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                        }) {
+                            Ok(img) => img,
+                            Err(e) => {
+                                log::warn!("GPU texture export failed: {}; falling back to buffer method", e);
+                                // Fallback to buffer-based GPU method
+                                match gpu.apply_adjustments(&image_clone, &adjustments_clone) {
+                                    Ok(pixels) => {
+                                        let width = image_clone.width();
+                                        let height = image_clone.height();
+                                        if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                                            DynamicImage::ImageRgba8(buf)
+                                        } else {
+                                            crate::image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                                        }
+                                    }
+                                    Err(_) => {
+                                        crate::image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                                    }
                                 }
-                            }
-                            Err(_) => {
-                                // Fallback to CPU
-                                crate::image_loader::apply_adjustments(&image, &self.adjustments)
                             }
                         }
                     } else {

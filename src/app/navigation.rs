@@ -3,6 +3,7 @@ use crate::exif_data::ExifInfo;
 use crate::profiler;
 use eframe::egui::{self, Vec2};
 use image::DynamicImage;
+use pollster;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -234,23 +235,34 @@ impl ImageViewerApp {
             profiler::with_profiler(|p| p.start_timer("apply_adjustments"));
 
             let adjusted = if let Some(gpu) = &self.gpu_processor {
-                // Try GPU path first
-                match gpu.apply_adjustments(&image, &self.adjustments) {
-                    Ok(pixels) => {
-                        // Convert back to DynamicImage
-                        let width = image.width();
-                        let height = image.height();
-                        if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
-                            DynamicImage::ImageRgba8(buf)
-                        } else {
-                            // Fallback to CPU
-                            log::warn!("GPU returned unexpected buffer size; falling back to CPU adjustments");
-                            image_loader::apply_adjustments(&image, &self.adjustments)
-                        }
-                    }
+                // Try GPU texture-based path first (async)
+                let gpu_clone = Arc::clone(gpu);
+                let image_clone = image.clone();
+                let adjustments_clone = self.adjustments.clone();
+
+                match tokio::runtime::Handle::current().block_on(async {
+                    gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                }) {
+                    Ok(img) => img,
                     Err(e) => {
-                        log::warn!("GPU adjustments failed: {}; falling back to CPU", e);
-                        image_loader::apply_adjustments(&image, &self.adjustments)
+                        log::warn!("GPU texture adjustments failed: {}; falling back to buffer method", e);
+                        // Fallback to buffer-based GPU method
+                        match gpu.apply_adjustments(&image_clone, &adjustments_clone) {
+                            Ok(pixels) => {
+                                let width = image_clone.width();
+                                let height = image_clone.height();
+                                if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                                    DynamicImage::ImageRgba8(buf)
+                                } else {
+                                    log::warn!("GPU returned unexpected buffer size; falling back to CPU");
+                                    image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("GPU buffer adjustments failed: {}; falling back to CPU", e);
+                                image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                            }
+                        }
                     }
                 }
             } else {
@@ -284,7 +296,19 @@ impl ImageViewerApp {
         }
 
         // Calculate histogram
-        self.histogram_data = Some(image_loader::calculate_histogram(&image));
+        self.histogram_data = if let Some(gpu) = &self.gpu_processor {
+            match pollster::block_on(async {
+                gpu.compute_histogram(&image).await
+            }) {
+                Ok(hist) => Some(hist),
+                Err(e) => {
+                    log::warn!("GPU histogram failed: {}; falling back to CPU", e);
+                    Some(image_loader::calculate_histogram(&image))
+                }
+            }
+        } else {
+            Some(image_loader::calculate_histogram(&image))
+        };
 
         // Generate overlays if enabled
         if self.settings.show_focus_peaking {
@@ -300,13 +324,23 @@ impl ImageViewerApp {
     }
 
     pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
-        let overlay = image_loader::generate_focus_peaking_overlay(
-            image,
-            self.settings.focus_peaking_threshold
-        );
+        let overlay = if let Some(gpu) = &self.gpu_processor {
+            match pollster::block_on(async {
+                gpu.generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold).await
+            }) {
+                Ok(overlay) => overlay,
+                Err(e) => {
+                    log::warn!("GPU focus peaking failed: {}; falling back to CPU", e);
+                    DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold))
+                }
+            }
+        } else {
+            DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold))
+        };
 
         let size = [overlay.width() as usize, overlay.height() as usize];
-        let pixels: Vec<u8> = overlay.into_raw();
+        let rgba = overlay.to_rgba8();
+        let pixels: Vec<u8> = rgba.into_raw();
 
         let texture = ctx.load_texture(
             "focus_peaking",
@@ -318,14 +352,31 @@ impl ImageViewerApp {
     }
 
     pub fn generate_zebra_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
-        let overlay = image_loader::generate_zebra_overlay(
-            image,
-            self.settings.zebra_high_threshold,
-            self.settings.zebra_low_threshold
-        );
+        let overlay = if let Some(gpu) = &self.gpu_processor {
+            match pollster::block_on(async {
+                gpu.generate_zebra_overlay(image, self.settings.zebra_high_threshold as f32 / 255.0, self.settings.zebra_low_threshold as f32 / 255.0).await
+            }) {
+                Ok(overlay) => overlay,
+                Err(e) => {
+                    log::warn!("GPU zebra overlay failed: {}; falling back to CPU", e);
+                    DynamicImage::ImageRgba8(image_loader::generate_zebra_overlay(
+                        image,
+                        self.settings.zebra_high_threshold,
+                        self.settings.zebra_low_threshold
+                    ))
+                }
+            }
+        } else {
+            DynamicImage::ImageRgba8(image_loader::generate_zebra_overlay(
+                image,
+                self.settings.zebra_high_threshold,
+                self.settings.zebra_low_threshold
+            ))
+        };
 
         let size = [overlay.width() as usize, overlay.height() as usize];
-        let pixels: Vec<u8> = overlay.into_raw();
+        let rgba = overlay.to_rgba8();
+        let pixels: Vec<u8> = rgba.into_raw();
 
         let texture = ctx.load_texture(
             "zebra",

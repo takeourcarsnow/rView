@@ -6,6 +6,23 @@ impl eframe::App for ImageViewerApp {
 
         self.ctx = Some(ctx.clone());
 
+        // Initialize GPU processor synchronously on first update
+        if !self.gpu_initialization_attempted {
+            self.gpu_initialization_attempted = true;
+            // Use pollster to block on the async GPU initialization
+            // This is acceptable since GPU init is typically fast and only happens once
+            match pollster::block_on(crate::gpu::GpuProcessor::new()) {
+                Ok(processor) => {
+                    self.gpu_processor = Some(std::sync::Arc::new(processor));
+                    self.set_status_message("GPU acceleration enabled".to_string());
+                }
+                Err(e) => {
+                    log::error!("Failed to initialize GPU processor: {}", e);
+                    self.set_status_message(format!("GPU initialization failed: {}", e));
+                }
+            }
+        }
+
         // Process async messages
         self.process_loader_messages(ctx);
 
