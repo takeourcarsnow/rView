@@ -653,6 +653,289 @@ impl ImageViewerApp {
                             }
                         }
                     });
+                    
+                    ui.separator();
+                    
+                    // Film Emulation
+                    collapsible_header(ui, "Film Emulation", false, |ui| {
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(20, 20, 25))
+                            .rounding(Rounding::same(4.0))
+                            .inner_margin(Margin::same(8.0))
+                            .show(ui, |ui| {
+                                ui.spacing_mut().slider_width = 120.0;
+                                
+                                // Enable film emulation
+                                if ui.checkbox(&mut self.adjustments.film.enabled, "Enable Film Emulation").changed() {
+                                    adjustments_changed = true;
+                                    if self.should_apply_adjustments() {
+                                        self.refresh_adjustments();
+                                    }
+                                }
+                                
+                                if self.adjustments.film.enabled {
+                                    ui.separator();
+                                    
+                                    // Tone Curve Controls
+                                    collapsible_header(ui, "Tone Curve", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Shadows:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.tone_curve_shadows, -1.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Midtones:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.tone_curve_midtones, -1.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Highlights:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.tone_curve_highlights, -1.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    // S-Curve Strength
+                                    ui.vertical(|ui| {
+                                        ui.label("S-Curve Strength:");
+                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.s_curve_strength, 0.0..=1.0)).changed() {
+                                            adjustments_changed = true;
+                                            if self.should_apply_adjustments() {
+                                                self.refresh_adjustments();
+                                            }
+                                        }
+                                    });
+                                    
+                                    ui.separator();
+                                    
+                                    // Grain Controls
+                                    collapsible_header(ui, "Film Grain", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Grain Amount:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.grain_amount, 0.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Grain Size:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.grain_size, 0.5..=2.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Grain Roughness:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.grain_roughness, 0.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    // Halation Controls
+                                    collapsible_header(ui, "Halation", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Halation Amount:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.halation_amount, 0.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Halation Radius:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.halation_radius, 0.5..=3.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.horizontal(|ui| {
+                                                ui.label("Halation Color:");
+                                                ui.vertical(|ui| {
+                                                    ui.horizontal(|ui| {
+                                                        ui.label("R:");
+                                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.halation_color[0], 0.0..=1.0)).changed() {
+                                                            adjustments_changed = true;
+                                                            if self.should_apply_adjustments() {
+                                                                self.refresh_adjustments();
+                                                            }
+                                                        }
+                                                    });
+                                                    ui.horizontal(|ui| {
+                                                        ui.label("G:");
+                                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.halation_color[1], 0.0..=1.0)).changed() {
+                                                            adjustments_changed = true;
+                                                            if self.should_apply_adjustments() {
+                                                                self.refresh_adjustments();
+                                                            }
+                                                        }
+                                                    });
+                                                    ui.horizontal(|ui| {
+                                                        ui.label("B:");
+                                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.halation_color[2], 0.0..=1.0)).changed() {
+                                                            adjustments_changed = true;
+                                                            if self.should_apply_adjustments() {
+                                                                self.refresh_adjustments();
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
+                                    
+                                    // Color Channel Crosstalk
+                                    collapsible_header(ui, "Color Crosstalk", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Red in Green:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.red_in_green, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Red in Blue:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.red_in_blue, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Green in Red:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.green_in_red, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Green in Blue:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.green_in_blue, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Blue in Red:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.blue_in_red, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Blue in Green:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.blue_in_green, -0.2..=0.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    // Color Response
+                                    collapsible_header(ui, "Color Response", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Red Gamma:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.red_gamma, 0.8..=1.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Green Gamma:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.green_gamma, 0.8..=1.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Blue Gamma:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.blue_gamma, 0.8..=1.2)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    // Black/White Points
+                                    ui.vertical(|ui| {
+                                        ui.label("Black Point:");
+                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.black_point, 0.0..=0.1)).changed() {
+                                            adjustments_changed = true;
+                                            if self.should_apply_adjustments() {
+                                                self.refresh_adjustments();
+                                            }
+                                        }
+                                        
+                                        ui.label("White Point:");
+                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.white_point, 0.9..=1.0)).changed() {
+                                            adjustments_changed = true;
+                                            if self.should_apply_adjustments() {
+                                                self.refresh_adjustments();
+                                            }
+                                        }
+                                    });
+                                    
+                                    // Vignette
+                                    collapsible_header(ui, "Vignette", false, |ui| {
+                                        ui.vertical(|ui| {
+                                            ui.label("Vignette Amount:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.vignette_amount, 0.0..=1.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                            
+                                            ui.label("Vignette Softness:");
+                                            if ui.add(egui::Slider::new(&mut self.adjustments.film.vignette_softness, 0.5..=2.0)).changed() {
+                                                adjustments_changed = true;
+                                                if self.should_apply_adjustments() {
+                                                    self.refresh_adjustments();
+                                                }
+                                            }
+                                        });
+                                    });
+                                    
+                                    // Film Latitude
+                                    ui.vertical(|ui| {
+                                        ui.label("Film Latitude:");
+                                        if ui.add(egui::Slider::new(&mut self.adjustments.film.latitude, 0.0..=1.0)).changed() {
+                                            adjustments_changed = true;
+                                            if self.should_apply_adjustments() {
+                                                self.refresh_adjustments();
+                                            }
+                                        }
+                                    });
+                                }
+                            });
+                    });
                 });
         });
         
