@@ -457,6 +457,50 @@ impl ImageViewerApp {
                 }
             }
             
+            ui.add_space(4.0);
+            lr_separator(ui);
+            ui.add_space(4.0);
+            
+            // Frame section
+            ui.label(RichText::new("Frame").size(11.0).color(LR_TEXT_LABEL));
+            ui.add_space(4.0);
+            
+            // Enable frame
+            let mut frame_enabled = self.adjustments.frame_enabled;
+            if ui.checkbox(&mut frame_enabled, RichText::new("Enable").size(10.0).color(LR_TEXT_LABEL)).changed() {
+                self.adjustments.frame_enabled = frame_enabled;
+                adjustments_changed = true;
+                if self.should_apply_adjustments() {
+                    self.refresh_adjustments();
+                }
+            }
+            
+            if self.adjustments.frame_enabled {
+                // Thickness
+                if lr_slider(ui, "Thickness", &mut self.adjustments.frame_thickness, 1.0..=100.0, "px") {
+                    adjustments_changed = true;
+                    if self.should_apply_adjustments() {
+                        self.refresh_adjustments();
+                    }
+                }
+                
+                // Color picker
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Color").size(10.0).color(LR_TEXT_LABEL));
+                    ui.add_space(8.0);
+                    
+                    let mut color = self.adjustments.frame_color;
+                    
+                    if ui.color_edit_button_rgb(&mut color).changed() {
+                        self.adjustments.frame_color = color;
+                        adjustments_changed = true;
+                        if self.should_apply_adjustments() {
+                            self.refresh_adjustments();
+                        }
+                    }
+                });
+            }
+            
             ui.add_space(8.0);
             
             // Reset button

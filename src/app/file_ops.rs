@@ -98,13 +98,15 @@ impl ImageViewerApp {
             {
                 // Apply current adjustments to the image before saving
                 let image_to_save = if !self.adjustments.is_default() && !self.show_original {
-                    // Try GPU first, fallback to CPU
-                    if let Some(gpu) = &self.gpu_processor {
+                    // Use CPU for frame processing since GPU doesn't support it yet
+                    if self.adjustments.frame_enabled {
+                        crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                    } else if let Some(gpu) = &self.gpu_processor {
                         let gpu_clone = Arc::clone(gpu);
                         let image_clone = image.clone();
                         let adjustments_clone = self.adjustments.clone();
 
-                        match tokio::runtime::Handle::current().block_on(async {
+                        match pollster::block_on(async {
                             gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
                         }) {
                             Ok(img) => img,

@@ -230,17 +230,20 @@ impl ImageViewerApp {
 
         self.current_image = Some(image.clone());
 
-        // Apply adjustments if any (use GPU if available)
+        // Apply adjustments if any (use GPU if available and no frames)
         let display_image = if !self.adjustments.is_default() && !self.show_original {
             profiler::with_profiler(|p| p.start_timer("apply_adjustments"));
 
-            let adjusted = if let Some(gpu) = &self.gpu_processor {
+            // Use CPU for frame processing since GPU doesn't support it yet
+            let adjusted = if self.adjustments.frame_enabled {
+                image_loader::apply_adjustments(&image, &self.adjustments)
+            } else if let Some(gpu) = &self.gpu_processor {
                 // Try GPU texture-based path first (async)
                 let gpu_clone = Arc::clone(gpu);
                 let image_clone = image.clone();
                 let adjustments_clone = self.adjustments.clone();
 
-                match tokio::runtime::Handle::current().block_on(async {
+                match pollster::block_on(async {
                     gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
                 }) {
                     Ok(img) => img,

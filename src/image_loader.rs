@@ -1,5 +1,5 @@
 use crate::errors::{Result, ViewerError};
-use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage, GenericImageView};
+use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage, GenericImageView, imageops};
 use std::path::Path;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
@@ -481,6 +481,9 @@ pub struct ImageAdjustments {
     pub whites: f32,        // -1.0 to +1.0
     pub sharpening: f32,    // 0.0 to 2.0
     pub film: FilmEmulation, // Film emulation parameters
+    pub frame_enabled: bool,
+    pub frame_color: [f32; 3], // RGB 0-1
+    pub frame_thickness: f32, // pixels
 }
 
 impl Default for ImageAdjustments {
@@ -498,6 +501,9 @@ impl Default for ImageAdjustments {
             whites: 0.0,
             sharpening: 0.0,
             film: FilmEmulation::default(),
+            frame_enabled: false,
+            frame_color: [0.0, 0.0, 0.0], // black
+            frame_thickness: 10.0,
         }
     }
 }
@@ -515,7 +521,8 @@ impl ImageAdjustments {
         self.blacks == 0.0 &&
         self.whites == 0.0 &&
         self.sharpening == 0.0 &&
-        !self.film.enabled
+        !self.film.enabled &&
+        !self.frame_enabled
     }
 
     pub fn apply_preset(&mut self, preset: FilmPreset) {
@@ -566,6 +573,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.5,
                     latitude: 0.7,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak Portra 160 - Fine grain portrait film  
@@ -612,6 +622,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.6,
                     latitude: 0.8,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak Portra 800 - High-speed portrait film
@@ -658,6 +671,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.4,
                     latitude: 0.65,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak T-Max 400 - Professional B&W film
@@ -704,6 +720,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.3,
                     latitude: 0.6,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak T-Max 100 - Ultra fine grain B&W
@@ -750,6 +769,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.4,
                     latitude: 0.55,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Fujifilm Provia 100F - Professional slide film
@@ -796,6 +818,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.5,
                     latitude: 0.4,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Fujifilm Astia 100F - Soft portrait slide film
@@ -842,6 +867,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.6,
                     latitude: 0.45,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Ilford HP5 Plus 400 - Classic B&W film
@@ -888,6 +916,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.2,
                     latitude: 0.7,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Fujifilm Velvia 50 - Vivid slide film
@@ -934,6 +965,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.4,
                     latitude: 0.35,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Fujifilm Velvia 100 - Vivid slide film (more latitude)
@@ -980,6 +1014,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.45,
                     latitude: 0.4,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak Gold 200 - Consumer color negative
@@ -1026,6 +1063,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.3,
                     latitude: 0.6,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Fujifilm 400H - Professional portrait film (discontinued)
@@ -1072,6 +1112,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.5,
                     latitude: 0.75,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak Tri-X 400 - Classic B&W film
@@ -1118,6 +1161,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.15,
                     latitude: 0.65,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Ilford Delta 3200 - High speed B&W film
@@ -1164,6 +1210,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.1,
                     latitude: 0.55,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
             
             // Kodak Ektar 100 - Fine grain color negative
@@ -1210,6 +1259,9 @@ impl ImageAdjustments {
                     vignette_softness: 1.5,
                     latitude: 0.5,
                 },
+                frame_enabled: false,
+                frame_color: [0.0, 0.0, 0.0],
+                frame_thickness: 10.0,
             },
         };
     }
@@ -1563,7 +1615,33 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
         }
     });
     
-    DynamicImage::ImageRgba8(img)
+    // Apply frame if enabled
+    let result_img = if adj.frame_enabled && adj.frame_thickness > 0.0 {
+        let (width, height) = img.dimensions();
+        let thickness = adj.frame_thickness as u32;
+        let new_width = width + 2 * thickness;
+        let new_height = height + 2 * thickness;
+        
+        let mut framed = ImageBuffer::new(new_width, new_height);
+        
+        // Fill with frame color
+        let frame_r = (adj.frame_color[0] * 255.0) as u8;
+        let frame_g = (adj.frame_color[1] * 255.0) as u8;
+        let frame_b = (adj.frame_color[2] * 255.0) as u8;
+        
+        for pixel in framed.pixels_mut() {
+            *pixel = Rgba([frame_r, frame_g, frame_b, 255]);
+        }
+        
+        // Copy original image to center
+        imageops::overlay(&mut framed, &img, thickness as i64, thickness as i64);
+        
+        DynamicImage::ImageRgba8(framed)
+    } else {
+        DynamicImage::ImageRgba8(img)
+    };
+    
+    result_img
 }
 
 /// Apply S-curve contrast enhancement (film characteristic curve)

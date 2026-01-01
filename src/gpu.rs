@@ -428,9 +428,12 @@ impl GpuProcessor {
         self.device.poll(wgpu::Maintain::Wait);
         rx.await??;
 
-        let data = buffer_slice.get_mapped_range();
-        let result = image::ImageBuffer::from_raw(width, height, data.to_vec())
-            .ok_or_else(|| anyhow!("Failed to create result image"))?;
+        // Process the data and drop the view before unmapping
+        let result = {
+            let data = buffer_slice.get_mapped_range();
+            image::ImageBuffer::from_raw(width, height, data.to_vec())
+                .ok_or_else(|| anyhow!("Failed to create result image"))?
+        };
 
         output_buffer.unmap();
 
