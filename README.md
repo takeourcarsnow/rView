@@ -1,8 +1,8 @@
 # Image Viewer 🖼️
 
-A fast, cross-platform image viewer written in **Rust** with RAW support and GPU-accelerated previews (experimental).
+A modern, fast, cross-platform image viewer written in **Rust** with RAW support and GPU-accelerated previews (experimental).
 
-![Rust](https://img.shields.io/badge/Rust-1.70+-orange) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green)
+![Rust](https://img.shields.io/badge/Rust-1.70+-orange) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-blue)
 
 ---
 
@@ -17,7 +17,7 @@ A fast, cross-platform image viewer written in **Rust** with RAW support and GPU
 1. Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 2. Clone and build:
    ```bash
-   git clone https://github.com/yourusername/image-viewer.git
+   git clone https://github.com/image-viewer/image-viewer.git
    cd image-viewer
    cargo build --release
    ```
@@ -26,7 +26,6 @@ A fast, cross-platform image viewer written in **Rust** with RAW support and GPU
    cargo run --release
    ```
 
-Windows: use `.uild.ps1` to prepare environment and run the app.
 
 Test images are available in `testfiles/` for quick checks.
 
@@ -48,4 +47,4 @@ MIT — see `LICENSE`.
 
 ---
 
-Built with eframe/egui, image-rs, rawloader, tokio, and serde. Thanks to the upstream projects and contributors.
+Built with eframe/egui, image-rs, rawloader, imagepipe, imageproc, tokio, and serde. Thanks to the upstream projects and contributors.
