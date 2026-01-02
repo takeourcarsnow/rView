@@ -336,13 +336,13 @@ impl ImageViewerApp {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("WB:").size(11.0).color(LR_TEXT_LABEL));
                 ui.add_space(36.0);
-                ui.label(RichText::new("As Shot").size(10.0).color(LR_TEXT_SECONDARY));
+                // 'As Shot' removed — no preset label shown here
             });
             
             ui.add_space(4.0);
             
             // Temperature
-            if lr_slider(ui, "Temp", &mut self.adjustments.temperature, -1.0..=1.0, "") {
+            if lr_slider(ui, "Temp", &mut self.adjustments.temperature, -1.0..=1.0, "", 0.0) {
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
                     self.refresh_adjustments();
@@ -350,7 +350,7 @@ impl ImageViewerApp {
             }
             
             // Tint
-            if lr_slider(ui, "Tint", &mut self.adjustments.tint, -1.0..=1.0, "") {
+            if lr_slider(ui, "Tint", &mut self.adjustments.tint, -1.0..=1.0, "", 0.0) {
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
                     self.refresh_adjustments();
@@ -366,7 +366,7 @@ impl ImageViewerApp {
             ui.add_space(4.0);
             
             // Exposure
-            if lr_slider(ui, "Exposure", &mut self.adjustments.exposure, -3.0..=3.0, " EV") {
+            if lr_slider(ui, "Exposure", &mut self.adjustments.exposure, -3.0..=3.0, " EV", 0.0) {
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
                     self.refresh_adjustments();
@@ -375,7 +375,7 @@ impl ImageViewerApp {
             
             // Contrast (convert from 0.5-2.0 to -100 to +100 display)
             let mut contrast_display = (self.adjustments.contrast - 1.0) * 100.0;
-            if lr_slider(ui, "Contrast", &mut contrast_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Contrast", &mut contrast_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.contrast = 1.0 + contrast_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -389,7 +389,7 @@ impl ImageViewerApp {
             
             // Highlights (convert to -100 to +100)
             let mut highlights_display = self.adjustments.highlights * 100.0;
-            if lr_slider(ui, "Highlights", &mut highlights_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Highlights", &mut highlights_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.highlights = highlights_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -399,7 +399,7 @@ impl ImageViewerApp {
             
             // Shadows
             let mut shadows_display = self.adjustments.shadows * 100.0;
-            if lr_slider(ui, "Shadows", &mut shadows_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Shadows", &mut shadows_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.shadows = shadows_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -409,7 +409,7 @@ impl ImageViewerApp {
             
             // Whites
             let mut whites_display = self.adjustments.whites * 100.0;
-            if lr_slider(ui, "Whites", &mut whites_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Whites", &mut whites_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.whites = whites_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -419,7 +419,7 @@ impl ImageViewerApp {
             
             // Blacks
             let mut blacks_display = self.adjustments.blacks * 100.0;
-            if lr_slider(ui, "Blacks", &mut blacks_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Blacks", &mut blacks_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.blacks = blacks_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -437,7 +437,7 @@ impl ImageViewerApp {
             
             // Saturation (convert from 0-2 to -100 to +100)
             let mut sat_display = (self.adjustments.saturation - 1.0) * 100.0;
-            if lr_slider(ui, "Saturation", &mut sat_display, -100.0..=100.0, "") {
+            if lr_slider(ui, "Saturation", &mut sat_display, -100.0..=100.0, "", 0.0) {
                 self.adjustments.saturation = 1.0 + sat_display / 100.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -447,7 +447,7 @@ impl ImageViewerApp {
             
             // Sharpening (convert to 0-100)
             let mut sharp_display = self.adjustments.sharpening * 50.0;
-            if lr_slider(ui, "Sharpening", &mut sharp_display, 0.0..=100.0, "") {
+            if lr_slider(ui, "Sharpening", &mut sharp_display, 0.0..=100.0, "", 0.0) {
                 self.adjustments.sharpening = sharp_display / 50.0;
                 adjustments_changed = true;
                 if self.should_apply_adjustments() {
@@ -475,7 +475,7 @@ impl ImageViewerApp {
             
             if self.adjustments.frame_enabled {
                 // Thickness
-                if lr_slider(ui, "Thickness", &mut self.adjustments.frame_thickness, 1.0..=100.0, "px") {
+                if lr_slider(ui, "Thickness", &mut self.adjustments.frame_thickness, 1.0..=100.0, "px", 10.0) {
                     adjustments_changed = true;
                     if self.should_apply_adjustments() {
                         self.refresh_adjustments();
@@ -514,7 +514,7 @@ impl ImageViewerApp {
                         self.undo_history.push(FileOperation::Adjust {
                             path,
                             adjustments: self.adjustments.clone(),
-                            previous_adjustments: previous_adjustments.clone(),
+                            previous_adjustments: Box::new(previous_adjustments.clone()),
                         });
                     }
                 }
@@ -530,7 +530,7 @@ impl ImageViewerApp {
                 self.undo_history.push(FileOperation::Adjust {
                     path,
                     adjustments: self.adjustments.clone(),
-                    previous_adjustments,
+                    previous_adjustments: Box::new(previous_adjustments.clone()),
                 });
             }
         }
@@ -574,7 +574,7 @@ impl ImageViewerApp {
                                         self.undo_history.push(FileOperation::Adjust {
                                             path,
                                             adjustments: self.adjustments.clone(),
-                                            previous_adjustments: prev_adj,
+                                            previous_adjustments: Box::new(prev_adj),
                                         });
                                     }
                                 }
@@ -590,21 +590,21 @@ impl ImageViewerApp {
                 ui.label(RichText::new("Grain").size(11.0).color(LR_TEXT_LABEL));
                 
                 let mut grain_display = self.adjustments.film.grain_amount * 100.0;
-                if lr_slider(ui, "Amount", &mut grain_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Amount", &mut grain_display, 0.0..=100.0, "", 0.0) {
                     self.adjustments.film.grain_amount = grain_display / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut size_display = self.adjustments.film.grain_size * 50.0;
-                if lr_slider(ui, "Size", &mut size_display, 25.0..=100.0, "") {
+                if lr_slider(ui, "Size", &mut size_display, 25.0..=100.0, "", 50.0) {
                     self.adjustments.film.grain_size = size_display / 50.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut rough_display = self.adjustments.film.grain_roughness * 100.0;
-                if lr_slider(ui, "Roughness", &mut rough_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Roughness", &mut rough_display, 0.0..=100.0, "", 50.0) {
                     self.adjustments.film.grain_roughness = rough_display / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
@@ -618,14 +618,14 @@ impl ImageViewerApp {
                 ui.label(RichText::new("Vignette").size(11.0).color(LR_TEXT_LABEL));
                 
                 let mut vig_display = self.adjustments.film.vignette_amount * 100.0;
-                if lr_slider(ui, "Amount", &mut vig_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Amount", &mut vig_display, 0.0..=100.0, "", 0.0) {
                     self.adjustments.film.vignette_amount = vig_display / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut soft_display = (self.adjustments.film.vignette_softness - 0.5) / 1.5 * 100.0;
-                if lr_slider(ui, "Feather", &mut soft_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Feather", &mut soft_display, 0.0..=100.0, "", 33.33333333333333) {
                     self.adjustments.film.vignette_softness = 0.5 + soft_display / 100.0 * 1.5;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
@@ -639,14 +639,14 @@ impl ImageViewerApp {
                 ui.label(RichText::new("Halation").size(11.0).color(LR_TEXT_LABEL));
                 
                 let mut hal_display = self.adjustments.film.halation_amount * 100.0;
-                if lr_slider(ui, "Amount", &mut hal_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Amount", &mut hal_display, 0.0..=100.0, "", 0.0) {
                     self.adjustments.film.halation_amount = hal_display / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut rad_display = (self.adjustments.film.halation_radius - 0.5) / 2.5 * 100.0;
-                if lr_slider(ui, "Radius", &mut rad_display, 0.0..=100.0, "") {
+                if lr_slider(ui, "Radius", &mut rad_display, 0.0..=100.0, "", 20.0) {
                     self.adjustments.film.halation_radius = 0.5 + rad_display / 100.0 * 2.5;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
@@ -660,28 +660,28 @@ impl ImageViewerApp {
                 ui.label(RichText::new("Tone Curve").size(11.0).color(LR_TEXT_LABEL));
                 
                 let mut shadows_tc = self.adjustments.film.tone_curve_shadows * 100.0;
-                if lr_slider(ui, "Shadows", &mut shadows_tc, -100.0..=100.0, "") {
+                if lr_slider(ui, "Shadows", &mut shadows_tc, -100.0..=100.0, "", 0.0) {
                     self.adjustments.film.tone_curve_shadows = shadows_tc / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut mids_tc = self.adjustments.film.tone_curve_midtones * 100.0;
-                if lr_slider(ui, "Midtones", &mut mids_tc, -100.0..=100.0, "") {
+                if lr_slider(ui, "Midtones", &mut mids_tc, -100.0..=100.0, "", 0.0) {
                     self.adjustments.film.tone_curve_midtones = mids_tc / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut highs_tc = self.adjustments.film.tone_curve_highlights * 100.0;
-                if lr_slider(ui, "Highlights", &mut highs_tc, -100.0..=100.0, "") {
+                if lr_slider(ui, "Highlights", &mut highs_tc, -100.0..=100.0, "", 0.0) {
                     self.adjustments.film.tone_curve_highlights = highs_tc / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
                 }
                 
                 let mut scurve = self.adjustments.film.s_curve_strength * 100.0;
-                if lr_slider(ui, "S-Curve", &mut scurve, 0.0..=100.0, "") {
+                if lr_slider(ui, "S-Curve", &mut scurve, 0.0..=100.0, "", 0.0) {
                     self.adjustments.film.s_curve_strength = scurve / 100.0;
                     *adjustments_changed = true;
                     if self.should_apply_adjustments() { self.refresh_adjustments(); }
@@ -808,8 +808,8 @@ impl ImageViewerApp {
                     ui.label(RichText::new("No keywords").size(10.0).color(LR_TEXT_SECONDARY).italics());
                 } else {
                     ui.horizontal_wrapped(|ui| {
-                        for tag in metadata.tags.clone() {
-                            ui.add(egui::Button::new(RichText::new(&tag).size(9.0).color(LR_TEXT_PRIMARY))
+                        for tag in &metadata.tags {
+                            ui.add(egui::Button::new(RichText::new(tag.as_str()).size(9.0).color(LR_TEXT_PRIMARY))
                                 .fill(LR_BG_INPUT)
                                 .stroke(Stroke::new(1.0, LR_BORDER))
                                 .rounding(Rounding::same(8.0)));
@@ -999,7 +999,7 @@ fn lr_separator(ui: &mut egui::Ui) {
 }
 
 // Lightroom-style slider with label on left, value on right
-fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, suffix: &str) -> bool {
+fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, suffix: &str, default: f32) -> bool {
     let mut changed = false;
     
     ui.horizontal(|ui| {
@@ -1020,7 +1020,13 @@ fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::R
             .show_value(false)
             .trailing_fill(true);
         
-        if ui.add(slider).changed() {
+        let response = ui.add(slider);
+        if response.changed() {
+            changed = true;
+        }
+        // Double-click resets to provided default value
+        if response.double_clicked() {
+            *value = default;
             changed = true;
         }
         

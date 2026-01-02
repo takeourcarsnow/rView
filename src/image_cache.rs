@@ -276,18 +276,16 @@ impl ImageCache {
                             priority: CachePriority::Low, // Thumbnails have lower priority
                         });
                     }
-                } else {
-                    if let Ok(thumb) = image_loader::load_thumbnail(path, size) {
-                        tracing::debug!(path = %path.display(), "preloaded thumbnail");
-                        let size_bytes = estimate_image_size(&thumb);
-                        let mut c = cache.lock().unwrap();
-                        c.insert(path.clone(), CachedImage {
-                            image: thumb,
-                            last_access: std::time::Instant::now(),
-                            size_bytes,
-                            priority: CachePriority::Low, // Thumbnails have lower priority
-                        });
-                    }
+                } else if let Ok(thumb) = image_loader::load_thumbnail(path, size) {
+                    tracing::debug!(path = %path.display(), "preloaded thumbnail");
+                    let size_bytes = estimate_image_size(&thumb);
+                    let mut c = cache.lock().unwrap();
+                    c.insert(path.clone(), CachedImage {
+                        image: thumb,
+                        last_access: std::time::Instant::now(),
+                        size_bytes,
+                        priority: CachePriority::Low, // Thumbnails have lower priority
+                    });
                 }
             });
         });

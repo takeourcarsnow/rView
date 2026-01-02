@@ -4,12 +4,12 @@ use crate::profiler;
 use eframe::egui::{self, Vec2};
 use image::DynamicImage;
 use pollster;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::ImageViewerApp;
 
-fn compare_paths_by_mode(a: &PathBuf, b: &PathBuf, sort_mode: crate::settings::SortMode) -> std::cmp::Ordering {
+fn compare_paths_by_mode(a: &Path, b: &Path, sort_mode: crate::settings::SortMode) -> std::cmp::Ordering {
     match sort_mode {
         crate::settings::SortMode::Name => {
             let a_name = a.file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
@@ -161,7 +161,7 @@ impl ImageViewerApp {
         self.showing_preview = false;
     }
 
-    fn try_load_from_cache(&mut self, path: &PathBuf) -> bool {
+    fn try_load_from_cache(&mut self, path: &Path) -> bool {
         if let Some(image) = self.image_cache.get(path) {
             self.set_current_image(path, image);
             self.load_exif_data(path);
@@ -170,9 +170,9 @@ impl ImageViewerApp {
         false
     }
 
-    fn load_raw_image(&mut self, path: &PathBuf) {
+    fn load_raw_image(&mut self, path: &Path) {
         // Load quick preview first
-        let path_clone = path.clone();
+        let path_clone = path.to_path_buf();
         self.spawn_loader(move || {
             image_loader::load_thumbnail(&path_clone, 1920)
                 .ok()
@@ -181,7 +181,7 @@ impl ImageViewerApp {
 
         if self.settings.load_raw_full_size {
             // Spawn full image load
-            let path_clone = path.clone();
+            let path_clone = path.to_path_buf();
             self.spawn_loader(move || {
                 Some(match image_loader::load_image(&path_clone) {
                     Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
@@ -191,9 +191,9 @@ impl ImageViewerApp {
         }
     }
 
-    fn load_standard_image(&mut self, path: &PathBuf) {
+    fn load_standard_image(&mut self, path: &Path) {
         // Load progressive versions for better UX
-        let path_clone = path.clone();
+        let path_clone = path.to_path_buf();
         self.spawn_loader(move || {
             match image_loader::load_image(&path_clone) {
                 Ok(full_image) => {
@@ -205,7 +205,7 @@ impl ImageViewerApp {
         });
 
         // Then load the full resolution
-        let path_clone = path.clone();
+        let path_clone = path.to_path_buf();
         self.spawn_loader(move || {
             Some(match image_loader::load_image(&path_clone) {
                 Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
@@ -214,8 +214,8 @@ impl ImageViewerApp {
         });
     }
 
-    pub fn load_exif_data(&self, path: &PathBuf) {
-        let path_clone = path.clone();
+    pub fn load_exif_data(&self, path: &Path) {
+        let path_clone = path.to_path_buf();
         self.spawn_loader(move || {
             let exif = ExifInfo::from_file(&path_clone);
             Some(super::LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
@@ -503,12 +503,10 @@ impl ImageViewerApp {
                         }
                     }
                 }
-            } else {
-                if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
+            } else if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
                     cache.insert_thumbnail(p.clone(), thumb.clone());
                     let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                     ctx.request_repaint();
-                }
             }
             profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
             // Notify main thread that this thumbnail request has completed (so it can clear in-flight flags)

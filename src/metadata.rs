@@ -126,7 +126,7 @@ pub enum FileOperation {
     Adjust {
         path: PathBuf,
         adjustments: crate::image_loader::ImageAdjustments,
-        previous_adjustments: crate::image_loader::ImageAdjustments,
+        previous_adjustments: Box<crate::image_loader::ImageAdjustments>,
     },
     Rate {
         path: PathBuf,

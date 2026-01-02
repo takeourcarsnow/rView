@@ -123,22 +123,21 @@ mod unit_tests {
     #[test]
     fn test_gpu_processor_basic() {
         // Try to initialize GPU; if not available just skip the test
-        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+        if let Ok(proc) = pollster::block_on(crate::gpu::GpuProcessor::new()) {
             let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
-            let adj = crate::image_loader::ImageAdjustments {
-                exposure: 0.5,
-                contrast: 1.1,
-                brightness: 10.0,
-                saturation: 1.0,
-                highlights: 0.0,
-                shadows: 0.0,
-                temperature: 0.0,
-                tint: 0.0,
-                blacks: 0.0,
-                whites: 0.0,
-                sharpening: 0.0,
-                film: crate::image_loader::FilmEmulation::default(),
-            };
+            let mut adj = crate::image_loader::ImageAdjustments::default();
+            adj.exposure = 0.5;
+            adj.contrast = 1.1;
+            adj.brightness = 10.0;
+            adj.saturation = 1.0;
+            adj.highlights = 0.0;
+            adj.shadows = 0.0;
+            adj.temperature = 0.0;
+            adj.tint = 0.0;
+            adj.blacks = 0.0;
+            adj.whites = 0.0;
+            adj.sharpening = 0.0;
+            adj.film = crate::image_loader::FilmEmulation::default();
 
             let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment failed");
             assert_eq!(out.len(), (16 * 16 * 4) as usize);
@@ -148,7 +147,7 @@ mod unit_tests {
     #[test]
     fn test_gpu_processor_with_film_emulation() {
         // Try to initialize GPU; if not available just skip the test
-        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+        if let Ok(proc) = pollster::block_on(crate::gpu::GpuProcessor::new()) {
             let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.apply_preset(crate::image_loader::FilmPreset::Portra400);
@@ -161,7 +160,7 @@ mod unit_tests {
     #[test]
     fn test_gpu_processor_bw_film() {
         // Try to initialize GPU; if not available just skip the test
-        if let Ok(proc) = crate::gpu::GpuProcessor::new() {
+        if let Ok(proc) = pollster::block_on(crate::gpu::GpuProcessor::new()) {
             let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([200, 100, 50, 255])));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.apply_preset(crate::image_loader::FilmPreset::TriX400);

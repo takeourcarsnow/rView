@@ -227,7 +227,7 @@ impl ImageViewerApp {
                 }
                 FileOperation::Adjust { path, previous_adjustments, .. } => {
                     if current_path.as_ref() == Some(&path) {
-                        self.adjustments = previous_adjustments.clone();
+                        self.adjustments = *previous_adjustments;
                         self.refresh_adjustments();
                     }
                     self.show_status("Undo: Adjustments reverted");

@@ -100,7 +100,7 @@ impl ImageViewerApp {
                 let image_to_save = if !self.adjustments.is_default() && !self.show_original {
                     // Use CPU for frame processing since GPU doesn't support it yet
                     if self.adjustments.frame_enabled {
-                        crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                        crate::image_loader::apply_adjustments(image, &self.adjustments)
                     } else if let Some(gpu) = &self.gpu_processor {
                         let gpu_clone = Arc::clone(gpu);
                         let image_clone = image.clone();
@@ -130,7 +130,7 @@ impl ImageViewerApp {
                             }
                         }
                     } else {
-                        crate::image_loader::apply_adjustments(&image, &self.adjustments)
+                        crate::image_loader::apply_adjustments(image, &self.adjustments)
                     }
                 } else {
                     image.clone()

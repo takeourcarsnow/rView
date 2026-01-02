@@ -3,7 +3,6 @@ use image::{DynamicImage, ImageBuffer, RgbImage, Rgba, RgbaImage, GenericImageVi
 use std::path::Path;
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
-use num_cpus;
 
 lazy_static::lazy_static! {
     static ref RAW_PROCESSING_POOL: rayon::ThreadPool = {
@@ -72,18 +71,15 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
     crate::profiler::with_profiler(|p| p.end_timer("image_load"));
 
     // Check image dimensions to prevent creating textures that are too large
-    match &result {
-        Ok(img) => {
-            let (width, height) = img.dimensions();
-            let megapixels = (width as u64 * height as u64) / 1_000_000;
-            if megapixels > 100 {
-                return Err(ViewerError::ImageLoadError { 
-                    path: path.to_path_buf(), 
-                    message: format!("Image too large: {}MP (max 100MP)", megapixels) 
-                });
-            }
+    if let Ok(img) = &result {
+        let (width, height) = img.dimensions();
+        let megapixels = (width as u64 * height as u64) / 1_000_000;
+        if megapixels > 100 {
+            return Err(ViewerError::ImageLoadError { 
+                path: path.to_path_buf(), 
+                message: format!("Image too large: {}MP (max 100MP)", megapixels) 
+            });
         }
-        Err(_) => {}
     }
 
     result
@@ -1474,8 +1470,8 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                 
                 // Shadow and highlight tinting
                 let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                let shadow_amount = (1.0 - luminance * 2.0).max(0.0).min(1.0);
-                let highlight_amount = ((luminance - 0.5) * 2.0).max(0.0).min(1.0);
+                let shadow_amount = (1.0 - luminance * 2.0).clamp(0.0, 1.0);
+                let highlight_amount = ((luminance - 0.5) * 2.0).clamp(0.0, 1.0);
                 
                 r += film.shadow_tint[0] * shadow_amount + film.highlight_tint[0] * highlight_amount;
                 g += film.shadow_tint[1] * shadow_amount + film.highlight_tint[1] * highlight_amount;
@@ -1515,7 +1511,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
             // Highlights adjustment (compress highlights)
             if highlight_compress > 0.0 {
                 let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                let highlight_mask = ((luminance - 127.5) / 127.5).max(0.0).min(1.0);
+                let highlight_mask = ((luminance - 127.5) / 127.5).clamp(0.0, 1.0);
                 let compress = 1.0 - highlight_compress * highlight_mask;
                 r *= compress;
                 g *= compress;
@@ -1568,7 +1564,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                     let dy = py - center_y;
                     let dist = (dx * dx + dy * dy).sqrt() / max_dist;
                     let vignette = 1.0 - film.vignette_amount * (dist / film.vignette_softness).powf(2.0);
-                    let vignette = vignette.max(0.0).min(1.0);
+                    let vignette = vignette.clamp(0.0, 1.0);
                     r *= vignette;
                     g *= vignette;
                     b *= vignette;
@@ -1599,7 +1595,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                 // Note: Full halation requires multi-pass blur, this is a simplified version
                 if film.halation_amount > 0.0 {
                     let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                    let halation_mask = ((luminance - 0.7) / 0.3).max(0.0).min(1.0);
+                    let halation_mask = ((luminance - 0.7) / 0.3).clamp(0.0, 1.0);
                     let halation_strength = film.halation_amount * halation_mask * 30.0;
                     r += film.halation_color[0] * halation_strength;
                     g += film.halation_color[1] * halation_strength;
@@ -1672,8 +1668,8 @@ fn apply_tone_curve(x: f32, shadows: f32, midtones: f32, highlights: f32) -> f32
     // Midtone region (0.33-0.66)  
     // Highlight region (0.66-1.0)
     
-    let shadow_weight = (1.0 - x * 3.0).max(0.0).min(1.0);
-    let highlight_weight = ((x - 0.66) * 3.0).max(0.0).min(1.0);
+    let shadow_weight = (1.0 - x * 3.0).clamp(0.0, 1.0);
+    let highlight_weight = ((x - 0.66) * 3.0).clamp(0.0, 1.0);
     let midtone_weight = 1.0 - shadow_weight - highlight_weight;
     
     // Apply adjustments weighted by region

@@ -111,10 +111,8 @@ impl ImageViewerApp {
                                             Some(LoaderMessage::ExifLoaded(path_clone, Box::new(exif)))
                                         });
                                     }
-                                } else {
-                                    if !self.thumbnail_requests.contains(path) {
-                                        self.ensure_thumbnail_requested(path, ctx);
-                                    }
+                                } else if !self.thumbnail_requests.contains(path) {
+                                    self.ensure_thumbnail_requested(path, ctx);
                                 }
 
                                 // Click to make this the current image
@@ -223,9 +221,7 @@ impl ImageViewerApp {
                 // Footer controls for compare
                 ui.horizontal(|ui| {
                     if ui.button("Swap Sides").clicked() {
-                        let temp = sel[0];
-                        sel[0] = sel[1];
-                        sel[1] = temp;
+                        sel.swap(0, 1);
                         // Update selected_indices to reflect swap if applicable
                         self.selected_indices.clear();
                         self.selected_indices.insert(sel[0]);

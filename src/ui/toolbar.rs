@@ -74,16 +74,16 @@ impl ImageViewerApp {
                         ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
                     
                     // File operations - using Lucide icons
-                    if icon_button(ui, &lucide("folder-open").to_string(), "Open folder (Ctrl+Shift+O)").clicked() {
+                    if icon_button(ui, lucide("folder-open"), "Open folder (Ctrl+Shift+O)").clicked() {
                         open_folder = true;
                     }
-                    if icon_button(ui, &lucide("file").to_string(), "Open file (Ctrl+O)").clicked() {
+                    if icon_button(ui, lucide("file"), "Open file (Ctrl+O)").clicked() {
                         open_file = true;
                     }
-                    if icon_button(ui, &lucide("folder-input").to_string(), "Move to folder (M)").clicked() {
+                    if icon_button(ui, lucide("folder-input"), "Move to folder (M)").clicked() {
                         show_move = true;
                     }
-                    if icon_button(ui, &lucide("download").to_string(), "Export image (Ctrl+S)").clicked() {
+                    if icon_button(ui, lucide("download"), "Export image (Ctrl+S)").clicked() {
                         export_image = true;
                     }
                     
@@ -92,7 +92,7 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Search button
-                    if toggle_button(ui, &lucide("search").to_string(), "Toggle search (Ctrl+F)", self.search_visible).clicked() {
+                    if toggle_button(ui, lucide("search"), "Toggle search (Ctrl+F)", self.search_visible).clicked() {
                         toggle_search = true;
                     }
                     
@@ -108,11 +108,9 @@ impl ImageViewerApp {
                             if search_response.changed() {
                                 search_changed = true;
                             }
-                            if !self.search_query.is_empty() {
-                                if ui.add(egui::Button::new("✕").small()).on_hover_text("Clear search").clicked() {
-                                    self.search_query.clear();
-                                    search_changed = true;
-                                }
+                            if !self.search_query.is_empty() && ui.add(egui::Button::new("✕").small()).on_hover_text("Clear search").clicked() {
+                                self.search_query.clear();
+                                search_changed = true;
                             }
                         });
                         
@@ -122,7 +120,7 @@ impl ImageViewerApp {
                     }
                     
                     // Navigation (previous / next)
-                    if icon_button(ui, &lucide("chevron-left").to_string(), "Previous image (←)").clicked() {
+                    if icon_button(ui, lucide("chevron-left"), "Previous image (←)").clicked() {
                         go_prev = true;
                     }
                     
@@ -140,7 +138,7 @@ impl ImageViewerApp {
                         }
                     }
                     
-                    if icon_button(ui, &lucide("chevron-right").to_string(), "Next image (→)").clicked() {
+                    if icon_button(ui, lucide("chevron-right"), "Next image (→)").clicked() {
                         go_next = true;
                     }
                     
@@ -149,7 +147,7 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Zoom controls
-                    if icon_button(ui, &lucide("zoom-out").to_string(), "Zoom out (-)").clicked() {
+                    if icon_button(ui, lucide("zoom-out"), "Zoom out (-)").clicked() {
                         zoom_out = true;
                     }
                     
@@ -161,7 +159,7 @@ impl ImageViewerApp {
                         new_zoom = Some(zoom_pct as f32 / 100.0);
                     }
                     
-                    if icon_button(ui, &lucide("zoom-in").to_string(), "Zoom in (+)").clicked() {
+                    if icon_button(ui, lucide("zoom-in"), "Zoom in (+)").clicked() {
                         zoom_in = true;
                     }
                     
@@ -177,10 +175,10 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Rotation
-                    if icon_button(ui, &lucide("rotate-ccw").to_string(), "Rotate left (L)").clicked() {
+                    if icon_button(ui, lucide("rotate-ccw"), "Rotate left (L)").clicked() {
                         rotate_left = true;
                     }
-                    if icon_button(ui, &lucide("rotate-cw").to_string(), "Rotate right (R)").clicked() {
+                    if icon_button(ui, lucide("rotate-cw"), "Rotate right (R)").clicked() {
                         rotate_right = true;
                     }
                     
@@ -189,11 +187,11 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // View modes
-                    if toggle_button(ui, &lucide("image").to_string(), "Single view", view_mode == ViewMode::Single).clicked() {
+                    if toggle_button(ui, lucide("image"), "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
                     }
 
-                    if toggle_button(ui, &lucide("layout-grid").to_string(), "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
+                    if toggle_button(ui, lucide("layout-grid"), "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
                     
@@ -202,16 +200,16 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Photography tools
-                    if toggle_button(ui, &lucide("focus").to_string(), "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
+                    if toggle_button(ui, lucide("focus"), "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
                     }
-                    if toggle_button(ui, &lucide("zap").to_string(), "Zebras (Ctrl+Z)", show_zebras).clicked() {
+                    if toggle_button(ui, lucide("zap"), "Zebras (Ctrl+Z)", show_zebras).clicked() {
                         toggle_zebras = true;
                     }
-                    if toggle_button(ui, &lucide("grid-3x3").to_string(), "Grid overlay", show_grid_overlay).clicked() {
+                    if toggle_button(ui, lucide("grid-3x3"), "Grid overlay", show_grid_overlay).clicked() {
                         toggle_grid = true;
                     }
-                    if toggle_button(ui, &lucide("search").to_string(), "Loupe (Ctrl+L)", loupe_enabled).clicked() {
+                    if toggle_button(ui, lucide("search"), "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
                     }
 
@@ -221,15 +219,13 @@ impl ImageViewerApp {
                     }
 
                     // EXIF overlay toggle (only controls overlay, not sidebar panel)
-                    if toggle_button(ui, &lucide("info").to_string(), "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
+                    if toggle_button(ui, lucide("info"), "Toggle EXIF overlay (E)", self.settings.show_exif_overlay).clicked() {
                         self.settings.show_exif_overlay = !self.settings.show_exif_overlay;
                     }
 
                     // Before/After toggle (only enabled when adjustments are applied)
-                    if !self.adjustments.is_default() {
-                        if toggle_button(ui, &lucide("arrow-left-right").to_string(), "Toggle before/after view (\\)", self.show_original).clicked() {
-                            toggle_before_after = true;
-                        }
+                    if !self.adjustments.is_default() && toggle_button(ui, lucide("arrow-left-right"), "Toggle before/after view (\\)", self.show_original).clicked() {
+                        toggle_before_after = true;
                     }
                     
                     ui.add_space(8.0);
@@ -237,28 +233,28 @@ impl ImageViewerApp {
                     ui.add_space(8.0);
                     
                     // Panel toggles
-                    if toggle_button(ui, &lucide("panel-left").to_string(), "Toggle all panels (P)", self.panels_hidden).clicked() {
+                    if toggle_button(ui, lucide("panel-left"), "Toggle all panels (P)", self.panels_hidden).clicked() {
                         toggle_panels = true;
                     }
                     
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Help button
-                        if icon_button(ui, &lucide("help-circle").to_string(), "Keyboard shortcuts:\n←/→: Navigate\nSpace: Next\nBackspace: Previous\n1/0: 100%/Fit\nH: Toggle panels\nG: Grid view\nCtrl+F: Search\nF11: Fullscreen\nEsc: Close dialogs").clicked() {
+                        if icon_button(ui, lucide("help-circle"), "Keyboard shortcuts:\n←/→: Navigate\nSpace: Next\nBackspace: Previous\n1/0: 100%/Fit\nH: Toggle panels\nG: Grid view\nCtrl+F: Search\nF11: Fullscreen\nEsc: Close dialogs").clicked() {
                             // Just show tooltip, no action needed
                         }
                         
                         // Settings (toggle)
-                        if icon_button(ui, &lucide("settings").to_string(), "Settings").clicked() {
+                        if icon_button(ui, lucide("settings"), "Settings").clicked() {
                             show_settings = true;
                         }
                         
-                        if icon_button(ui, &lucide("command").to_string(), "Command palette (Ctrl+P)").clicked() {
+                        if icon_button(ui, lucide("command"), "Command palette (Ctrl+P)").clicked() {
                             show_command_palette = true;
                         }
                         
                         // Fullscreen
-                        if toggle_button(ui, &lucide("maximize").to_string(), "Fullscreen (F11)", is_fullscreen).clicked() {
+                        if toggle_button(ui, lucide("maximize"), "Fullscreen (F11)", is_fullscreen).clicked() {
                             toggle_fullscreen = true;
                         }
                         
@@ -293,7 +289,7 @@ impl ImageViewerApp {
         if toggle_focus_peaking {
             self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
             if self.settings.show_focus_peaking {
-                if let Some(img) = self.current_image.clone() {
+                if let Some(img) = self.current_image.as_ref().cloned() {
                     self.generate_focus_peaking_overlay(&img, ctx);
                 }
             }
@@ -301,7 +297,7 @@ impl ImageViewerApp {
         if toggle_zebras {
             self.settings.show_zebras = !self.settings.show_zebras;
             if self.settings.show_zebras {
-                if let Some(img) = self.current_image.clone() {
+                if let Some(img) = self.current_image.as_ref().cloned() {
                     self.generate_zebra_overlay(&img, ctx);
                 }
             }
@@ -349,16 +345,16 @@ impl ImageViewerApp {
     }
 }
 
-fn icon_button(ui: &mut egui::Ui, icon: &str, tooltip: &str) -> egui::Response {
+fn icon_button<T: ToString>(ui: &mut egui::Ui, icon: T, tooltip: &str) -> egui::Response {
     let font_id = FontId::new(16.0, FontFamily::Name(lucide_font().into()));
-    ui.add(egui::Button::new(RichText::new(icon).font(font_id))
+    ui.add(egui::Button::new(RichText::new(icon.to_string()).font(font_id))
         .fill(Color32::TRANSPARENT)
         .rounding(Rounding::same(4.0))
         .min_size(Vec2::new(28.0, 28.0)))
         .on_hover_text(tooltip)
 }
 
-fn toggle_button(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> egui::Response {
+fn toggle_button<T: ToString>(ui: &mut egui::Ui, icon: T, tooltip: &str, active: bool) -> egui::Response {
     let bg = if active {
         Color32::from_rgb(70, 130, 255)
     } else {
@@ -366,7 +362,7 @@ fn toggle_button(ui: &mut egui::Ui, icon: &str, tooltip: &str, active: bool) -> 
     };
     
     let font_id = FontId::new(16.0, FontFamily::Name(lucide_font().into()));
-    ui.add(egui::Button::new(RichText::new(icon).font(font_id))
+    ui.add(egui::Button::new(RichText::new(icon.to_string()).font(font_id))
         .fill(bg)
         .rounding(Rounding::same(4.0))
         .min_size(Vec2::new(28.0, 28.0)))
