@@ -144,6 +144,13 @@ impl ImageViewerApp {
 
                 ui.separator();
 
+                // Show info about selected images
+                let selected_count = self.selected_indices.len();
+                if selected_count > 0 {
+                    ui.label(format!("📸 {} selected image(s) will be added to this collection", selected_count));
+                    ui.separator();
+                }
+
                 if ui.button("Create").clicked() {
                     self.create_catalog_collection();
                     self.catalog_show_new_collection_dialog = false;
@@ -229,6 +236,31 @@ impl ImageViewerApp {
                     self.set_status_message(format!("Created collection: {}", name));
                     self.catalog_new_collection_name.clear();
                     self.catalog_selected_collection = Some(id);
+                    
+                    // Auto-add selected images to the new collection
+                    let selected_count = self.selected_indices.len();
+                    if selected_count > 0 {
+                        // Collect paths first to avoid borrowing issues
+                        let selected_paths: Vec<std::path::PathBuf> = self.selected_indices.iter()
+                            .filter_map(|&display_idx| {
+                                self.filtered_list.get(display_idx)
+                                    .and_then(|&real_idx| self.image_list.get(real_idx))
+                                    .cloned()
+                            })
+                            .collect();
+                        
+                        let mut added_count = 0;
+                        for path in selected_paths {
+                            if self.add_path_to_collection(path, id).is_ok() {
+                                added_count += 1;
+                            }
+                        }
+                        if added_count > 0 {
+                            self.set_status_message(format!("Created collection '{}' with {} images", name, added_count));
+                            // Refresh the collection view
+                            self.load_catalog_collection(id);
+                        }
+                    }
                 }
                 Err(e) => {
                     self.set_status_message(format!("Failed to create collection: {}", e));
@@ -245,7 +277,7 @@ impl ImageViewerApp {
     }
 
     /// Add a specific image path to a collection
-    pub fn add_path_to_collection(&mut self, path: std::path::PathBuf, collection_id: i64) {
+    pub fn add_path_to_collection(&mut self, path: std::path::PathBuf, collection_id: i64) -> Result<(), ()> {
         if let Some(ref mut catalog_db) = self.catalog_db {
             // Get or import image
             let image_id = if let Ok(Some(img)) = catalog_db.get_image(&path) {
@@ -255,7 +287,7 @@ impl ImageViewerApp {
                     Ok(id) => id,
                     Err(e) => {
                         self.set_status_message(format!("Failed to add to collection: {}", e));
-                        return;
+                        return Err(());
                     }
                 }
             };
@@ -267,11 +299,15 @@ impl ImageViewerApp {
                     if self.catalog_selected_collection == Some(collection_id) {
                         self.load_catalog_collection(collection_id);
                     }
+                    Ok(())
                 }
                 Err(e) => {
                     self.set_status_message(format!("Failed to add to collection: {}", e));
+                    Err(())
                 }
             }
+        } else {
+            Err(())
         }
     }
 }

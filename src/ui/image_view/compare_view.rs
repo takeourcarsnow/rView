@@ -127,6 +127,70 @@ impl ImageViewerApp {
                                         }
                                     }
                                 }
+                                // Context menu for left image
+                                left_resp.context_menu(|ui: &mut egui::Ui| {
+                                    if ui.button("View").clicked() {
+                                        if let Some(dp) = left_path.clone() {
+                                            if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                    self.go_to_index(pos);
+                                                }
+                                            }
+                                        }
+                                        ui.close_menu();
+                                    }
+
+                                    ui.separator();
+                                    if ui.button("Delete").clicked() {
+                                        if let Some(dp) = left_path.clone() {
+                                            if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                    self.current_index = pos;
+                                                    self.delete_current_image();
+                                                }
+                                            }
+                                        }
+                                        ui.close_menu();
+                                    }
+                                    ui.separator();
+
+                                    // Add to Collection submenu
+                                    if let Some(ref catalog_db) = self.catalog_db {
+                                        if let Ok(collections) = catalog_db.get_collections() {
+                                            if !collections.is_empty() {
+                                                ui.menu_button("Add to Collection", |ui: &mut egui::Ui| {
+                                                    for collection in collections {
+                                                        let label = format!("📁 {}", collection.name);
+                                                        if ui.button(&label).clicked() {
+                                                            if let Some(path) = left_path.clone() {
+                                                                let _ = self.add_path_to_collection(path, collection.id);
+                                                            }
+                                                            ui.close_menu();
+                                                        }
+                                                    }
+                                                });
+                                                ui.separator();
+                                            }
+                                        }
+                                    }
+
+                                    ui.menu_button("Rating", |ui: &mut egui::Ui| {
+                                        for r in 0..=5 {
+                                            let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
+                                            if ui.button(stars).clicked() {
+                                                if let Some(dp) = left_path.clone() {
+                                                    if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                        if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                            self.current_index = pos;
+                                                            self.set_rating(r as u8);
+                                                        }
+                                                    }
+                                                }
+                                                ui.close_menu();
+                                            }
+                                        }
+                                    });
+                                });
                             } else {
                                 left_painter.text(rect.center(), egui::Align2::CENTER_CENTER, "No image", egui::FontId::proportional(18.0), Color32::GRAY);
                             }
@@ -209,6 +273,71 @@ impl ImageViewerApp {
                                         }
                                     }
                                 }
+
+                                // Context menu for right image
+                                right_resp.context_menu(|ui: &mut egui::Ui| {
+                                    if ui.button("View").clicked() {
+                                        if let Some(dp) = right_path.clone() {
+                                            if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                    self.go_to_index(pos);
+                                                }
+                                            }
+                                        }
+                                        ui.close_menu();
+                                    }
+
+                                    ui.separator();
+                                    if ui.button("Delete").clicked() {
+                                        if let Some(dp) = right_path.clone() {
+                                            if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                    self.current_index = pos;
+                                                    self.delete_current_image();
+                                                }
+                                            }
+                                        }
+                                        ui.close_menu();
+                                    }
+                                    ui.separator();
+
+                                    // Add to Collection submenu
+                                    if let Some(ref catalog_db) = self.catalog_db {
+                                        if let Ok(collections) = catalog_db.get_collections() {
+                                            if !collections.is_empty() {
+                                                ui.menu_button("Add to Collection", |ui: &mut egui::Ui| {
+                                                    for collection in collections {
+                                                        let label = format!("📁 {}", collection.name);
+                                                        if ui.button(&label).clicked() {
+                                                            if let Some(path) = right_path.clone() {
+                                                                let _ = self.add_path_to_collection(path, collection.id);
+                                                            }
+                                                            ui.close_menu();
+                                                        }
+                                                    }
+                                                });
+                                                ui.separator();
+                                            }
+                                        }
+                                    }
+
+                                    ui.menu_button("Rating", |ui: &mut egui::Ui| {
+                                        for r in 0..=5 {
+                                            let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
+                                            if ui.button(stars).clicked() {
+                                                if let Some(dp) = right_path.clone() {
+                                                    if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
+                                                        if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
+                                                            self.current_index = pos;
+                                                            self.set_rating(r as u8);
+                                                        }
+                                                    }
+                                                }
+                                                ui.close_menu();
+                                            }
+                                        }
+                                    });
+                                });
                             } else {
                                 right_painter.text(rect.center(), egui::Align2::CENTER_CENTER, "No image", egui::FontId::proportional(18.0), Color32::GRAY);
                             }

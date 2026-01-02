@@ -93,16 +93,88 @@ pub fn render_folder_node(app: &mut ImageViewerApp, ui: &mut egui::Ui, path: Pat
             Color32::TRANSPARENT
         };
 
-        if ui.add(egui::Button::new(RichText::new(format!("📁 {}", name)).size(10.0).color(folder_color))
+        let button_resp = ui.add(egui::Button::new(RichText::new(format!("📁 {}", name)).size(10.0).color(folder_color))
             .fill(bg_color)
             .stroke(Stroke::NONE)
-            .wrap())
-            .clicked() {
+            .wrap());
+
+        if button_resp.clicked() {
             if path.is_dir() {
                 app.load_folder(path.clone());
             } else if path.is_file() {
                 app.load_image_file(path.clone());
             }
+        }
+
+        // Context menu for folders
+        if path.is_dir() {
+            button_resp.context_menu(|ui| {
+                if ui.button("Open Folder").clicked() {
+                    app.load_folder(path.clone());
+                    ui.close_menu();
+                }
+
+                ui.separator();
+
+                // Add to Collection submenu
+                if let Some(ref catalog_db) = app.catalog_db {
+                    if let Ok(collections) = catalog_db.get_collections() {
+                        if !collections.is_empty() {
+                            ui.menu_button("Add Folder to Collection", |ui| {
+                                for collection in collections {
+                                    let label = format!("📁 {}", collection.name);
+                                    if ui.button(&label).clicked() {
+                                        // Add all images in this folder to the collection
+                                        if let Ok(entries) = std::fs::read_dir(&path) {
+                                            for entry in entries.flatten() {
+                                                let entry_path = entry.path();
+                                                if entry_path.is_file() {
+                                                    if let Some(ext) = entry_path.extension() {
+                                                        let ext_str = ext.to_string_lossy().to_lowercase();
+                                                        if matches!(ext_str.as_str(), "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp" | "cr2" | "nef" | "arw" | "dng" | "orf" | "rw2" | "raf") {
+                                                            let _ = app.add_path_to_collection(entry_path, collection.id);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        ui.close_menu();
+                                    }
+                                }
+                            });
+                            ui.separator();
+                        }
+                    }
+                }
+
+                ui.menu_button("Rating", |ui| {
+                    for r in 0..=5 {
+                        let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
+                        if ui.button(stars).clicked() {
+                            // Set rating for all images in this folder
+                            if let Ok(entries) = std::fs::read_dir(&path) {
+                                for entry in entries.flatten() {
+                                    let entry_path = entry.path();
+                                    if entry_path.is_file() {
+                                        if let Some(ext) = entry_path.extension() {
+                                            let ext_str = ext.to_string_lossy().to_lowercase();
+                                            if matches!(ext_str.as_str(), "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp" | "cr2" | "nef" | "arw" | "dng" | "orf" | "rw2" | "raf") {
+                                                if let Some(idx) = app.image_list.iter().position(|p| p == &entry_path) {
+                                                    if let Some(pos) = app.filtered_list.iter().position(|&r| r == idx) {
+                                                        app.current_index = pos;
+                                                        app.set_rating(r as u8);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            ui.close_menu();
+                        }
+                    }
+                });
+            });
         }
     });
 

@@ -1,6 +1,7 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{ThumbnailPosition, ColorLabel};
 use egui::{self, Color32, Vec2, Rounding, Margin, Rect};
+use std::path::PathBuf;
 
 impl ImageViewerApp {
     /// Pre-fetch thumbnails for items near the current view
@@ -331,8 +332,29 @@ impl ImageViewerApp {
                             for collection in collections {
                                 let label = format!("📁 {}", collection.name);
                                 if ui.button(&label).clicked() {
-                                    self.current_index = display_idx;
-                                    self.add_current_to_collection(collection.id);
+                                    // Add all selected images to collection, or current image if none selected
+                                    if !self.selected_indices.is_empty() {
+                                        let mut added_count = 0;
+                                        // Collect paths first to avoid borrowing issues
+                                        let paths_to_add: Vec<PathBuf> = self.selected_indices.iter()
+                                            .filter_map(|&selected_idx| {
+                                                self.filtered_list.get(selected_idx)
+                                                    .and_then(|&real_idx| self.image_list.get(real_idx).cloned())
+                                            })
+                                            .collect();
+                                        
+                                        for path in paths_to_add {
+                                            if self.add_path_to_collection(path, collection.id).is_ok() {
+                                                added_count += 1;
+                                            }
+                                        }
+                                        if added_count > 0 {
+                                            self.set_status_message(format!("Added {} images to collection", added_count));
+                                        }
+                                    } else {
+                                        self.current_index = display_idx;
+                                        self.add_current_to_collection(collection.id);
+                                    }
                                     ui.close_menu();
                                 }
                             }

@@ -202,8 +202,12 @@ impl ImageViewerApp {
         if ctrl && i.key_pressed(egui::Key::C) {
             self.copy_to_clipboard();
         }
-        if ctrl && i.key_pressed(egui::Key::S) {
-            self.export_image();
+        if ctrl && i.key_pressed(egui::Key::A) {
+            // Select all images
+            self.selected_indices.clear();
+            for i in 0..self.filtered_list.len() {
+                self.selected_indices.insert(i);
+            }
         }
     }
     
