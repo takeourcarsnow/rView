@@ -39,7 +39,7 @@ impl ImageViewerApp {
                     let label = format!("📁 {} ({})", collection.name, collection.image_count);
                     
                     // Make collection droppable for drag-and-drop from thumbnails
-                    let (selectable_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
+                    let (drop_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
                         egui::Frame::none(),
                         |ui: &mut egui::Ui| {
                             ui.selectable_label(is_selected, &label)
@@ -48,10 +48,11 @@ impl ImageViewerApp {
                     
                     if let Some(payload) = dropped_payload {
                         // Add dropped image to collection
-                        self.add_path_to_collection((*payload).clone(), collection.id);
+                        let _ = self.add_path_to_collection((*payload).clone(), collection.id);
                     }
                     
-                    if selectable_response.response.clicked() {
+                    // Use .inner to get the selectable_label response
+                    if drop_response.inner.clicked() {
                         self.catalog_view_active = true;
                         self.catalog_show_all_photos = false;
                         self.catalog_selected_collection = Some(collection.id);
