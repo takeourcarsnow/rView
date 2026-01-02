@@ -276,7 +276,10 @@ impl ImageViewerApp {
         }
 
         // Handle interactions
-        let response = ui.interact(rect, egui::Id::new(format!("thumb_{}", display_idx)), egui::Sense::click());
+        let response = ui.interact(rect, egui::Id::new(format!("thumb_{}", display_idx)), egui::Sense::click_and_drag());
+
+        // Drag source for drag-and-drop to collections
+        response.dnd_set_drag_payload(path.clone());
 
         if response.clicked() {
             if ui.input(|i| i.modifiers.ctrl) {
@@ -319,6 +322,26 @@ impl ImageViewerApp {
                 ui.close_menu();
             }
             ui.separator();
+            
+            // Add to Collection submenu
+            if let Some(ref catalog_db) = self.catalog_db {
+                if let Ok(collections) = catalog_db.get_collections() {
+                    if !collections.is_empty() {
+                        ui.menu_button("Add to Collection", |ui| {
+                            for collection in collections {
+                                let label = format!("📁 {}", collection.name);
+                                if ui.button(&label).clicked() {
+                                    self.current_index = display_idx;
+                                    self.add_current_to_collection(collection.id);
+                                    ui.close_menu();
+                                }
+                            }
+                        });
+                        ui.separator();
+                    }
+                }
+            }
+            
             ui.menu_button("Rating", |ui| {
                 for r in 0..=5 {
                     let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };

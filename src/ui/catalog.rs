@@ -38,7 +38,20 @@ impl ImageViewerApp {
                     let is_selected = self.catalog_selected_collection == Some(collection.id);
                     let label = format!("📁 {} ({})", collection.name, collection.image_count);
                     
-                    if ui.selectable_label(is_selected, label).clicked() {
+                    // Make collection droppable for drag-and-drop from thumbnails
+                    let (selectable_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
+                        egui::Frame::none(),
+                        |ui: &mut egui::Ui| {
+                            ui.selectable_label(is_selected, &label)
+                        }
+                    );
+                    
+                    if let Some(payload) = dropped_payload {
+                        // Add dropped image to collection
+                        self.add_path_to_collection((*payload).clone(), collection.id);
+                    }
+                    
+                    if selectable_response.response.clicked() {
                         self.catalog_view_active = true;
                         self.catalog_show_all_photos = false;
                         self.catalog_selected_collection = Some(collection.id);
@@ -227,27 +240,36 @@ impl ImageViewerApp {
     /// Add current image to a collection
     pub fn add_current_to_collection(&mut self, collection_id: i64) {
         if let Some(current_path) = self.get_current_path() {
-            if let Some(ref mut catalog_db) = self.catalog_db {
-                // Get or import image
-                let image_id = if let Ok(Some(img)) = catalog_db.get_image(&current_path) {
-                    img.id
-                } else {
-                    match catalog_db.import_image(&current_path) {
-                        Ok(id) => id,
-                        Err(e) => {
-                            self.set_status_message(format!("Failed to add to collection: {}", e));
-                            return;
-                        }
-                    }
-                };
+            self.add_path_to_collection(current_path, collection_id);
+        }
+    }
 
-                match catalog_db.add_to_collection(collection_id, image_id) {
-                    Ok(_) => {
-                        self.set_status_message("Added to collection".to_string());
-                    }
+    /// Add a specific image path to a collection
+    pub fn add_path_to_collection(&mut self, path: std::path::PathBuf, collection_id: i64) {
+        if let Some(ref mut catalog_db) = self.catalog_db {
+            // Get or import image
+            let image_id = if let Ok(Some(img)) = catalog_db.get_image(&path) {
+                img.id
+            } else {
+                match catalog_db.import_image(&path) {
+                    Ok(id) => id,
                     Err(e) => {
                         self.set_status_message(format!("Failed to add to collection: {}", e));
+                        return;
                     }
+                }
+            };
+
+            match catalog_db.add_to_collection(collection_id, image_id) {
+                Ok(_) => {
+                    self.set_status_message(format!("Added image to collection"));
+                    // Refresh collection count if currently viewing this collection
+                    if self.catalog_selected_collection == Some(collection_id) {
+                        self.load_catalog_collection(collection_id);
+                    }
+                }
+                Err(e) => {
+                    self.set_status_message(format!("Failed to add to collection: {}", e));
                 }
             }
         }
