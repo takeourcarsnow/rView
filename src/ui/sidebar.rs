@@ -16,70 +16,68 @@ const LR_TEXT_LABEL: Color32 = Color32::from_rgb(180, 180, 180);
 const LR_HEADER_BG: Color32 = Color32::from_rgb(45, 45, 45);
 
 impl ImageViewerApp {
+    /// Render the navigator panel on the left side of the screen
+    pub fn render_navigator_left_panel(&mut self, ctx: &egui::Context) {
+        if !self.settings.show_navigator {
+            return;
+        }
+        
+        egui::SidePanel::left("navigator_panel")
+            .resizable(true)
+            .default_width(200.0)
+            .min_width(150.0)
+            .max_width(300.0)
+            .frame(egui::Frame::none()
+                .fill(LR_BG_DARK)
+                .stroke(Stroke::new(1.0, LR_BORDER))
+                .inner_margin(Margin::same(0.0)))
+            .show(ctx, |ui| {
+                self.render_navigator_panel(ui);
+            });
+    }
+    
     pub fn render_sidebar(&mut self, ctx: &egui::Context) {
         if !self.settings.show_sidebar {
             return;
         }
         
-        if self.sidebar_collapsed {
-            egui::SidePanel::right("sidebar")
-                .resizable(false)
-                .exact_width(24.0)
-                .frame(egui::Frame::none()
-                    .fill(LR_BG_DARK)
-                    .inner_margin(Margin::same(2.0)))
-                .show(ctx, |ui| {
-                    ui.vertical_centered(|ui| {
-                        if ui.add(egui::Button::new(RichText::new("◀").color(LR_TEXT_SECONDARY))
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::NONE))
-                            .clicked() {
-                            self.sidebar_collapsed = false;
+        egui::SidePanel::right("sidebar")
+            .resizable(true)
+            .default_width(280.0)
+            .min_width(220.0)
+            .max_width(400.0)
+            .frame(egui::Frame::none()
+                .fill(LR_BG_DARK)
+                .stroke(Stroke::new(1.0, LR_BORDER))
+                .inner_margin(Margin::same(0.0)))
+            .show(ctx, |ui| {
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Histogram
+                        if self.settings.show_histogram {
+                            self.render_histogram_panel(ui);
                         }
+                        
+                        // Quick Develop / Basic adjustments
+                        if self.settings.show_adjustments {
+                            self.render_basic_panel(ui);
+                        }
+                        
+                        // EXIF / Metadata
+                        if self.settings.show_exif {
+                            self.render_metadata_info_panel(ui);
+                        }
+                        
+                        // Keywording / Rating & Labels
+                        self.render_keywording_panel(ui);
+                        
+                        // File Browser (Folders panel like Lightroom)
+                        self.render_folders_panel(ui);
+                        
+                        ui.add_space(20.0);
                     });
-                });
-        } else {
-            egui::SidePanel::right("sidebar")
-                .resizable(true)
-                .default_width(280.0)
-                .min_width(220.0)
-                .max_width(400.0)
-                .frame(egui::Frame::none()
-                    .fill(LR_BG_DARK)
-                    .stroke(Stroke::new(1.0, LR_BORDER))
-                    .inner_margin(Margin::same(0.0)))
-                .show(ctx, |ui| {
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            // Navigator Panel (at top like Lightroom)
-                            self.render_navigator_panel(ui);
-                            
-                            // Histogram
-                            if self.settings.show_histogram {
-                                self.render_histogram_panel(ui);
-                            }
-                            
-                            // Quick Develop / Basic adjustments
-                            if self.settings.show_adjustments {
-                                self.render_basic_panel(ui);
-                            }
-                            
-                            // EXIF / Metadata
-                            if self.settings.show_exif {
-                                self.render_metadata_info_panel(ui);
-                            }
-                            
-                            // Keywording / Rating & Labels
-                            self.render_keywording_panel(ui);
-                            
-                            // File Browser (Folders panel like Lightroom)
-                            self.render_folders_panel(ui);
-                            
-                            ui.add_space(20.0);
-                        });
-                });
-        }
+            });
     }
 
     fn render_navigator_panel(&mut self, ui: &mut egui::Ui) {

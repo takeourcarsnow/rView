@@ -11,6 +11,7 @@ pub struct Settings {
     
     // Panels
     pub show_sidebar: bool,
+    pub show_navigator: bool,
     pub show_thumbnails: bool,
     pub thumbnail_size: f32,
     pub thumbnail_position: ThumbnailPosition,
@@ -101,6 +102,7 @@ impl Default for Settings {
             accent_color: AccentColor::Blue,
             
             show_sidebar: true,
+            show_navigator: true,
             show_thumbnails: true,
             thumbnail_size: 100.0,
             thumbnail_position: ThumbnailPosition::Bottom,

@@ -52,12 +52,14 @@ impl eframe::App for ImageViewerApp {
                 if self.settings.show_toolbar {
                     self.render_toolbar(ctx);
                 }
-                if !self.panels_hidden {
-                    self.render_sidebar(ctx);
-                    self.render_thumbnail_bar(ctx);
-                }
                 if self.settings.show_statusbar {
                     self.render_statusbar(ctx);
+                }
+                if !self.panels_hidden {
+                    // Render thumbnail bar before side panels so it spans full width
+                    self.render_thumbnail_bar(ctx);
+                    self.render_navigator_left_panel(ctx);
+                    self.render_sidebar(ctx);
                 }
                 self.render_main_view(ctx);
             }
@@ -71,11 +73,12 @@ impl eframe::App for ImageViewerApp {
                 if self.settings.show_toolbar {
                     self.render_toolbar(ctx);
                 }
-                if !self.panels_hidden {
-                    self.render_sidebar(ctx);
-                }
                 if self.settings.show_statusbar {
                     self.render_statusbar(ctx);
+                }
+                if !self.panels_hidden {
+                    self.render_navigator_left_panel(ctx);
+                    self.render_sidebar(ctx);
                 }
                 // Call the public wrapper
                 self.render_compare_view_public(ctx);
