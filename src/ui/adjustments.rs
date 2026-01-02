@@ -11,8 +11,9 @@ const LR_TEXT_LABEL: Color32 = Color32::from_rgb(180, 180, 180);
 const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);
 
 pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
-    let previous_adjustments = app.adjustments.clone();
+    let was_dragging = app.slider_dragging;
     let mut adjustments_changed = false;
+    let mut any_slider_dragging = false;
 
     lr_collapsible_panel(ui, "Basic", true, |ui| {
         ui.spacing_mut().slider_width = ui.available_width() - 80.0;
@@ -27,20 +28,20 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         ui.add_space(4.0);
 
         // Temperature
-        if lr_slider(ui, "Temp", &mut app.adjustments.temperature, -1.0..=1.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Temp", &mut app.adjustments.temperature, -1.0..=1.0, "", 0.0);
+        if changed {
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Tint
-        if lr_slider(ui, "Tint", &mut app.adjustments.tint, -1.0..=1.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Tint", &mut app.adjustments.tint, -1.0..=1.0, "", 0.0);
+        if changed {
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         ui.add_space(4.0);
         lr_separator(ui);
@@ -51,22 +52,22 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         ui.add_space(4.0);
 
         // Exposure
-        if lr_slider(ui, "Exposure", &mut app.adjustments.exposure, -3.0..=3.0, " EV", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Exposure", &mut app.adjustments.exposure, -3.0..=3.0, " EV", 0.0);
+        if changed {
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Contrast (convert from 0.5-2.0 to -100 to +100 display)
         let mut contrast_display = (app.adjustments.contrast - 1.0) * 100.0;
-        if lr_slider(ui, "Contrast", &mut contrast_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Contrast", &mut contrast_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.contrast = 1.0 + contrast_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         ui.add_space(4.0);
         lr_separator(ui);
@@ -74,43 +75,43 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
         // Highlights (convert to -100 to +100)
         let mut highlights_display = app.adjustments.highlights * 100.0;
-        if lr_slider(ui, "Highlights", &mut highlights_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Highlights", &mut highlights_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.highlights = highlights_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Shadows
         let mut shadows_display = app.adjustments.shadows * 100.0;
-        if lr_slider(ui, "Shadows", &mut shadows_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Shadows", &mut shadows_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.shadows = shadows_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Whites
         let mut whites_display = app.adjustments.whites * 100.0;
-        if lr_slider(ui, "Whites", &mut whites_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Whites", &mut whites_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.whites = whites_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Blacks
         let mut blacks_display = app.adjustments.blacks * 100.0;
-        if lr_slider(ui, "Blacks", &mut blacks_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Blacks", &mut blacks_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.blacks = blacks_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         ui.add_space(4.0);
         lr_separator(ui);
@@ -122,23 +123,23 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
         // Saturation (convert from 0-2 to -100 to +100)
         let mut sat_display = (app.adjustments.saturation - 1.0) * 100.0;
-        if lr_slider(ui, "Saturation", &mut sat_display, -100.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Saturation", &mut sat_display, -100.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.saturation = 1.0 + sat_display / 100.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         // Sharpening (convert to 0-100)
         let mut sharp_display = app.adjustments.sharpening * 50.0;
-        if lr_slider(ui, "Sharpening", &mut sharp_display, 0.0..=100.0, "", 0.0) {
+        let (changed, dragging) = lr_slider_ex(ui, "Sharpening", &mut sharp_display, 0.0..=100.0, "", 0.0);
+        if changed {
             app.adjustments.sharpening = sharp_display / 50.0;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
+        any_slider_dragging |= dragging;
 
         ui.add_space(4.0);
         lr_separator(ui);
@@ -153,19 +154,17 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         if ui.checkbox(&mut frame_enabled, RichText::new("Enable").size(10.0).color(LR_TEXT_LABEL)).changed() {
             app.adjustments.frame_enabled = frame_enabled;
             adjustments_changed = true;
-            if app.should_apply_adjustments() {
-                app.refresh_adjustments();
-            }
+            app.mark_adjustments_dirty();
         }
 
         if app.adjustments.frame_enabled {
             // Thickness
-            if lr_slider(ui, "Thickness", &mut app.adjustments.frame_thickness, 1.0..=100.0, "px", 10.0) {
+            let (changed, dragging) = lr_slider_ex(ui, "Thickness", &mut app.adjustments.frame_thickness, 1.0..=100.0, "px", 10.0);
+            if changed {
                 adjustments_changed = true;
-                if app.should_apply_adjustments() {
-                    app.refresh_adjustments();
-                }
+                app.mark_adjustments_dirty();
             }
+            any_slider_dragging |= dragging;
 
             // Color picker
             ui.horizontal(|ui| {
@@ -177,9 +176,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                 if ui.color_edit_button_rgb(&mut color).changed() {
                     app.adjustments.frame_color = color;
                     adjustments_changed = true;
-                    if app.should_apply_adjustments() {
-                        app.refresh_adjustments();
-                    }
+                    app.mark_adjustments_dirty();
                 }
             });
         }
@@ -193,6 +190,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                 .stroke(Stroke::new(1.0, LR_BORDER))
                 .rounding(Rounding::same(2.0)))
                 .clicked() {
+                let prev = app.pre_drag_adjustments.take().unwrap_or_else(|| app.adjustments.clone());
                 app.adjustments = ImageAdjustments::default();
                 app.current_film_preset = FilmPreset::None;
                 app.refresh_adjustments();
@@ -200,7 +198,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                     app.undo_history.push(FileOperation::Adjust {
                         path: path.clone(),
                         adjustments: app.adjustments.clone(),
-                        previous_adjustments: Box::new(previous_adjustments.clone()),
+                        previous_adjustments: Box::new(prev),
                     });
                     // Save reset adjustments to metadata database
                     app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
@@ -213,28 +211,42 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         });
     });
 
-    // Film Emulation panel (separate like Lightroom's Detail panel)
-    render_film_emulation_panel(app, ui, &previous_adjustments, &mut adjustments_changed);
+    // Update slider dragging state
+    app.slider_dragging = any_slider_dragging;
 
-    // Record undo if adjustments changed and save to metadata
-    if adjustments_changed && app.adjustments != previous_adjustments {
-        if let Some(path) = app.get_current_path() {
-            app.undo_history.push(FileOperation::Adjust {
-                path: path.clone(),
-                adjustments: app.adjustments.clone(),
-                previous_adjustments: Box::new(previous_adjustments.clone()),
-            });
-            // Save adjustments to metadata database
-            app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
-            app.metadata_db.save();
-            // Invalidate thumbnail to regenerate with new adjustments
-            app.thumbnail_textures.remove(&path);
-            app.thumbnail_requests.remove(&path);
+    // Capture pre-drag adjustments when drag starts
+    if any_slider_dragging && !was_dragging {
+        app.pre_drag_adjustments = Some(app.adjustments.clone());
+    }
+
+    // Film Emulation panel (separate like Lightroom's Detail panel)
+    render_film_emulation_panel(app, ui, &mut adjustments_changed);
+
+    // When drag ends, finalize: save undo, metadata, and invalidate thumbnail
+    if was_dragging && !any_slider_dragging {
+        if let Some(pre_drag) = app.pre_drag_adjustments.take() {
+            if app.adjustments != pre_drag {
+                if let Some(path) = app.get_current_path() {
+                    app.undo_history.push(FileOperation::Adjust {
+                        path: path.clone(),
+                        adjustments: app.adjustments.clone(),
+                        previous_adjustments: Box::new(pre_drag),
+                    });
+                    // Save adjustments to metadata database
+                    app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
+                    app.metadata_db.save();
+                    // Invalidate thumbnail to regenerate with new adjustments
+                    app.thumbnail_textures.remove(&path);
+                    app.thumbnail_requests.remove(&path);
+                    // Do a full refresh now that drag ended (for histogram/overlays)
+                    app.refresh_adjustments();
+                }
+            }
         }
     }
 }
 
-pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, _previous_adjustments: &ImageAdjustments, adjustments_changed: &mut bool) {
+pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, adjustments_changed: &mut bool) {
     lr_collapsible_panel(ui, "Film Emulation", false, |ui| {
         ui.spacing_mut().slider_width = ui.available_width() - 80.0;
 
@@ -282,21 +294,21 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
             if lr_slider(ui, "Amount", &mut grain_display, 0.0..=100.0, "", 0.0) {
                 app.adjustments.film.grain_amount = grain_display / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut size_display = app.adjustments.film.grain_size * 50.0;
             if lr_slider(ui, "Size", &mut size_display, 25.0..=100.0, "", 50.0) {
                 app.adjustments.film.grain_size = size_display / 50.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut rough_display = app.adjustments.film.grain_roughness * 100.0;
             if lr_slider(ui, "Roughness", &mut rough_display, 0.0..=100.0, "", 50.0) {
                 app.adjustments.film.grain_roughness = rough_display / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             ui.add_space(4.0);
@@ -310,14 +322,14 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
             if lr_slider(ui, "Amount", &mut vig_display, 0.0..=100.0, "", 0.0) {
                 app.adjustments.film.vignette_amount = vig_display / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut soft_display = (app.adjustments.film.vignette_softness - 0.5) / 1.5 * 100.0;
             if lr_slider(ui, "Feather", &mut soft_display, 0.0..=100.0, "", 33.33333333333333) {
                 app.adjustments.film.vignette_softness = 0.5 + soft_display / 100.0 * 1.5;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             ui.add_space(4.0);
@@ -331,14 +343,14 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
             if lr_slider(ui, "Amount", &mut hal_display, 0.0..=100.0, "", 0.0) {
                 app.adjustments.film.halation_amount = hal_display / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut rad_display = (app.adjustments.film.halation_radius - 0.5) / 2.5 * 100.0;
             if lr_slider(ui, "Radius", &mut rad_display, 0.0..=100.0, "", 20.0) {
                 app.adjustments.film.halation_radius = 0.5 + rad_display / 100.0 * 2.5;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             ui.add_space(4.0);
@@ -352,28 +364,28 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
             if lr_slider(ui, "Shadows", &mut shadows_tc, -100.0..=100.0, "", 0.0) {
                 app.adjustments.film.tone_curve_shadows = shadows_tc / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut mids_tc = app.adjustments.film.tone_curve_midtones * 100.0;
             if lr_slider(ui, "Midtones", &mut mids_tc, -100.0..=100.0, "", 0.0) {
                 app.adjustments.film.tone_curve_midtones = mids_tc / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut highs_tc = app.adjustments.film.tone_curve_highlights * 100.0;
             if lr_slider(ui, "Highlights", &mut highs_tc, -100.0..=100.0, "", 0.0) {
                 app.adjustments.film.tone_curve_highlights = highs_tc / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
 
             let mut scurve = app.adjustments.film.s_curve_strength * 100.0;
             if lr_slider(ui, "S-Curve", &mut scurve, 0.0..=100.0, "", 0.0) {
                 app.adjustments.film.s_curve_strength = scurve / 100.0;
                 *adjustments_changed = true;
-                if app.should_apply_adjustments() { app.refresh_adjustments(); }
+                app.mark_adjustments_dirty();
             }
         }
     });
@@ -434,8 +446,10 @@ fn lr_separator(ui: &mut egui::Ui) {
 }
 
 // Lightroom-style slider with label on left, value on right
-fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, suffix: &str, default: f32) -> bool {
+// Returns (changed, is_dragging) tuple
+fn lr_slider_ex(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, suffix: &str, default: f32) -> (bool, bool) {
     let mut changed = false;
+    let mut is_dragging = false;
 
     ui.horizontal(|ui| {
         // Fixed-width label column
@@ -459,6 +473,9 @@ fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::R
         if response.changed() {
             changed = true;
         }
+        // Track if user is actively dragging
+        is_dragging = response.dragged();
+        
         // Double-click resets to provided default value
         if response.double_clicked() {
             *value = default;
@@ -476,5 +493,10 @@ fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::R
         });
     });
 
-    changed
+    (changed, is_dragging)
+}
+
+// Wrapper that maintains backward compatibility
+fn lr_slider(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops::RangeInclusive<f32>, suffix: &str, default: f32) -> bool {
+    lr_slider_ex(ui, label, value, range, suffix, default).0
 }

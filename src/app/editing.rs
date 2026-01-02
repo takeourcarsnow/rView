@@ -255,8 +255,18 @@ impl ImageViewerApp {
     }
 
     pub fn refresh_adjustments(&mut self) {
+        self.refresh_adjustments_internal(true);
+    }
+
+    /// Internal refresh with option to skip expensive operations during slider drag
+    pub fn refresh_adjustments_internal(&mut self, full_refresh: bool) {
         if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
-            self.set_current_image(&path, image.clone());
+            if full_refresh {
+                self.set_current_image(&path, image.clone());
+            } else {
+                // Lightweight refresh - just update the display texture, skip histogram/overlays
+                self.set_current_image_fast(&path, image.clone());
+            }
         }
     }
 

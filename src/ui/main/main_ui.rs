@@ -103,6 +103,9 @@ impl eframe::App for ImageViewerApp {
         self.pending_navigate_page_down = false;
         self.pending_fit_to_window = false;
 
+        // Process any pending adjustment changes (deferred for smoother UI)
+        self.process_pending_adjustments();
+
         crate::profiler::with_profiler(|p| {
             p.end_timer("ui_update");
             p.increment_counter("ui_updates");

@@ -234,6 +234,58 @@ impl ImageViewerApp {
         self.image_cache.insert(path.to_path_buf(), image);
     }
 
+    /// Fast version of set_current_image that skips histogram and overlay generation.
+    /// Used during slider dragging for responsive UI.
+    pub fn set_current_image_fast(&mut self, path: &std::path::Path, image: DynamicImage) {
+        let ctx = match &self.ctx {
+            Some(c) => c.clone(),
+            None => return,
+        };
+
+        self.current_image = Some(image.clone());
+
+        // Apply adjustments (use GPU if available and no frames)
+        let display_image = if !self.adjustments.is_default() && !self.show_original {
+            // Use CPU for frame processing since GPU doesn't support it yet
+            if self.adjustments.frame_enabled {
+                image_loader::apply_adjustments(&image, &self.adjustments)
+            } else if let Some(gpu) = &self.gpu_processor {
+                // Try GPU texture-based path (use poll instead of blocking for better responsiveness)
+                let gpu_clone = Arc::clone(gpu);
+                let image_clone = image.clone();
+                let adjustments_clone = self.adjustments.clone();
+
+                match pollster::block_on(async {
+                    gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                }) {
+                    Ok(img) => img,
+                    Err(_) => {
+                        // Silent fallback to CPU on error during drag
+                        image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                    }
+                }
+            } else {
+                image_loader::apply_adjustments(&image, &self.adjustments)
+            }
+        } else {
+            image.clone()
+        };
+
+        let size = [display_image.width() as usize, display_image.height() as usize];
+        let rgba = display_image.to_rgba8();
+        let pixels = rgba.as_flat_samples();
+
+        let texture = ctx.load_texture(
+            path.to_string_lossy(),
+            egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+            egui::TextureOptions::LINEAR,
+        );
+
+        self.current_texture = Some(texture);
+        self.is_loading = false;
+        // NOTE: Histogram and overlays are NOT updated here for performance
+    }
+
     fn preload_adjacent(&self) {
         let count = self.settings.preload_adjacent;
         let mut full_paths = Vec::new();

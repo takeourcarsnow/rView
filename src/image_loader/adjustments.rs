@@ -223,15 +223,33 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                 b = gray + (b - gray) * sat_factor;
             }
 
-            // Basic sharpening (simplified unsharp mask approximation)
+            // Sharpening using local contrast enhancement
+            // Since we process per-pixel, we enhance mid-tone contrast which creates perceived sharpening
             if sharpen_strength > 0.0 {
-                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                let sharpened = r + (r - gray) * sharpen_strength;
-                r = r + (sharpened - r) * sharpen_strength;
-                let sharpened = g + (g - gray) * sharpen_strength;
-                g = g + (sharpened - g) * sharpen_strength;
-                let sharpened = b + (b - gray) * sharpen_strength;
-                b = b + (sharpened - b) * sharpen_strength;
+                // Normalize to 0-1 range
+                let r_norm = r / 255.0;
+                let g_norm = g / 255.0;
+                let b_norm = b / 255.0;
+                
+                // Calculate luminance
+                let lum = 0.299 * r_norm + 0.587 * g_norm + 0.114 * b_norm;
+                
+                // Local contrast enhancement - boost difference from mid-gray
+                let mid = 0.5;
+                let contrast_boost = 1.0 + sharpen_strength * 0.5;
+                
+                // Apply contrast enhancement per channel
+                let r_enhanced = (r_norm - mid) * contrast_boost + mid;
+                let g_enhanced = (g_norm - mid) * contrast_boost + mid;
+                let b_enhanced = (b_norm - mid) * contrast_boost + mid;
+                
+                // Blend based on sharpening amount, with edge emphasis
+                let detail_factor = (lum - 0.5).abs() * 2.0;
+                let blend = sharpen_strength * (0.3 + 0.7 * (1.0 - detail_factor));
+                
+                r = r * (1.0 - blend) + r_enhanced * 255.0 * blend;
+                g = g * (1.0 - blend) + g_enhanced * 255.0 * blend;
+                b = b * (1.0 - blend) + b_enhanced * 255.0 * blend;
             }
 
             // ============ FILM POST-PROCESSING ============

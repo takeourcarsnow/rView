@@ -96,6 +96,9 @@ pub struct ImageViewerApp {
     pub current_film_preset: crate::image_loader::FilmPreset,
     pub show_original: bool, // Before/After toggle
     pub last_adjustment_time: std::time::Instant,
+    pub adjustments_dirty: bool, // Flag to indicate adjustments need to be applied
+    pub slider_dragging: bool, // True while user is actively dragging a slider
+    pub pre_drag_adjustments: Option<ImageAdjustments>, // Adjustments before drag started (for undo)
 
     // Cached data
     pub image_cache: Arc<ImageCache>,
@@ -175,15 +178,39 @@ impl ImageViewerApp {
     pub fn set_status_message(&mut self, msg: String) {
         self.status_message = Some((msg, std::time::Instant::now()));
     }
-
-    pub fn should_apply_adjustments(&mut self) -> bool {
+    
+    /// Mark adjustments as needing refresh without debounce check
+    pub fn mark_adjustments_dirty(&mut self) {
+        self.adjustments_dirty = true;
+        if let Some(ctx) = &self.ctx {
+            ctx.request_repaint();
+        }
+    }
+    
+    /// Process any pending adjustments if dirty flag is set
+    /// Call this from the update loop with proper timing
+    pub fn process_pending_adjustments(&mut self) {
+        if !self.adjustments_dirty {
+            return;
+        }
+        
         let now = std::time::Instant::now();
         let elapsed = now.duration_since(self.last_adjustment_time);
-        if elapsed.as_millis() >= 100 { // 100ms debounce
+        
+        // Use longer debounce while dragging for smoother feel, shorter on release
+        let debounce_ms = if self.slider_dragging { 100 } else { 16 };
+        
+        if elapsed.as_millis() >= debounce_ms {
+            self.adjustments_dirty = false;
             self.last_adjustment_time = now;
-            true
+            // Use lightweight refresh while dragging (skip histogram/overlays)
+            self.refresh_adjustments_internal(!self.slider_dragging);
         } else {
-            false
+            // Schedule another repaint to process later
+            if let Some(ctx) = &self.ctx {
+                let remaining = debounce_ms as u64 - elapsed.as_millis() as u64;
+                ctx.request_repaint_after(std::time::Duration::from_millis(remaining));
+            }
         }
     }
 }
@@ -249,6 +276,9 @@ impl ImageViewerApp {
             current_film_preset: crate::image_loader::FilmPreset::None,
             show_original: false,
             last_adjustment_time: std::time::Instant::now(),
+            adjustments_dirty: false,
+            slider_dragging: false,
+            pre_drag_adjustments: None,
             image_cache: Arc::new(ImageCache::new(1024)),
             thumbnail_textures: HashMap::new(),
             thumbnail_requests: HashSet::new(),

@@ -100,7 +100,7 @@ impl ImageViewerApp {
     }
 
     fn render_film_emulation_panel(&mut self, ui: &mut egui::Ui, _previous_adjustments: &ImageAdjustments, adjustments_changed: &mut bool) {
-        adjustments::render_film_emulation_panel(self, ui, _previous_adjustments, adjustments_changed);
+        adjustments::render_film_emulation_panel(self, ui, adjustments_changed);
     }
 
     fn render_metadata_info_panel(&mut self, ui: &mut egui::Ui) {

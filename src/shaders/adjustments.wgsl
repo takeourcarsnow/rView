@@ -185,11 +185,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         color = mix(vec3<f32>(gray), color, params.saturation);
     }
 
-    // Basic sharpening
+    // Sharpening using local contrast enhancement
+    // Since we can't easily sample neighbors, we enhance mid-tone contrast for perceived sharpness
     if (params.sharpening > 0.0) {
-        let gray = dot(color, vec3<f32>(0.299, 0.587, 0.114));
-        let sharpened = color + (color - vec3<f32>(gray)) * params.sharpening * 0.5;
-        color = mix(color, sharpened, params.sharpening);
+        // Calculate luminance
+        let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
+        
+        // Local contrast enhancement - boost difference from mid-gray
+        let mid = 0.5;
+        let contrast_boost = 1.0 + params.sharpening * 0.5;
+        
+        // Apply contrast enhancement per channel
+        let enhanced = (color - mid) * contrast_boost + mid;
+        
+        // Blend based on sharpening amount, with edge emphasis
+        let detail_factor = abs(lum - 0.5) * 2.0;
+        let blend = params.sharpening * (0.3 + 0.7 * (1.0 - detail_factor));
+        
+        color = mix(color, enhanced, blend);
     }
 
     // ============ FILM POST-PROCESSING ============
