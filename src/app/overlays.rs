@@ -6,7 +6,12 @@ impl ImageViewerApp {
     pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
         let overlay = if let Some(gpu) = &self.gpu_processor {
             match pollster::block_on(async {
-                gpu.generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold).await
+                // Normalize threshold for GPU: the shader works with normalized luminance (0.0-1.0)
+                // and Sobel edge detection on normalized values produces edge strengths roughly in 0.0-1.0 range.
+                // The CPU version uses raw pixel values (0-255), so threshold of 50 means magnitude ~50.
+                // For GPU, we need to convert: threshold / 255.0 gives us a comparable normalized threshold.
+                let normalized_threshold = self.settings.focus_peaking_threshold / 255.0;
+                gpu.generate_focus_peaking_overlay(image, normalized_threshold).await
             }) {
                 Ok(overlay) => overlay,
                 Err(e) => {

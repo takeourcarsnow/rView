@@ -286,7 +286,17 @@ impl ImageAdjustments {
     }
 
     pub fn apply_preset(&mut self, preset: FilmPreset) {
-        *self = preset.characteristics().to_adjustments();
+        if preset == FilmPreset::None {
+            self.film.enabled = false;
+        } else {
+            let frame_enabled = self.frame_enabled;
+            let frame_color = self.frame_color;
+            let frame_thickness = self.frame_thickness;
+            *self = preset.characteristics().to_adjustments();
+            self.frame_enabled = frame_enabled;
+            self.frame_color = frame_color;
+            self.frame_thickness = frame_thickness;
+        }
     }
 }
 

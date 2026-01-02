@@ -31,12 +31,17 @@ impl ImageViewerApp {
             self.catalog_show_new_collection_dialog = true;
         }
 
-        // List collections
+        // List collections - collect actions to perform after iteration
+        let mut collection_to_delete: Option<i64> = None;
+        let mut collection_to_select: Option<i64> = None;
+        let mut paths_to_add: Vec<(std::path::PathBuf, i64)> = Vec::new();
+        
         if let Some(ref catalog_db) = self.catalog_db {
             if let Ok(collections) = catalog_db.get_collections() {
                 for collection in collections {
                     let is_selected = self.catalog_selected_collection == Some(collection.id);
                     let label = format!("📁 {} ({})", collection.name, collection.image_count);
+                    let collection_id = collection.id;
                     
                     // Make collection droppable for drag-and-drop from thumbnails
                     let (drop_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
@@ -47,19 +52,40 @@ impl ImageViewerApp {
                     );
                     
                     if let Some(payload) = dropped_payload {
-                        // Add dropped image to collection
-                        let _ = self.add_path_to_collection((*payload).clone(), collection.id);
+                        // Queue path to add to collection
+                        paths_to_add.push(((*payload).clone(), collection_id));
                     }
                     
                     // Use .inner to get the selectable_label response
                     if drop_response.inner.clicked() {
-                        self.catalog_view_active = true;
-                        self.catalog_show_all_photos = false;
-                        self.catalog_selected_collection = Some(collection.id);
-                        self.load_catalog_collection(collection.id);
+                        collection_to_select = Some(collection_id);
                     }
+                    
+                    // Context menu for collection actions
+                    drop_response.inner.context_menu(|ui| {
+                        if ui.button("🗑 Delete Collection").clicked() {
+                            collection_to_delete = Some(collection_id);
+                            ui.close_menu();
+                        }
+                    });
                 }
             }
+        }
+        
+        // Process queued actions after iteration
+        for (path, collection_id) in paths_to_add {
+            let _ = self.add_path_to_collection(path, collection_id);
+        }
+        
+        if let Some(collection_id) = collection_to_select {
+            self.catalog_view_active = true;
+            self.catalog_show_all_photos = false;
+            self.catalog_selected_collection = Some(collection_id);
+            self.load_catalog_collection(collection_id);
+        }
+        
+        if let Some(collection_id) = collection_to_delete {
+            self.delete_catalog_collection(collection_id);
         }
 
         ui.separator();
@@ -309,6 +335,29 @@ impl ImageViewerApp {
             }
         } else {
             Err(())
+        }
+    }
+    
+    /// Delete a collection from the catalog
+    pub fn delete_catalog_collection(&mut self, collection_id: i64) {
+        if let Some(ref mut catalog_db) = self.catalog_db {
+            match catalog_db.delete_collection(collection_id) {
+                Ok(_) => {
+                    self.set_status_message("Collection deleted".to_string());
+                    
+                    // If we were viewing the deleted collection, clear the selection
+                    if self.catalog_selected_collection == Some(collection_id) {
+                        self.catalog_selected_collection = None;
+                        self.catalog_view_active = false;
+                        // Clear the image list
+                        self.image_list.clear();
+                        self.filtered_list.clear();
+                    }
+                }
+                Err(e) => {
+                    self.set_status_message(format!("Failed to delete collection: {}", e));
+                }
+            }
         }
     }
 }

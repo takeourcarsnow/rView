@@ -1,5 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, RichText, Vec2, Rect};
+use egui::{self, Color32, RichText, Vec2, Rect, Pos2};
 
 // Lightroom-inspired color scheme
 const LR_BG_DARK: Color32 = Color32::from_rgb(38, 38, 38);
@@ -156,6 +156,32 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                         egui::Stroke::new(2.0, Color32::from_rgb(255, 255, 255)),
                     );
 
+                    // Handle click-to-pan: clicking anywhere in the navigator centers the view there
+                    if response.clicked() {
+                        if let Some(click_pos) = response.interact_pointer_pos() {
+                            // Calculate where in the image the click occurred (normalized 0-1)
+                            let click_fraction_x = (click_pos.x - image_rect.left()) / image_rect.width();
+                            let click_fraction_y = (click_pos.y - image_rect.top()) / image_rect.height();
+                            
+                            // Calculate the new pan offset to center the view on the clicked point
+                            // The clicked point should become the center of the viewport
+                            let new_center_x = click_fraction_x - 0.5;
+                            let new_center_y = click_fraction_y - 0.5;
+                            
+                            app.pan_offset.x = -new_center_x * display_size.x;
+                            app.pan_offset.y = -new_center_y * display_size.y;
+                            
+                            // Clamp pan offset
+                            let max_pan_x = (display_size.x - view_size.x).max(0.0) / 2.0;
+                            let max_pan_y = (display_size.y - view_size.y).max(0.0) / 2.0;
+                            app.pan_offset.x = app.pan_offset.x.clamp(-max_pan_x, max_pan_x);
+                            app.pan_offset.y = app.pan_offset.y.clamp(-max_pan_y, max_pan_y);
+                            
+                            // Sync target_pan for smooth animation
+                            app.target_pan = app.pan_offset;
+                        }
+                    }
+
                     // Handle dragging to pan
                     if response.dragged() {
                         let drag_delta = response.drag_delta();
@@ -166,10 +192,13 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                         app.pan_offset.y -= drag_fraction_y * display_size.y;
 
                         // Clamp pan offset to keep image in view
-                        let max_pan_x = (display_size.x - view_size.x) / 2.0;
-                        let max_pan_y = (display_size.y - view_size.y) / 2.0;
+                        let max_pan_x = (display_size.x - view_size.x).max(0.0) / 2.0;
+                        let max_pan_y = (display_size.y - view_size.y).max(0.0) / 2.0;
                         app.pan_offset.x = app.pan_offset.x.clamp(-max_pan_x, max_pan_x);
                         app.pan_offset.y = app.pan_offset.y.clamp(-max_pan_y, max_pan_y);
+                        
+                        // Sync target_pan to prevent animation desync
+                        app.target_pan = app.pan_offset;
                     }
                 }
             }

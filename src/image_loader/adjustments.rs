@@ -60,20 +60,25 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     // Process pixels in parallel for maximum CPU utilization
     let mut samples = img.as_flat_samples_mut();
     let raw_pixels = samples.as_mut_slice();
-    let pixels_per_chunk = (raw_pixels.len() / num_cpus::get()).max(4); // 4 bytes per pixel (RGBA)
+    
+    // Calculate bytes per chunk, ensuring it's aligned to 4-byte pixel boundaries
+    // This prevents chunk boundaries from splitting pixels which causes stripe artifacts
+    let pixel_count = (width * height) as usize;
+    let pixels_per_thread = (pixel_count / num_cpus::get()).max(1);
+    let bytes_per_chunk = pixels_per_thread * 4; // 4 bytes per RGBA pixel
 
     // Calculate center for vignette
     let center_x = width as f32 / 2.0;
     let center_y = height as f32 / 2.0;
     let max_dist = (center_x * center_x + center_y * center_y).sqrt();
 
-    raw_pixels.par_chunks_mut(pixels_per_chunk).enumerate().for_each(|(chunk_idx, chunk)| {
-        let chunk_start = chunk_idx * pixels_per_chunk;
+    raw_pixels.par_chunks_mut(bytes_per_chunk).enumerate().for_each(|(chunk_idx, chunk)| {
+        let chunk_start_pixel = chunk_idx * pixels_per_thread;
 
         for (local_idx, pixel) in chunk.chunks_mut(4).enumerate() {
             if pixel.len() < 4 { continue; } // Skip incomplete pixels
 
-            let pixel_idx = chunk_start / 4 + local_idx;
+            let pixel_idx = chunk_start_pixel + local_idx;
             let px = (pixel_idx % width as usize) as f32;
             let py = (pixel_idx / width as usize) as f32;
 

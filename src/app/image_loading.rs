@@ -191,8 +191,15 @@ impl ImageViewerApp {
         let pixels = rgba.as_flat_samples();
 
         profiler::with_profiler(|p| p.start_timer("texture_load"));
+        // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
+        let texture_name = format!("{}_{}_{}x{}", 
+            path.to_string_lossy(), 
+            self.adjustments.frame_enabled as u8,
+            size[0], 
+            size[1]
+        );
         let texture = ctx.load_texture(
-            path.to_string_lossy(),
+            texture_name,
             egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
             egui::TextureOptions::LINEAR,
         );
@@ -275,8 +282,15 @@ impl ImageViewerApp {
         let rgba = display_image.to_rgba8();
         let pixels = rgba.as_flat_samples();
 
+        // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
+        let texture_name = format!("{}_{}_{}x{}", 
+            path.to_string_lossy(), 
+            self.adjustments.frame_enabled as u8,
+            size[0], 
+            size[1]
+        );
         let texture = ctx.load_texture(
-            path.to_string_lossy(),
+            texture_name,
             egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
             egui::TextureOptions::LINEAR,
         );

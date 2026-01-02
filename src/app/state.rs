@@ -5,6 +5,7 @@ use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
 use crate::catalog::CatalogDb;
+use crate::ui::BatchRenameState;
 
 use eframe::egui::{self, TextureHandle, Vec2};
 use image::DynamicImage;
@@ -172,6 +173,9 @@ pub struct ImageViewerApp {
 
     // GPU initialization state
     pub gpu_initialization_attempted: bool,
+
+    // Batch rename state
+    pub batch_rename_state: BatchRenameState,
 }
 
 impl ImageViewerApp {
@@ -317,6 +321,7 @@ impl ImageViewerApp {
             loading_diagnostics: LoadingDiagnostics::default(),
             panels_hidden: false,
             gpu_initialization_attempted: false,
+            batch_rename_state: BatchRenameState::default(),
         };
 
         // Restore session

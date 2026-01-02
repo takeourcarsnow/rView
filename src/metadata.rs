@@ -117,6 +117,13 @@ impl MetadataDb {
             entry.adjustments = Some(adjustments.clone());
         }
     }
+    
+    /// Rename a file's metadata entry (update the key in the hashmap)
+    pub fn rename_file(&mut self, old_path: &PathBuf, new_path: &PathBuf) {
+        if let Some(metadata) = self.images.remove(old_path) {
+            self.images.insert(new_path.clone(), metadata);
+        }
+    }
 }
 
 /// Undo/Redo history for file operations

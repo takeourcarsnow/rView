@@ -15,6 +15,9 @@ mod dialogs;
 mod settings_dialog;
 mod go_to_dialog;
 mod move_dialog;
+mod batch_rename_dialog;
 mod command_palette;
 mod image_view;
 mod main;
+
+pub use batch_rename_dialog::BatchRenameState;

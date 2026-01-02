@@ -43,6 +43,7 @@ impl ImageViewerApp {
             (&mut self.show_settings_dialog, "settings"),
             (&mut self.show_go_to_dialog, "go_to"),
             (&mut self.show_move_dialog, "move"),
+            (&mut self.batch_rename_state.show_dialog, "batch_rename"),
         ];
         
         for (flag, _) in dialogs {
@@ -183,6 +184,9 @@ impl ImageViewerApp {
         
         if i.key_pressed(egui::Key::Delete) {
             self.delete_current_image();
+        }
+        if i.key_pressed(egui::Key::F2) {
+            self.handle_batch_rename_key();
         }
         if ctrl && i.key_pressed(egui::Key::P) {
             self.command_palette_open = true;

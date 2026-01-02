@@ -1,9 +1,13 @@
 todo
 
-add a way to batch rename images in folder. i.e. adding date from exif as prefix  to current filename
+[DONE] add a way to batch rename images in folder. i.e. adding date from exif as prefix to current filename (F2 key)
 
-improve how navigator works when panning with mouse inside it
+[DONE] improve how navigator works when panning with mouse inside it (click-to-pan and fixed animation sync)
 
-need a way to right click on created collections (or/and some other way) to delete the collections 
+[DONE] need a way to right click on created collections (or/and some other way) to delete the collections 
 
-if i add frame when film emulation is enabled the photo gets glitched
+[DONE] if i add frame when film emulation is enabled the photo gets glitched (fixed texture cache name uniqueness)
+
+[DONE] focus peaking and zebras dont work (normalized GPU threshold)
+
+undo doesnt work
