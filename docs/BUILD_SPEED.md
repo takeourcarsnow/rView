@@ -1,6 +1,6 @@
 # Build Speed Optimization Guide
 
-This document describes the build optimizations configured for the image_viewer project.
+This document describes the build optimizations configured for the rView project.
 
 ## Current Build Profiles
 

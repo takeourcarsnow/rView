@@ -21,7 +21,7 @@ impl GpuProcessor {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    label: Some("image_viewer_gpu_device"),
+                    label: Some("rview_gpu_device"),
                     required_features: wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
                         | wgpu::Features::BUFFER_BINDING_ARRAY
                         | wgpu::Features::UNIFORM_BUFFER_AND_STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING,

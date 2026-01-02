@@ -13,8 +13,8 @@ jobs:
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: image_viewer-windows-x86_64
-          path: target/release/image_viewer.exe
+          name: rview-windows-x86_64
+          path: target/release/rview.exe
 
   build-linux:
     runs-on: ubuntu-latest
@@ -27,8 +27,8 @@ jobs:
           cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: image_viewer-linux-x86_64
-          path: target/release/image_viewer
+          name: rview-linux-x86_64
+          path: target/release/rview
 
   build-macos:
     runs-on: macos-latest
@@ -38,8 +38,8 @@ jobs:
       - run: cargo build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: image_viewer-macos-x86_64
-          path: target/release/image_viewer
+          name: rview-macos-x86_64
+          path: target/release/rview
 
   release:
     needs: [build-windows, build-linux, build-macos]
@@ -47,15 +47,15 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: image_viewer-windows-x86_64
+          name: rview-windows-x86_64
           path: artifacts/
       - uses: actions/download-artifact@v4
         with:
-          name: image_viewer-linux-x86_64
+          name: rview-linux-x86_64
           path: artifacts/
       - uses: actions/download-artifact@v4
         with:
-          name: image_viewer-macos-x86_64
+          name: rview-macos-x86_64
           path: artifacts/
       - uses: softprops/action-gh-release@v1
         with:

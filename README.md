@@ -1,24 +1,33 @@
-# Image Viewer 🖼️
+# rView 🦀
 
-A modern, fast, cross-platform image viewer written in **Rust** with RAW support and GPU-accelerated previews (experimental).
+**rView** — A modern, blazing-fast image viewer built with **Rust**. RAW support, GPU-accelerated previews, and a clean interface.
 
-![Rust](https://img.shields.io/badge/Rust-1.70+-orange) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-blue)
+![Rust](https://img.shields.io/badge/Rust-1.70+-B7410E?logo=rust) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-B7410E)
+
+<p align="center">
+  <img src="assets/rview-logo.svg" alt="rView Logo" width="128">
+</p>
 
 ---
 
-## Highlights
-- Cross-platform (Windows, macOS, Linux)
-- RAW support (CR2/CR3, NEF, ARW, DNG, RAF, etc.)
-- GPU-accelerated rendering for fast previews (optional)
-- Maintain zoom & pan when navigating between photos (great for focus checks)
-- Smart caching, keyboard shortcuts, and undoable file operations
+## ✨ Highlights
+- 🖥️ **Cross-platform** — Windows, macOS, Linux
+- 📷 **RAW support** — CR2/CR3, NEF, ARW, DNG, RAF, and more
+- ⚡ **GPU-accelerated** — Fast previews with optional GPU rendering
+- 🔍 **Smart viewing** — Maintain zoom & pan between photos (perfect for focus checks)
+- 💾 **Smart caching** — Smooth navigation with intelligent preloading
+- ⌨️ **Keyboard-first** — Efficient shortcuts for power users
+- ↩️ **Undoable ops** — Safe file operations with undo support
 
-## Quick Start
-1. Install Rust: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+## 🚀 Quick Start
+1. Install Rust:
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
 2. Clone and build:
    ```bash
-   git clone https://github.com/image-viewer/image-viewer.git
-   cd image-viewer
+   git clone https://github.com/rview-app/rview.git
+   cd rview
    cargo build --release
    ```
 3. Run:
@@ -29,22 +38,28 @@ A modern, fast, cross-platform image viewer written in **Rust** with RAW support
 
 Test images are available in `testfiles/` for quick checks.
 
-## Supported Formats
-- Common: JPEG, PNG, GIF, BMP, TIFF, WebP, ICO, PNM
-- RAW: Canon, Nikon, Sony, Olympus, Panasonic, Adobe DNG, Fuji, Pentax, and more
+## 📷 Supported Formats
+- **Common:** JPEG, PNG, GIF, BMP, TIFF, WebP, ICO, PNM
+- **RAW:** Canon, Nikon, Sony, Olympus, Panasonic, Adobe DNG, Fuji, Pentax, and more
 
-## Useful Shortcuts
-- ← / → : prev / next image
-- `1` : 100% zoom, `0` : fit to window
-- `H` : toggle UI panels, `M` : move to 'selected' folder (undoable)
-- `Del` : delete (to trash)
+## ⌨️ Keyboard Shortcuts
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Previous / Next image |
+| `1` | 100% zoom |
+| `0` | Fit to window |
+| `H` | Toggle UI panels |
+| `M` | Move to 'selected' folder (undoable) |
+| `Del` | Delete (to trash) |
 
-## Contributing
-Bug reports and pull requests welcome — check issues and open a PR. Run tests with `cargo test`.
+## 🤝 Contributing
+Bug reports and pull requests welcome! Check issues and open a PR. Run tests with `cargo test`.
 
-## License
-MIT — see `LICENSE`.
+## 📄 License
+MIT — see [LICENSE](LICENSE).
 
 ---
 
-Built with eframe/egui, image-rs, rawloader, imagepipe, imageproc, tokio, and serde. Thanks to the upstream projects and contributors.
+<p align="center">
+  <sub>Built with ❤️ and Rust • eframe/egui • image-rs • rawloader • imagepipe • tokio</sub>
+</p>

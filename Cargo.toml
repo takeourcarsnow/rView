@@ -1,11 +1,11 @@
 [package]
-name = "image_viewer"
+name = "rview"
 version = "2.0.0"
 edition = "2021"
-authors = ["Image Viewer Team"]
-description = "A modern, cross-platform image viewer with RAW support"
+authors = ["rView Team"]
+description = "rView - A modern, blazing-fast image viewer built with Rust"
 license = "MIT"
-repository = "https://github.com/image-viewer/image-viewer"
+repository = "https://github.com/rview-app/rview"
 
 [dependencies]
 # GUI Framework
