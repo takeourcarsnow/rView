@@ -388,9 +388,10 @@ impl GpuProcessor {
         }
 
         // Download result
+        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("output_buffer"),
-            size: (width * height * 4) as u64,
+            size: (bytes_per_row * height) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -406,7 +407,7 @@ impl GpuProcessor {
                 buffer: &output_buffer,
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * width),
+                    bytes_per_row: Some(bytes_per_row),
                     rows_per_image: Some(height),
                 },
             },
@@ -432,7 +433,14 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            image::ImageBuffer::from_raw(width, height, data.to_vec())
+            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
+            for row in 0..height {
+                let start = (row * bytes_per_row) as usize;
+                let end = start + (width * 4) as usize;
+                valid_data.extend_from_slice(&data[start..end]);
+            }
+            image::ImageBuffer::from_raw(width, height, valid_data)
                 .ok_or_else(|| anyhow!("Failed to create result image"))?
         };
 
@@ -686,9 +694,10 @@ impl GpuProcessor {
         }
 
         // Download result
+        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("focus_peaking_output_buffer"),
-            size: (width * height * 4) as u64,
+            size: (bytes_per_row * height) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -704,7 +713,7 @@ impl GpuProcessor {
                 buffer: &output_buffer,
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * width),
+                    bytes_per_row: Some(bytes_per_row),
                     rows_per_image: Some(height),
                 },
             },
@@ -730,7 +739,14 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            image::ImageBuffer::from_raw(width, height, data.to_vec())
+            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
+            for row in 0..height {
+                let start = (row * bytes_per_row) as usize;
+                let end = start + (width * 4) as usize;
+                valid_data.extend_from_slice(&data[start..end]);
+            }
+            image::ImageBuffer::from_raw(width, height, valid_data)
                 .ok_or_else(|| anyhow!("Failed to create focus peaking overlay"))?
         };
 
@@ -859,9 +875,10 @@ impl GpuProcessor {
         }
 
         // Download result
+        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("zebra_output_buffer"),
-            size: (width * height * 4) as u64,
+            size: (bytes_per_row * height) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
@@ -877,7 +894,7 @@ impl GpuProcessor {
                 buffer: &output_buffer,
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * width),
+                    bytes_per_row: Some(bytes_per_row),
                     rows_per_image: Some(height),
                 },
             },
@@ -903,7 +920,14 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            image::ImageBuffer::from_raw(width, height, data.to_vec())
+            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
+            for row in 0..height {
+                let start = (row * bytes_per_row) as usize;
+                let end = start + (width * 4) as usize;
+                valid_data.extend_from_slice(&data[start..end]);
+            }
+            image::ImageBuffer::from_raw(width, height, valid_data)
                 .ok_or_else(|| anyhow!("Failed to create zebra overlay"))?
         };
 

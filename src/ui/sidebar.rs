@@ -18,10 +18,6 @@ const LR_HEADER_BG: Color32 = Color32::from_rgb(45, 45, 45);
 impl ImageViewerApp {
     /// Render the navigator panel on the left side of the screen
     pub fn render_navigator_left_panel(&mut self, ctx: &egui::Context) {
-        if !self.settings.show_navigator {
-            return;
-        }
-        
         egui::SidePanel::left("navigator_panel")
             .resizable(true)
             .default_width(200.0)
@@ -81,159 +77,194 @@ impl ImageViewerApp {
     }
 
     fn render_navigator_panel(&mut self, ui: &mut egui::Ui) {
-        lr_collapsible_panel(ui, "Navigator", true, |ui| {
-            let available_width = ui.available_width();
-            let nav_height = 140.0;
-            
-            // Zoom level buttons (like Lightroom: FIT, FILL, 1:1, custom)
-            ui.horizontal(|ui| {
+        // Panel header background
+        let header_rect = ui.available_rect_before_wrap();
+        let header_rect = Rect::from_min_size(
+            header_rect.min,
+            Vec2::new(ui.available_width(), 24.0)
+        );
+
+        ui.painter().rect_filled(header_rect, Rounding::ZERO, LR_HEADER_BG);
+        ui.painter().hline(
+            header_rect.x_range(),
+            header_rect.bottom(),
+            Stroke::new(1.0, LR_BORDER)
+        );
+
+        // Header text
+        ui.painter().text(
+            header_rect.left_center() + Vec2::new(8.0, 0.0),
+            egui::Align2::LEFT_CENTER,
+            "Navigator",
+            egui::FontId::proportional(11.0),
+            LR_TEXT_PRIMARY,
+        );
+
+        // Contents
+        ui.add_space(4.0);
+        egui::Frame::none()
+            .fill(LR_BG_PANEL)
+            .inner_margin(Margin::symmetric(8.0, 6.0))
+            .show(ui, |ui| {
+                let available_width = ui.available_width();
+                let nav_height = 140.0;
+                
+                // Zoom level buttons (like Lightroom: FIT, FILL, 1:1, custom)
+                ui.horizontal(|ui| {
+                    ui.add_space(4.0);
+                    
+                    let zoom_btn_style = |is_active: bool| {
+                        if is_active { LR_TEXT_PRIMARY } else { LR_TEXT_SECONDARY }
+                    };
+                    
+                    let fit_active = (self.zoom - 1.0).abs() < 0.01 && self.pan_offset == Vec2::ZERO;
+                    if ui.add(egui::Button::new(RichText::new("FIT").size(10.0).color(zoom_btn_style(fit_active)))
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::NONE)
+                        .min_size(Vec2::new(28.0, 16.0)))
+                        .clicked() {
+                        self.fit_to_window();
+                    }
+                    
+                    if ui.add(egui::Button::new(RichText::new("100%").size(10.0).color(zoom_btn_style((self.zoom - 1.0).abs() < 0.01)))
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::NONE)
+                        .min_size(Vec2::new(32.0, 16.0)))
+                        .clicked() {
+                        self.zoom = 1.0;
+                        self.target_zoom = 1.0;
+                    }
+                    
+                    if ui.add(egui::Button::new(RichText::new("25%").size(10.0).color(LR_TEXT_SECONDARY))
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::NONE)
+                        .min_size(Vec2::new(28.0, 16.0)))
+                        .clicked() {
+                        self.zoom = 0.25;
+                        self.target_zoom = 0.25;
+                    }
+                    
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(4.0);
+                        // Show current zoom percentage
+                        ui.label(RichText::new(format!("{:.0}%", self.zoom * 100.0))
+                            .size(10.0)
+                            .color(LR_TEXT_SECONDARY));
+                    });
+                });
+                
                 ui.add_space(4.0);
                 
-                let zoom_btn_style = |is_active: bool| {
-                    if is_active { LR_TEXT_PRIMARY } else { LR_TEXT_SECONDARY }
-                };
-                
-                let fit_active = (self.zoom - 1.0).abs() < 0.01 && self.pan_offset == Vec2::ZERO;
-                if ui.add(egui::Button::new(RichText::new("FIT").size(10.0).color(zoom_btn_style(fit_active)))
-                    .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::NONE)
-                    .min_size(Vec2::new(28.0, 16.0)))
-                    .clicked() {
-                    self.fit_to_window();
-                }
-                
-                if ui.add(egui::Button::new(RichText::new("100%").size(10.0).color(zoom_btn_style((self.zoom - 1.0).abs() < 0.01)))
-                    .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::NONE)
-                    .min_size(Vec2::new(32.0, 16.0)))
-                    .clicked() {
-                    self.zoom = 1.0;
-                    self.target_zoom = 1.0;
-                }
-                
-                if ui.add(egui::Button::new(RichText::new("25%").size(10.0).color(LR_TEXT_SECONDARY))
-                    .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::NONE)
-                    .min_size(Vec2::new(28.0, 16.0)))
-                    .clicked() {
-                    self.zoom = 0.25;
-                    self.target_zoom = 0.25;
-                }
-                
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.add_space(4.0);
-                    // Show current zoom percentage
-                    ui.label(RichText::new(format!("{:.0}%", self.zoom * 100.0))
-                        .size(10.0)
-                        .color(LR_TEXT_SECONDARY));
-                });
-            });
-            
-            ui.add_space(4.0);
-            
-            // Navigator preview with viewport rectangle
-            let (response, painter) = ui.allocate_painter(
-                Vec2::new(available_width - 8.0, nav_height),
-                egui::Sense::click_and_drag()
-            );
-            let nav_rect = response.rect;
-            
-            // Background
-            painter.rect_filled(nav_rect, Rounding::ZERO, LR_BG_INPUT);
-            
-            // Draw thumbnail preview
-            if let Some(tex) = &self.current_texture {
-                let tex_size = tex.size_vec2();
-                
-                // Calculate scaled size to fit in navigator
-                let scale = (nav_rect.width() / tex_size.x).min(nav_rect.height() / tex_size.y);
-                let scaled_size = tex_size * scale;
-                
-                let image_rect = Rect::from_center_size(nav_rect.center(), scaled_size);
-                
-                painter.image(
-                    tex.id(),
-                    image_rect,
-                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    Color32::WHITE,
+                // Navigator preview with viewport rectangle
+                let (response, painter) = ui.allocate_painter(
+                    Vec2::new(available_width - 8.0, nav_height),
+                    egui::Sense::click_and_drag()
                 );
+                let nav_rect = response.rect;
                 
-                // Draw viewport rectangle (showing what's visible in main view)
-                if self.zoom > 1.0 || self.pan_offset != Vec2::ZERO {
-                    // Calculate the viewport rectangle
-                    let view_size = self.available_view_size;
-                    let display_size = tex_size * self.zoom;
+                // Background
+                painter.rect_filled(nav_rect, Rounding::ZERO, LR_BG_INPUT);
+                
+                // Draw thumbnail preview
+                if let Some(tex) = &self.current_texture {
+                    let tex_size = tex.size_vec2();
                     
-                    // What portion of the image is visible
-                    let visible_width = (view_size.x / display_size.x).min(1.0);
-                    let visible_height = (view_size.y / display_size.y).min(1.0);
+                    // Calculate scaled size to fit in navigator
+                    let scale = (nav_rect.width() / tex_size.x).min(nav_rect.height() / tex_size.y);
+                    let scaled_size = tex_size * scale;
                     
-                    // Calculate center offset as a fraction of image
-                    let pan_fraction_x = -self.pan_offset.x / display_size.x;
-                    let pan_fraction_y = -self.pan_offset.y / display_size.y;
+                    let image_rect = Rect::from_center_size(nav_rect.center(), scaled_size);
                     
-                    // Viewport center in normalized coordinates (0 to 1)
-                    let center_x = 0.5 + pan_fraction_x;
-                    let center_y = 0.5 + pan_fraction_y;
-                    
-                    // Viewport rect in navigator space
-                    let vp_width = scaled_size.x * visible_width;
-                    let vp_height = scaled_size.y * visible_height;
-                    let vp_center = egui::pos2(
-                        image_rect.left() + scaled_size.x * center_x,
-                        image_rect.top() + scaled_size.y * center_y
-                    );
-                    
-                    let viewport_rect = Rect::from_center_size(
-                        vp_center,
-                        Vec2::new(vp_width, vp_height)
-                    );
-                    
-                    // Draw viewport rectangle (white border like Lightroom)
-                    painter.rect_stroke(
-                        viewport_rect,
-                        Rounding::ZERO,
-                        Stroke::new(1.5, Color32::WHITE)
-                    );
-                    
-                    // Handle click-drag to pan
-                    if response.dragged() {
-                        if let Some(pos) = response.interact_pointer_pos() {
-                            // Convert click position to image coordinates
-                            let rel_x = (pos.x - image_rect.left()) / scaled_size.x;
-                            let rel_y = (pos.y - image_rect.top()) / scaled_size.y;
-                            
-                            // Set pan to center view on clicked position
-                            let new_center_x = 0.5 - rel_x;
-                            let new_center_y = 0.5 - rel_y;
-                            
-                            self.pan_offset = Vec2::new(
-                                new_center_x * display_size.x,
-                                new_center_y * display_size.y
-                            );
-                            self.target_pan = self.pan_offset;
-                        }
-                    }
-                } else if self.zoom < 1.0 {
-                    // When zoomed out, show that entire image is visible
-                    // Draw a subtle border around the image area
-                    painter.rect_stroke(
+                    painter.image(
+                        tex.id(),
                         image_rect,
-                        Rounding::ZERO,
-                        Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 100))
+                        Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                        Color32::WHITE,
+                    );
+                    
+                    // Draw viewport rectangle (showing what's visible in main view)
+                    if self.zoom > 1.0 || self.pan_offset != Vec2::ZERO {
+                        // Calculate the viewport rectangle
+                        let view_size = self.available_view_size;
+                        let display_size = tex_size * self.zoom;
+                        
+                        // What portion of the image is visible
+                        let visible_width = (view_size.x / display_size.x).min(1.0);
+                        let visible_height = (view_size.y / display_size.y).min(1.0);
+                        
+                        // Calculate center offset as a fraction of image
+                        let pan_fraction_x = -self.pan_offset.x / display_size.x;
+                        let pan_fraction_y = -self.pan_offset.y / display_size.y;
+                        
+                        // Viewport center in normalized coordinates (0 to 1)
+                        let center_x = 0.5 + pan_fraction_x;
+                        let center_y = 0.5 + pan_fraction_y;
+                        
+                        // Viewport rect in navigator space
+                        let vp_width = scaled_size.x * visible_width;
+                        let vp_height = scaled_size.y * visible_height;
+                        let vp_center = egui::pos2(
+                            image_rect.left() + scaled_size.x * center_x,
+                            image_rect.top() + scaled_size.y * center_y
+                        );
+                        
+                        let viewport_rect = Rect::from_center_size(
+                            vp_center,
+                            Vec2::new(vp_width, vp_height)
+                        );
+                        
+                        // Draw viewport rectangle (white border like Lightroom)
+                        painter.rect_stroke(
+                            viewport_rect,
+                            Rounding::ZERO,
+                            Stroke::new(1.5, Color32::WHITE)
+                        );
+                        
+                        // Handle click-drag to pan
+                        if response.dragged() {
+                            if let Some(pos) = response.interact_pointer_pos() {
+                                // Convert click position to image coordinates
+                                let rel_x = (pos.x - image_rect.left()) / scaled_size.x;
+                                let rel_y = (pos.y - image_rect.top()) / scaled_size.y;
+                                
+                                // Set pan to center view on clicked position
+                                let new_center_x = 0.5 - rel_x;
+                                let new_center_y = 0.5 - rel_y;
+                                
+                                self.pan_offset = Vec2::new(
+                                    new_center_x * display_size.x,
+                                    new_center_y * display_size.y
+                                );
+                                self.target_pan = self.pan_offset;
+                            }
+                        }
+                    } else if self.zoom < 1.0 {
+                        // When zoomed out, show that entire image is visible
+                        // Draw a subtle border around the image area
+                        painter.rect_stroke(
+                            image_rect,
+                            Rounding::ZERO,
+                            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 100))
+                        );
+                    }
+                } else {
+                    // No image loaded
+                    painter.text(
+                        nav_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        "No image",
+                        egui::FontId::proportional(11.0),
+                        LR_TEXT_SECONDARY,
                     );
                 }
-            } else {
-                // No image loaded
-                painter.text(
-                    nav_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    "No image",
-                    egui::FontId::proportional(11.0),
-                    LR_TEXT_SECONDARY,
-                );
-            }
-        });
+            });
+
+        // Bottom border
+        ui.painter().hline(
+            header_rect.x_range(),
+            ui.available_rect_before_wrap().bottom(),
+            Stroke::new(1.0, LR_BORDER)
+        );
     }
 
     fn render_histogram_panel(&self, ui: &mut egui::Ui) {
@@ -300,37 +331,6 @@ impl ImageViewerApp {
         
         lr_collapsible_panel(ui, "Basic", true, |ui| {
             ui.spacing_mut().slider_width = ui.available_width() - 80.0;
-            
-            // Profile/Preset selector (like Lightroom)
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Profile:").size(11.0).color(LR_TEXT_LABEL));
-                ui.add_space(8.0);
-                egui::ComboBox::from_id_salt("film_preset")
-                    .width(ui.available_width() - 8.0)
-                    .selected_text(self.current_film_preset.name())
-                    .show_ui(ui, |ui| {
-                        for preset in FilmPreset::all() {
-                            let selected = *preset == self.current_film_preset;
-                            if ui.selectable_label(selected, preset.name()).clicked() {
-                                self.current_film_preset = *preset;
-                                let prev_adj = self.adjustments.clone();
-                                self.adjustments.apply_preset(*preset);
-                                self.refresh_adjustments();
-                                if let Some(path) = self.get_current_path() {
-                                    self.undo_history.push(FileOperation::Adjust {
-                                        path,
-                                        adjustments: self.adjustments.clone(),
-                                        previous_adjustments: prev_adj,
-                                    });
-                                }
-                            }
-                        }
-                    });
-            });
-            
-            ui.add_space(8.0);
-            lr_separator(ui);
-            ui.add_space(4.0);
             
             // WB: White Balance section
             ui.horizontal(|ui| {
@@ -551,6 +551,37 @@ impl ImageViewerApp {
             }
             
             if self.adjustments.film.enabled {
+                ui.add_space(4.0);
+                lr_separator(ui);
+                ui.add_space(4.0);
+                
+                // Profile/Preset selector (like Lightroom)
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Profile:").size(11.0).color(LR_TEXT_LABEL));
+                    ui.add_space(8.0);
+                    egui::ComboBox::from_id_salt("film_preset")
+                        .width(ui.available_width() - 8.0)
+                        .selected_text(self.current_film_preset.name())
+                        .show_ui(ui, |ui| {
+                            for preset in FilmPreset::all() {
+                                let selected = *preset == self.current_film_preset;
+                                if ui.selectable_label(selected, preset.name()).clicked() {
+                                    self.current_film_preset = *preset;
+                                    let prev_adj = self.adjustments.clone();
+                                    self.adjustments.apply_preset(*preset);
+                                    self.refresh_adjustments();
+                                    if let Some(path) = self.get_current_path() {
+                                        self.undo_history.push(FileOperation::Adjust {
+                                            path,
+                                            adjustments: self.adjustments.clone(),
+                                            previous_adjustments: prev_adj,
+                                        });
+                                    }
+                                }
+                            }
+                        });
+                });
+                
                 ui.add_space(4.0);
                 lr_separator(ui);
                 ui.add_space(4.0);

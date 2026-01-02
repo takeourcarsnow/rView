@@ -90,7 +90,6 @@ impl ImageViewerApp {
                         ui.add_space(4.0);
                         
                         ui.checkbox(&mut self.settings.show_sidebar, "Show sidebar");
-                        ui.checkbox(&mut self.settings.show_navigator, "Show navigator");
                         ui.checkbox(&mut self.settings.show_thumbnails, "Show thumbnails");
                         ui.checkbox(&mut self.settings.show_exif, "Show EXIF panel");
                         ui.checkbox(&mut self.settings.show_histogram, "Show histogram");
@@ -534,7 +533,6 @@ impl ImageViewerApp {
             "grid" => self.settings.show_grid_overlay = !self.settings.show_grid_overlay,
             "loupe" => self.settings.loupe_enabled = !self.settings.loupe_enabled,
             "sidebar" => self.settings.show_sidebar = !self.settings.show_sidebar,
-            "navigator" => self.settings.show_navigator = !self.settings.show_navigator,
             "thumbnails" => self.settings.show_thumbnails = !self.settings.show_thumbnails,
             "exif" => self.settings.show_exif = !self.settings.show_exif,
             "histogram" => self.settings.show_histogram = !self.settings.show_histogram,
