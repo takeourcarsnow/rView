@@ -540,41 +540,34 @@ impl ImageViewerApp {
         lr_collapsible_panel(ui, "Film Emulation", false, |ui| {
             ui.spacing_mut().slider_width = ui.available_width() - 80.0;
             
-            if self.adjustments.film.enabled {
-                ui.add_space(4.0);
-                lr_separator(ui);
-                ui.add_space(4.0);
-                
-                // Profile/Preset selector (like Lightroom)
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new("Profile:").size(11.0).color(LR_TEXT_LABEL));
-                    ui.add_space(8.0);
-                    egui::ComboBox::from_id_salt("film_preset")
-                        .width(ui.available_width() - 8.0)
-                        .selected_text(self.current_film_preset.name())
-                        .show_ui(ui, |ui| {
-                            for preset in FilmPreset::all() {
-                                let selected = *preset == self.current_film_preset;
-                                if ui.selectable_label(selected, preset.name()).clicked() {
-                                    self.current_film_preset = *preset;
-                                    let prev_adj = self.adjustments.clone();
-                                    self.adjustments.apply_preset(*preset);
-                                    self.refresh_adjustments();
-                                    if let Some(path) = self.get_current_path() {
-                                        self.undo_history.push(FileOperation::Adjust {
-                                            path,
-                                            adjustments: self.adjustments.clone(),
-                                            previous_adjustments: Box::new(prev_adj),
-                                        });
-                                    }
+            // Profile/Preset selector (like Lightroom) - always visible
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Profile:").size(11.0).color(LR_TEXT_LABEL));
+                ui.add_space(8.0);
+                egui::ComboBox::from_id_salt("film_preset")
+                    .width(ui.available_width() - 8.0)
+                    .selected_text(self.current_film_preset.name())
+                    .show_ui(ui, |ui| {
+                        for preset in FilmPreset::all() {
+                            let selected = *preset == self.current_film_preset;
+                            if ui.selectable_label(selected, preset.name()).clicked() {
+                                self.current_film_preset = *preset;
+                                let prev_adj = self.adjustments.clone();
+                                self.adjustments.apply_preset(*preset);
+                                self.refresh_adjustments();
+                                if let Some(path) = self.get_current_path() {
+                                    self.undo_history.push(FileOperation::Adjust {
+                                        path,
+                                        adjustments: self.adjustments.clone(),
+                                        previous_adjustments: Box::new(prev_adj),
+                                    });
                                 }
                             }
-                        });
-                });
-                
-                ui.add_space(4.0);
-                lr_separator(ui);
-                ui.add_space(4.0);
+                        }
+                    });
+            });
+            
+            if self.adjustments.film.enabled {
                 
                 // Grain
                 ui.label(RichText::new("Grain").size(11.0).color(LR_TEXT_LABEL));
