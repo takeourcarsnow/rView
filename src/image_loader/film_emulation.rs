@@ -151,56 +151,52 @@ impl ImageAdjustments {
         *self = match preset {
             FilmPreset::None => ImageAdjustments::default(),
 
-            // Kodak Portra 400 - Professional portrait film
-            FilmPreset::Portra400 => ImageAdjustments {
-                exposure: 0.0,
-                contrast: 1.05,
-                brightness: 3.0,
-                saturation: 0.95,
-                highlights: -0.15,
-                shadows: 0.15,
-                temperature: 0.08,
-                tint: 0.03,
-                blacks: 0.08,
-                whites: -0.08,
-                sharpening: 0.2,
-                film: FilmEmulation {
-                    enabled: true,
-                    is_bw: false,
-                    tone_curve_shadows: 0.1,
-                    tone_curve_midtones: 0.02,
-                    tone_curve_highlights: -0.08,
-                    s_curve_strength: 0.15,
-                    grain_amount: 0.12,
-                    grain_size: 1.0,
-                    grain_roughness: 0.4,
-                    halation_amount: 0.05,
-                    halation_radius: 1.2,
-                    halation_color: [1.0, 0.4, 0.2],
-                    red_in_green: 0.02,
-                    red_in_blue: 0.0,
-                    green_in_red: 0.01,
-                    green_in_blue: 0.01,
-                    blue_in_red: 0.0,
-                    blue_in_green: 0.02,
-                    red_gamma: 0.98,
-                    green_gamma: 1.0,
-                    blue_gamma: 1.02,
-                    black_point: 0.02,
-                    white_point: 0.98,
-                    shadow_tint: [0.02, 0.01, 0.0],
-                    highlight_tint: [0.02, 0.01, -0.01],
-                    vignette_amount: 0.08,
-                    vignette_softness: 1.5,
-                    latitude: 0.7,
-                },
-                frame_enabled: false,
-                frame_color: [0.0, 0.0, 0.0],
-                frame_thickness: 10.0,
-            },
+            // B&W films
+            FilmPreset::TMax400 | FilmPreset::TMax100 | FilmPreset::Hp5 | FilmPreset::TriX400 | FilmPreset::Delta3200 => {
+                let mut adj = ImageAdjustments::default();
+                adj.film.enabled = true;
+                adj.film.is_bw = true;
+                adj.contrast = 1.1;
+                adj.highlights = -0.1;
+                adj.shadows = 0.1;
+                adj.blacks = 0.1;
+                adj.whites = -0.1;
+                adj.sharpening = 0.3;
+                adj.film.tone_curve_shadows = 0.05;
+                adj.film.tone_curve_highlights = -0.05;
+                adj.film.s_curve_strength = 0.2;
+                adj.film.grain_amount = 0.15;
+                adj.film.grain_size = 1.2;
+                adj.film.black_point = 0.05;
+                adj.film.white_point = 0.95;
+                adj.film.vignette_amount = 0.05;
+                adj.film.latitude = 0.8;
+                adj
+            }
 
-            // Simplified presets for brevity - in real implementation, include all presets
-            _ => ImageAdjustments::default(),
+            // Color films
+            _ => {
+                let mut adj = ImageAdjustments::default();
+                adj.film.enabled = true;
+                adj.film.is_bw = false;
+                adj.contrast = 1.05;
+                adj.saturation = 0.95;
+                adj.highlights = -0.15;
+                adj.shadows = 0.15;
+                adj.blacks = 0.08;
+                adj.whites = -0.08;
+                adj.sharpening = 0.2;
+                adj.film.tone_curve_shadows = 0.1;
+                adj.film.tone_curve_highlights = -0.08;
+                adj.film.s_curve_strength = 0.15;
+                adj.film.grain_amount = 0.1;
+                adj.film.halation_amount = 0.05;
+                adj.film.black_point = 0.02;
+                adj.film.white_point = 0.98;
+                adj.film.vignette_amount = 0.08;
+                adj.film.latitude = 0.7;
+                adj
+            }
         };
     }
 }

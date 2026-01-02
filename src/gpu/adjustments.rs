@@ -489,8 +489,7 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             let pos = vec2<f32>(f32(px), f32(py));
             let dist = length(pos - center) / max_dist;
             let vignette = 1.0 - params.vignette_amount * pow(dist / params.vignette_softness, 2.0);
-            rgb = clamp(vignette, 0.0, 1.0);
-            rgb = rgb * vignette;
+            rgb = rgb * clamp(vignette, 0.0, 1.0);
         }
         
         // Film grain

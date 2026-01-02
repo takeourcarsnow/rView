@@ -540,16 +540,6 @@ impl ImageViewerApp {
         lr_collapsible_panel(ui, "Film Emulation", false, |ui| {
             ui.spacing_mut().slider_width = ui.available_width() - 80.0;
             
-            // Enable film emulation
-            let mut film_enabled = self.adjustments.film.enabled;
-            if ui.checkbox(&mut film_enabled, RichText::new("Enable").size(10.0).color(LR_TEXT_LABEL)).changed() {
-                self.adjustments.film.enabled = film_enabled;
-                *adjustments_changed = true;
-                if self.should_apply_adjustments() {
-                    self.refresh_adjustments();
-                }
-            }
-            
             if self.adjustments.film.enabled {
                 ui.add_space(4.0);
                 lr_separator(ui);
