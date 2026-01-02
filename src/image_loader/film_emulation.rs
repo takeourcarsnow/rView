@@ -123,8 +123,8 @@ impl Default for ImageAdjustments {
             sharpening: 0.0,
             film: FilmEmulation::default(),
             frame_enabled: false,
-            frame_color: [0.0, 0.0, 0.0], // black
-            frame_thickness: 10.0,
+            frame_color: [1.0, 1.0, 1.0], // white
+            frame_thickness: 80.0,
         }
     }
 }
@@ -262,8 +262,8 @@ impl FilmCharacteristics {
                 latitude: self.latitude,
             },
             frame_enabled: false,
-            frame_color: [0.0, 0.0, 0.0],
-            frame_thickness: 10.0,
+            frame_color: [1.0, 1.0, 1.0],
+            frame_thickness: 80.0,
         }
     }
 }

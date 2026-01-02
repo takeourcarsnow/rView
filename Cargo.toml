@@ -98,6 +98,15 @@ futures-intrusive = "0.5"
 # Random number generation
 rand = "0.8"
 
+# HTTP client for update checks
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Benchmarking
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Directory handling
+dirs = "5"
+
 # CPU core detection
 num_cpus = "1.16"
 
@@ -119,6 +128,10 @@ regex = "1"
 # Memory-mapped I/O
 memmap2 = "0.9"
 iconflow = { version = "1.0.0", features = ["pack-lucide"] }
+
+[[bench]]
+name = "performance"
+harness = false
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["shellapi", "winuser"] }

@@ -39,6 +39,58 @@ impl eframe::App for ImageViewerApp {
         // Apply theme
         crate::ui::main::theme::apply_theme(ctx, &self.settings);
 
+        // Top menu bar
+        egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Open File...").clicked() {
+                        self.open_file_dialog();
+                        ui.close_menu();
+                    }
+                    if ui.button("Open Folder...").clicked() {
+                        self.open_folder_dialog();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Settings...").clicked() {
+                        self.show_settings_dialog = true;
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("Exit").clicked() {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
+
+                ui.menu_button("View", |ui| {
+                    if ui.button("Toggle UI Panels").clicked() {
+                        self.panels_hidden = !self.panels_hidden;
+                        ui.close_menu();
+                    }
+                    if ui.button("Fit to Window").clicked() {
+                        self.fit_to_window();
+                        ui.close_menu();
+                    }
+                    if ui.button("Actual Size").clicked() {
+                        self.zoom_to(1.0);
+                        ui.close_menu();
+                    }
+                });
+
+                ui.menu_button("Help", |ui| {
+                    if ui.button("Check for Updates...").clicked() {
+                        self.check_for_updates();
+                        ui.close_menu();
+                    }
+                    ui.separator();
+                    if ui.button("About rView").clicked() {
+                        // TODO: Show about dialog
+                        ui.close_menu();
+                    }
+                });
+            });
+        });
+
         // Handle dropped files
         self.handle_dropped_files(ctx);
 

@@ -159,7 +159,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
         if app.adjustments.frame_enabled {
             // Thickness
-            let (changed, dragging) = lr_slider_ex(ui, "Thickness", &mut app.adjustments.frame_thickness, 1.0..=100.0, "px", 10.0);
+            let (changed, dragging) = lr_slider_ex(ui, "Thickness", &mut app.adjustments.frame_thickness, 1.0..=200.0, "px", 10.0);
             if changed {
                 adjustments_changed = true;
                 app.mark_adjustments_dirty();

@@ -72,6 +72,9 @@ pub struct Settings {
 
     // GPU acceleration
     pub gpu_enabled: bool,
+
+    // Telemetry
+    pub telemetry_enabled: bool,
     
     // Export presets
     
@@ -154,6 +157,9 @@ impl Default for Settings {
 
             // GPU
             gpu_enabled: true,
+
+            // Telemetry (disabled by default)
+            telemetry_enabled: false,
             
             window_maximized: false,
             window_size: (1400.0, 900.0),

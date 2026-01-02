@@ -176,6 +176,13 @@ pub struct ImageViewerApp {
 
     // Batch rename state
     pub batch_rename_state: BatchRenameState,
+
+    // Update checker
+    pub update_checker: Option<crate::updates::UpdateChecker>,
+    pub update_available: Option<crate::updates::ReleaseInfo>,
+
+    // Telemetry
+    pub telemetry: Option<crate::telemetry::Telemetry>,
 }
 
 impl ImageViewerApp {
@@ -226,6 +233,7 @@ impl ImageViewerApp {
         let (tx, rx) = channel();
 
         let settings = Settings::load();
+        let telemetry_enabled = settings.telemetry_enabled;
         let metadata_db = MetadataDb::load();
         
         // Initialize catalog database
@@ -322,6 +330,9 @@ impl ImageViewerApp {
             panels_hidden: false,
             gpu_initialization_attempted: false,
             batch_rename_state: BatchRenameState::default(),
+            update_checker: Some(crate::updates::UpdateChecker::new(env!("CARGO_PKG_VERSION").to_string())),
+            update_available: None,
+            telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
         };
 
         // Restore session
@@ -356,6 +367,31 @@ impl ImageViewerApp {
         app.gpu_processor = None;
 
         app
+    }
+
+    /// Check for application updates in the background
+    pub fn check_for_updates(&mut self) {
+        if let Some(checker) = &mut self.update_checker {
+            let mut checker_clone = checker.clone();
+            let ctx = self.ctx.clone();
+
+            // Spawn async task to check for updates
+            tokio::spawn(async move {
+                match checker_clone.check_for_updates().await {
+                    Ok(Some(release)) => {
+                        // In a real implementation, you'd update the app state
+                        log::info!("New version available: {} - {}", release.tag_name, release.html_url);
+                        // For now, just log it. In production, you'd show a dialog
+                    }
+                    Ok(None) => {
+                        log::info!("No updates available");
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to check for updates: {}", e);
+                    }
+                }
+            });
+        }
     }
 }
 

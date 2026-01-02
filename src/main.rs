@@ -13,6 +13,8 @@ mod tests;
 mod gpu;
 mod ui;
 mod logging;
+mod updates;
+mod telemetry;
 
 use app::ImageViewerApp;
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
