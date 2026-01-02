@@ -55,6 +55,8 @@ pub struct ImageViewerApp {
     pub catalog_new_collection_type: crate::catalog::CollectionType,
     pub catalog_selected_collection: Option<i64>,
     pub catalog_show_all_photos: bool,
+    /// Whether the Collections list in the Catalog sidebar is expanded
+    pub catalog_collections_open: bool,
 
     // Tabs removed
 
@@ -262,6 +264,7 @@ impl ImageViewerApp {
             catalog_new_collection_type: crate::catalog::CollectionType::Regular,
             catalog_selected_collection: None,
             catalog_show_all_photos: false,
+            catalog_collections_open: true,
             image_list: Vec::new(),
             filtered_list: Vec::new(),
             current_index: 0,

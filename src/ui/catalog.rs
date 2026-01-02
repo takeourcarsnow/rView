@@ -6,8 +6,8 @@ use crate::catalog::CollectionType;
 impl ImageViewerApp {
     /// Render the catalog panel (sidebar)
     pub fn render_catalog_panel(&mut self, ui: &mut Ui) {
-        ui.heading("📚 Catalog");
-        ui.separator();
+        // Compact catalog panel header: removed the large "Catalog" heading per user request
+        ui.add_space(4.0);
 
         // Library section
         ui.label("LIBRARY");
@@ -24,50 +24,61 @@ impl ImageViewerApp {
         }
 
         ui.separator();
-        ui.label("COLLECTIONS");
+        // New collection button on its own line
+        ui.horizontal(|ui| {
+            if ui.button("➕ New Collection").clicked() {
+                self.catalog_show_new_collection_dialog = true;
+            }
+        });
 
-        // New collection button
-        if ui.button("➕ New Collection").clicked() {
-            self.catalog_show_new_collection_dialog = true;
-        }
+        // Collapsible triangle toggle below the New Collection button — symbol only, no text or frame
+        ui.horizontal(|ui| {
+            let symbol = if self.catalog_collections_open { "▾" } else { "▸" };
+            let triangle = egui::Button::new(symbol).small().frame(false);
+            if ui.add(triangle).clicked() {
+                self.catalog_collections_open = !self.catalog_collections_open;
+            }
+        });
 
-        // List collections - collect actions to perform after iteration
+        // List collections (when expanded) - collect actions to perform after iteration
         let mut collection_to_delete: Option<i64> = None;
         let mut collection_to_select: Option<i64> = None;
         let mut paths_to_add: Vec<(std::path::PathBuf, i64)> = Vec::new();
-        
-        if let Some(ref catalog_db) = self.catalog_db {
-            if let Ok(collections) = catalog_db.get_collections() {
-                for collection in collections {
-                    let is_selected = self.catalog_selected_collection == Some(collection.id);
-                    let label = format!("📁 {} ({})", collection.name, collection.image_count);
-                    let collection_id = collection.id;
-                    
-                    // Make collection droppable for drag-and-drop from thumbnails
-                    let (drop_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
-                        egui::Frame::none(),
-                        |ui: &mut egui::Ui| {
-                            ui.selectable_label(is_selected, &label)
+
+        if self.catalog_collections_open {
+            if let Some(ref catalog_db) = self.catalog_db {
+                if let Ok(collections) = catalog_db.get_collections() {
+                    for collection in collections {
+                        let is_selected = self.catalog_selected_collection == Some(collection.id);
+                        let label = format!("📁 {} ({})", collection.name, collection.image_count);
+                        let collection_id = collection.id;
+                        
+                        // Make collection droppable for drag-and-drop from thumbnails
+                        let (drop_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
+                            egui::Frame::none(),
+                            |ui: &mut egui::Ui| {
+                                ui.selectable_label(is_selected, &label)
+                            }
+                        );
+                        
+                        if let Some(payload) = dropped_payload {
+                            // Queue path to add to collection
+                            paths_to_add.push(((*payload).clone(), collection_id));
                         }
-                    );
-                    
-                    if let Some(payload) = dropped_payload {
-                        // Queue path to add to collection
-                        paths_to_add.push(((*payload).clone(), collection_id));
-                    }
-                    
-                    // Use .inner to get the selectable_label response
-                    if drop_response.inner.clicked() {
-                        collection_to_select = Some(collection_id);
-                    }
-                    
-                    // Context menu for collection actions
-                    drop_response.inner.context_menu(|ui| {
-                        if ui.button("🗑 Delete Collection").clicked() {
-                            collection_to_delete = Some(collection_id);
-                            ui.close_menu();
+                        
+                        // Use .inner to get the selectable_label response
+                        if drop_response.inner.clicked() {
+                            collection_to_select = Some(collection_id);
                         }
-                    });
+                        
+                        // Context menu for collection actions
+                        drop_response.inner.context_menu(|ui| {
+                            if ui.button("🗑 Delete Collection").clicked() {
+                                collection_to_delete = Some(collection_id);
+                                ui.close_menu();
+                            }
+                        });
+                    }
                 }
             }
         }
