@@ -5,6 +5,174 @@ use num_cpus;
 
 use super::film_emulation::{FilmEmulation, ImageAdjustments};
 
+// ============ ACES FILMIC TONE MAPPING ============
+// Based on the ACES (Academy Color Encoding System) RRT+ODT approximation
+// Provides better highlight rolloff and more cinematic look
+
+/// ACES filmic tone mapping curve (approximation of RRT + ODT)
+/// This provides natural highlight compression and shadow lift
+#[inline]
+fn aces_tonemap(x: f32) -> f32 {
+    // Attempt to simulate Stephen Hill's fit of ACES
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    let x = x.max(0.0);
+    ((x * (a * x + b)) / (x * (c * x + d) + e)).clamp(0.0, 1.0)
+}
+
+/// Apply ACES tone mapping with adjustable strength
+#[inline]
+fn apply_aces_tonemap(r: f32, g: f32, b: f32, strength: f32) -> (f32, f32, f32) {
+    if strength <= 0.0 {
+        return (r, g, b);
+    }
+    let r_mapped = aces_tonemap(r);
+    let g_mapped = aces_tonemap(g);
+    let b_mapped = aces_tonemap(b);
+    // Blend between linear and ACES based on strength
+    (
+        r * (1.0 - strength) + r_mapped * strength,
+        g * (1.0 - strength) + g_mapped * strength,
+        b * (1.0 - strength) + b_mapped * strength,
+    )
+}
+
+// ============ OKLAB COLOR SPACE ============
+// OKLab is a perceptually uniform color space, much better for saturation/vibrance
+// Based on Björn Ottosson's work: https://bottosson.github.io/posts/oklab/
+
+/// Convert linear sRGB to OKLab
+#[inline]
+fn linear_srgb_to_oklab(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    // sRGB to linear LMS
+    let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+    let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+    let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+    
+    // Cube root (approximate pow(x, 1/3))
+    let l_ = l.max(0.0).cbrt();
+    let m_ = m.max(0.0).cbrt();
+    let s_ = s.max(0.0).cbrt();
+    
+    // LMS to OKLab
+    let lab_l = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_;
+    let lab_a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_;
+    let lab_b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_;
+    
+    (lab_l, lab_a, lab_b)
+}
+
+/// Convert OKLab to linear sRGB
+#[inline]
+fn oklab_to_linear_srgb(lab_l: f32, lab_a: f32, lab_b: f32) -> (f32, f32, f32) {
+    // OKLab to LMS
+    let l_ = lab_l + 0.3963377774 * lab_a + 0.2158037573 * lab_b;
+    let m_ = lab_l - 0.1055613458 * lab_a - 0.0638541728 * lab_b;
+    let s_ = lab_l - 0.0894841775 * lab_a - 1.2914855480 * lab_b;
+    
+    // Cube (inverse of cbrt)
+    let l = l_ * l_ * l_;
+    let m = m_ * m_ * m_;
+    let s = s_ * s_ * s_;
+    
+    // LMS to linear sRGB
+    let r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+    let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+    let b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+    
+    (r, g, b)
+}
+
+/// sRGB gamma to linear conversion
+#[inline]
+fn srgb_to_linear(x: f32) -> f32 {
+    if x <= 0.04045 {
+        x / 12.92
+    } else {
+        ((x + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// Linear to sRGB gamma conversion
+#[inline]
+fn linear_to_srgb(x: f32) -> f32 {
+    if x <= 0.0031308 {
+        x * 12.92
+    } else {
+        1.055 * x.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+/// Apply saturation in OKLab color space (perceptually uniform)
+#[inline]
+fn apply_oklab_saturation(r: f32, g: f32, b: f32, saturation: f32) -> (f32, f32, f32) {
+    // Convert to linear sRGB first
+    let r_lin = srgb_to_linear(r);
+    let g_lin = srgb_to_linear(g);
+    let b_lin = srgb_to_linear(b);
+    
+    // Convert to OKLab
+    let (lab_l, lab_a, lab_b) = linear_srgb_to_oklab(r_lin, g_lin, b_lin);
+    
+    // Scale chroma (a and b channels) by saturation factor
+    let lab_a = lab_a * saturation;
+    let lab_b = lab_b * saturation;
+    
+    // Convert back to linear sRGB
+    let (r_out, g_out, b_out) = oklab_to_linear_srgb(lab_l, lab_a, lab_b);
+    
+    // Convert back to sRGB gamma
+    (
+        linear_to_srgb(r_out.clamp(0.0, 1.0)),
+        linear_to_srgb(g_out.clamp(0.0, 1.0)),
+        linear_to_srgb(b_out.clamp(0.0, 1.0)),
+    )
+}
+
+/// Apply vibrance in OKLab (protects already-saturated colors and skin tones)
+#[inline]
+fn apply_oklab_vibrance(r: f32, g: f32, b: f32, vibrance: f32) -> (f32, f32, f32) {
+    // Convert to linear sRGB
+    let r_lin = srgb_to_linear(r);
+    let g_lin = srgb_to_linear(g);
+    let b_lin = srgb_to_linear(b);
+    
+    // Convert to OKLab
+    let (lab_l, lab_a, lab_b) = linear_srgb_to_oklab(r_lin, g_lin, b_lin);
+    
+    // Calculate current chroma
+    let chroma = (lab_a * lab_a + lab_b * lab_b).sqrt();
+    
+    // Vibrance effect: less saturated colors get more boost
+    // Also protect skin tones (orange-ish hues)
+    let hue = lab_b.atan2(lab_a);
+    let skin_hue_center = 0.7; // approximate skin tone hue in OKLab
+    let skin_protection = 1.0 - (((hue - skin_hue_center).abs() / std::f32::consts::PI).min(1.0) * 0.5);
+    
+    // Less saturated colors get more boost (inverse relationship)
+    let saturation_factor = (1.0 - chroma.min(0.5) * 2.0).max(0.0);
+    
+    // Combined vibrance factor
+    let effective_vibrance = vibrance * saturation_factor * (1.0 - skin_protection * 0.3);
+    let factor = 1.0 + effective_vibrance;
+    
+    let lab_a = lab_a * factor;
+    let lab_b = lab_b * factor;
+    
+    // Convert back to linear sRGB
+    let (r_out, g_out, b_out) = oklab_to_linear_srgb(lab_l, lab_a, lab_b);
+    
+    // Convert back to sRGB gamma
+    (
+        linear_to_srgb(r_out.clamp(0.0, 1.0)),
+        linear_to_srgb(g_out.clamp(0.0, 1.0)),
+        linear_to_srgb(b_out.clamp(0.0, 1.0)),
+    )
+}
+
 pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> DynamicImage {
     if adj.is_default() {
         return image.clone();
@@ -220,12 +388,42 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
             g -= tint_g_sub;
             b += tint_b_add;
 
+            // ============ ACES FILMIC TONE MAPPING ============
+            // Apply ACES tone mapping for better highlight handling
+            // This provides cinematic highlight rolloff and natural color preservation
+            {
+                // Normalize to 0-1 for tone mapping
+                let r_norm = (r / 255.0).max(0.0);
+                let g_norm = (g / 255.0).max(0.0);
+                let b_norm = (b / 255.0).max(0.0);
+                
+                // Apply ACES with moderate strength by default
+                // Strength increases with exposure to handle highlight clipping better
+                let aces_strength = 0.5 + (exposure_mult - 1.0).abs() * 0.3;
+                let aces_strength = aces_strength.clamp(0.3, 0.9);
+                
+                let (r_tm, g_tm, b_tm) = apply_aces_tonemap(r_norm, g_norm, b_norm, aces_strength);
+                r = r_tm * 255.0;
+                g = g_tm * 255.0;
+                b = b_tm * 255.0;
+            }
+
+            // ============ OKLAB SATURATION (perceptually uniform) ============
             // Saturation (skip for B&W film)
             if !film_enabled || !film.is_bw {
-                let gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                r = gray + (r - gray) * sat_factor;
-                g = gray + (g - gray) * sat_factor;
-                b = gray + (b - gray) * sat_factor;
+                if (sat_factor - 1.0).abs() > 0.001 {
+                    // Normalize to 0-1
+                    let r_norm = (r / 255.0).clamp(0.0, 1.0);
+                    let g_norm = (g / 255.0).clamp(0.0, 1.0);
+                    let b_norm = (b / 255.0).clamp(0.0, 1.0);
+                    
+                    // Apply OKLab saturation for perceptually uniform results
+                    let (r_sat, g_sat, b_sat) = apply_oklab_saturation(r_norm, g_norm, b_norm, sat_factor);
+                    
+                    r = r_sat * 255.0;
+                    g = g_sat * 255.0;
+                    b = b_sat * 255.0;
+                }
             }
 
             // Sharpening using local contrast enhancement

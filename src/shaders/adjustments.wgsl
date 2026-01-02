@@ -1,4 +1,5 @@
 // Image adjustments compute shader with film emulation
+// Enhanced with ACES tone mapping and OKLab color space
 @group(0) @binding(0) var input_texture: texture_2d<f32>;
 @group(0) @binding(1) var output_texture: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(2) var<uniform> params: AdjustmentParams;
@@ -46,6 +47,104 @@ fn hash(p: vec2<u32>, seed: u32) -> f32 {
     h = h * 0x517cc1b7u;
     h = h ^ (h >> 16u);
     return f32(h) / f32(0xFFFFFFFFu) * 2.0 - 1.0;
+}
+
+// ============ ACES FILMIC TONE MAPPING ============
+// Based on Stephen Hill's fit of ACES RRT+ODT
+fn aces_tonemap_single(x: f32) -> f32 {
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    let xp = max(x, 0.0);
+    return clamp((xp * (a * xp + b)) / (xp * (c * xp + d) + e), 0.0, 1.0);
+}
+
+fn apply_aces_tonemap(rgb: vec3<f32>, strength: f32) -> vec3<f32> {
+    if (strength <= 0.0) {
+        return rgb;
+    }
+    let mapped = vec3<f32>(
+        aces_tonemap_single(rgb.x),
+        aces_tonemap_single(rgb.y),
+        aces_tonemap_single(rgb.z)
+    );
+    return mix(rgb, mapped, strength);
+}
+
+// ============ OKLAB COLOR SPACE ============
+// Perceptually uniform color space for better saturation/vibrance
+
+fn srgb_to_linear(x: f32) -> f32 {
+    if (x <= 0.04045) {
+        return x / 12.92;
+    } else {
+        return pow((x + 0.055) / 1.055, 2.4);
+    }
+}
+
+fn linear_to_srgb(x: f32) -> f32 {
+    if (x <= 0.0031308) {
+        return x * 12.92;
+    } else {
+        return 1.055 * pow(x, 1.0 / 2.4) - 0.055;
+    }
+}
+
+fn linear_srgb_to_oklab(rgb: vec3<f32>) -> vec3<f32> {
+    let l = 0.4122214708 * rgb.x + 0.5363325363 * rgb.y + 0.0514459929 * rgb.z;
+    let m = 0.2119034982 * rgb.x + 0.6806995451 * rgb.y + 0.1073969566 * rgb.z;
+    let s = 0.0883024619 * rgb.x + 0.2817188376 * rgb.y + 0.6299787005 * rgb.z;
+    
+    let l_ = pow(max(l, 0.0), 1.0 / 3.0);
+    let m_ = pow(max(m, 0.0), 1.0 / 3.0);
+    let s_ = pow(max(s, 0.0), 1.0 / 3.0);
+    
+    return vec3<f32>(
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+    );
+}
+
+fn oklab_to_linear_srgb(lab: vec3<f32>) -> vec3<f32> {
+    let l_ = lab.x + 0.3963377774 * lab.y + 0.2158037573 * lab.z;
+    let m_ = lab.x - 0.1055613458 * lab.y - 0.0638541728 * lab.z;
+    let s_ = lab.x - 0.0894841775 * lab.y - 1.2914855480 * lab.z;
+    
+    let l = l_ * l_ * l_;
+    let m = m_ * m_ * m_;
+    let s = s_ * s_ * s_;
+    
+    return vec3<f32>(
+        4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+    );
+}
+
+fn apply_oklab_saturation(rgb: vec3<f32>, saturation: f32) -> vec3<f32> {
+    // Convert to linear sRGB
+    let r_lin = srgb_to_linear(rgb.x);
+    let g_lin = srgb_to_linear(rgb.y);
+    let b_lin = srgb_to_linear(rgb.z);
+    
+    // Convert to OKLab
+    let lab = linear_srgb_to_oklab(vec3<f32>(r_lin, g_lin, b_lin));
+    
+    // Scale chroma (a and b channels) by saturation factor
+    let lab_adjusted = vec3<f32>(lab.x, lab.y * saturation, lab.z * saturation);
+    
+    // Convert back to linear sRGB
+    let rgb_out = oklab_to_linear_srgb(lab_adjusted);
+    
+    // Convert back to sRGB gamma
+    return vec3<f32>(
+        linear_to_srgb(clamp(rgb_out.x, 0.0, 1.0)),
+        linear_to_srgb(clamp(rgb_out.y, 0.0, 1.0)),
+        linear_to_srgb(clamp(rgb_out.z, 0.0, 1.0))
+    );
 }
 
 // S-curve for film characteristic curve
@@ -179,10 +278,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         color.g = color.g - params.tint * 0.08;
     }
 
-    // Saturation (skip for B&W film)
+    // ============ ACES FILMIC TONE MAPPING ============
+    // Apply ACES for better highlight handling and cinematic look
+    {
+        // ACES strength increases with exposure to handle highlight clipping
+        let exposure_mult = pow(2.0, params.exposure);
+        let aces_strength = clamp(0.5 + abs(exposure_mult - 1.0) * 0.3, 0.3, 0.9);
+        color = apply_aces_tonemap(max(color, vec3<f32>(0.0)), aces_strength);
+    }
+
+    // ============ OKLAB SATURATION (perceptually uniform) ============
+    // Saturation (skip for B&W film) - now using OKLab for better perceptual uniformity
     if (params.film_enabled == 0u || params.film_is_bw == 0u) {
-        let gray = dot(color, vec3<f32>(0.299, 0.587, 0.114));
-        color = mix(vec3<f32>(gray), color, params.saturation);
+        if (abs(params.saturation - 1.0) > 0.001) {
+            // Apply OKLab saturation for perceptually uniform results
+            color = apply_oklab_saturation(clamp(color, vec3<f32>(0.0), vec3<f32>(1.0)), params.saturation);
+        }
     }
 
     // Sharpening using local contrast enhancement
