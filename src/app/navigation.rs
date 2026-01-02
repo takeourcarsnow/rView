@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::image_loader::ImageAdjustments;
 use super::ImageViewerApp;
 
 impl ImageViewerApp {
@@ -48,10 +49,17 @@ impl ImageViewerApp {
             return;
         }
 
+        // Save current adjustments before navigating
+        self.save_current_adjustments();
+
         let saved_zoom = self.zoom;
         let saved_pan = self.pan_offset;
 
         self.current_index = index;
+        
+        // Load adjustments for the new image
+        self.load_adjustments_for_current();
+        
         self.load_current_image();
 
         if self.settings.maintain_zoom_on_navigate {
@@ -66,5 +74,28 @@ impl ImageViewerApp {
 
     pub fn go_to_index(&mut self, index: usize) {
         self.navigate_to_index(index);
+    }
+    
+    /// Save current image's adjustments to metadata database
+    pub fn save_current_adjustments(&mut self) {
+        if let Some(path) = self.get_current_path() {
+            self.metadata_db.set_adjustments(path, &self.adjustments);
+            self.metadata_db.save();
+        }
+    }
+    
+    /// Load adjustments for the current image from metadata database
+    pub fn load_adjustments_for_current(&mut self) {
+        if let Some(path) = self.get_current_path() {
+            if let Some(adjustments) = self.metadata_db.get_adjustments(&path) {
+                self.adjustments = adjustments;
+                // Also update the film preset if film is enabled
+                self.current_film_preset = crate::image_loader::FilmPreset::None;
+            } else {
+                // Reset to default if no adjustments stored
+                self.adjustments = ImageAdjustments::default();
+                self.current_film_preset = crate::image_loader::FilmPreset::None;
+            }
+        }
     }
 }

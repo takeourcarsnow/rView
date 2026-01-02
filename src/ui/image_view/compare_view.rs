@@ -122,8 +122,7 @@ impl ImageViewerApp {
                                         if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
                                             // find display index among filtered_list
                                             if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
-                                                self.current_index = pos;
-                                                self.load_current_image();
+                                                self.go_to_index(pos);
                                             }
                                         }
                                     }
@@ -205,8 +204,7 @@ impl ImageViewerApp {
                                     if let Some(dp) = right_path.clone() {
                                         if let Some(idx) = self.image_list.iter().position(|p| p == &dp) {
                                             if let Some(pos) = self.filtered_list.iter().position(|&r| r == idx) {
-                                                self.current_index = pos;
-                                                self.load_current_image();
+                                                self.go_to_index(pos);
                                             }
                                         }
                                     }

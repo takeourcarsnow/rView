@@ -118,6 +118,8 @@ impl ImageViewerApp {
                 self.current_index = self.filtered_list.len() - 1;
             }
             if !self.filtered_list.is_empty() {
+                // Load adjustments for the new current image
+                self.load_adjustments_for_current();
                 self.load_current_image();
             } else {
                 self.current_texture = None;

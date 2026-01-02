@@ -200,6 +200,8 @@ impl ImageViewerApp {
 
         if !self.filtered_list.is_empty() {
             self.current_index = 0;
+            // Load adjustments for the first image
+            self.load_adjustments_for_current();
             self.load_current_image();
         }
 

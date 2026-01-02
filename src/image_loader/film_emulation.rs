@@ -1,7 +1,8 @@
 use crate::errors::{Result, ViewerError};
 use image::DynamicImage;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilmEmulation {
     pub enabled: bool,
     pub is_bw: bool,                    // Whether this is a B&W film (converts color to mono)
@@ -89,7 +90,7 @@ impl Default for FilmEmulation {
 }
 
 // Apply basic adjustments (non-destructive preview)
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImageAdjustments {
     pub exposure: f32,      // -3.0 to +3.0 (stops)
     pub contrast: f32,      // 0.5 to 2.0 (multiplier)

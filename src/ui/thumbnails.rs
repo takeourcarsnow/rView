@@ -294,24 +294,21 @@ impl ImageViewerApp {
                     self.selected_indices.insert(i);
                 }
             } else {
-                // Single select
+                // Single select - use go_to_index to properly save/load adjustments
                 self.selected_indices.clear();
-                self.current_index = display_idx;
-                self.load_current_image();
+                self.go_to_index(display_idx);
             }
         }
 
         // Double-click: open image
         if response.double_clicked() {
-            self.current_index = display_idx;
-            self.load_current_image();
+            self.go_to_index(display_idx);
         }
 
         // Context menu
         response.context_menu(|ui| {
             if ui.button("View").clicked() {
-                self.current_index = display_idx;
-                self.load_current_image();
+                self.go_to_index(display_idx);
                 ui.close_menu();
             }
 

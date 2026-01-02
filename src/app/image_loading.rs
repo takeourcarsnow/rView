@@ -16,6 +16,8 @@ impl ImageViewerApp {
 
             if let Some(idx) = self.image_list.iter().position(|p| p == &path) {
                 self.current_index = idx;
+                // Load adjustments for this image
+                self.load_adjustments_for_current();
                 self.load_current_image();
             }
         }

@@ -260,6 +260,8 @@ impl ImageViewerApp {
                     if let Some(ref file) = app.settings.last_file.clone() {
                         if let Some(idx) = app.image_list.iter().position(|p| p == file) {
                             app.current_index = idx;
+                            // Load adjustments for restored session
+                            app.load_adjustments_for_current();
                             app.load_current_image();
                         }
                     }

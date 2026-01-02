@@ -126,14 +126,12 @@ impl ImageViewerApp {
                                     }
                                 } else {
                                     self.selected_indices.clear();
-                                    self.current_index = idx;
-                                    self.load_current_image();
+                                    self.go_to_index(idx);
                                 }
                             }
 
                             if let Some(idx) = double_clicked_index {
-                                self.current_index = idx;
-                                self.load_current_image();
+                                self.go_to_index(idx);
                                 self.view_mode = crate::app::ViewMode::Single;
                             }
                         });

@@ -194,13 +194,17 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                 .rounding(Rounding::same(2.0)))
                 .clicked() {
                 app.adjustments = ImageAdjustments::default();
+                app.current_film_preset = FilmPreset::None;
                 app.refresh_adjustments();
                 if let Some(path) = app.get_current_path() {
                     app.undo_history.push(FileOperation::Adjust {
-                        path,
+                        path: path.clone(),
                         adjustments: app.adjustments.clone(),
                         previous_adjustments: Box::new(previous_adjustments.clone()),
                     });
+                    // Save reset adjustments to metadata database
+                    app.metadata_db.set_adjustments(path, &app.adjustments);
+                    app.metadata_db.save();
                 }
             }
         });
@@ -209,14 +213,17 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
     // Film Emulation panel (separate like Lightroom's Detail panel)
     render_film_emulation_panel(app, ui, &previous_adjustments, &mut adjustments_changed);
 
-    // Record undo if adjustments changed
+    // Record undo if adjustments changed and save to metadata
     if adjustments_changed && app.adjustments != previous_adjustments {
         if let Some(path) = app.get_current_path() {
             app.undo_history.push(FileOperation::Adjust {
-                path,
+                path: path.clone(),
                 adjustments: app.adjustments.clone(),
                 previous_adjustments: Box::new(previous_adjustments.clone()),
             });
+            // Save adjustments to metadata database
+            app.metadata_db.set_adjustments(path, &app.adjustments);
+            app.metadata_db.save();
         }
     }
 }
@@ -242,10 +249,13 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
                             app.refresh_adjustments();
                             if let Some(path) = app.get_current_path() {
                                 app.undo_history.push(FileOperation::Adjust {
-                                    path,
+                                    path: path.clone(),
                                     adjustments: app.adjustments.clone(),
                                     previous_adjustments: Box::new(prev_adj),
                                 });
+                                // Save adjustments to metadata database
+                                app.metadata_db.set_adjustments(path, &app.adjustments);
+                                app.metadata_db.save();
                             }
                         }
                     }

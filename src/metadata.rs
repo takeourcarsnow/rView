@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::settings::ColorLabel;
+use crate::image_loader::ImageAdjustments;
 
 /// Metadata stored for each image (ratings, labels, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -12,6 +13,8 @@ pub struct ImageMetadata {
     pub notes: String,
     pub flagged: bool,
     pub rejected: bool,
+    #[serde(default)]
+    pub adjustments: Option<ImageAdjustments>,
 }
 
 /// Database of image metadata
@@ -97,6 +100,22 @@ impl MetadataDb {
     
     pub fn restore_metadata(&mut self, path: PathBuf, metadata: ImageMetadata) {
         self.images.insert(path, metadata);
+    }
+    
+    /// Get adjustments for an image, returns None if no adjustments are stored
+    pub fn get_adjustments<P: AsRef<std::path::Path>>(&self, path: P) -> Option<ImageAdjustments> {
+        self.images.get(path.as_ref()).and_then(|m| m.adjustments.clone())
+    }
+    
+    /// Set adjustments for an image (only stores if not default)
+    pub fn set_adjustments<P: Into<PathBuf>>(&mut self, path: P, adjustments: &ImageAdjustments) {
+        let path = path.into();
+        let entry = self.images.entry(path).or_default();
+        if adjustments.is_default() {
+            entry.adjustments = None;
+        } else {
+            entry.adjustments = Some(adjustments.clone());
+        }
     }
 }
 

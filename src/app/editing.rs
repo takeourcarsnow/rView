@@ -108,6 +108,8 @@ impl ImageViewerApp {
             }
 
             if !self.filtered_list.is_empty() {
+                // Load adjustments for the new current image
+                self.load_adjustments_for_current();
                 self.load_current_image();
             } else {
                 self.current_texture = None;
@@ -227,9 +229,12 @@ impl ImageViewerApp {
                 }
                 FileOperation::Adjust { path, previous_adjustments, .. } => {
                     if current_path.as_ref() == Some(&path) {
-                        self.adjustments = *previous_adjustments;
+                        self.adjustments = *previous_adjustments.clone();
                         self.refresh_adjustments();
                     }
+                    // Save the reverted adjustments to metadata
+                    self.metadata_db.set_adjustments(path, &previous_adjustments);
+                    self.metadata_db.save();
                     self.show_status("Undo: Adjustments reverted");
                 }
                 FileOperation::Rate { path, previous_rating, .. } => {
@@ -300,6 +305,9 @@ impl ImageViewerApp {
                         self.adjustments = adjustments.clone();
                         self.refresh_adjustments();
                     }
+                    // Save the reapplied adjustments to metadata
+                    self.metadata_db.set_adjustments(path, &adjustments);
+                    self.metadata_db.save();
                     self.show_status("Redo: Adjustments reapplied");
                 }
                 FileOperation::Rate { path, rating, .. } => {
