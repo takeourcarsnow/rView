@@ -9,7 +9,6 @@ mod catalog;
 mod metadata;
 mod keywording;
 mod folders;
-mod sidebar_utils;
 mod thumbnails;
 mod dialogs;
 mod settings_dialog;

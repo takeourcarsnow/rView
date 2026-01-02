@@ -26,7 +26,6 @@ pub struct BatchRenameState {
     pub preview_renames: Vec<(PathBuf, PathBuf)>,
     pub sequence_start: u32,
     pub sequence_padding: u32,
-    pub date_format: String,
     pub separator: String,
 }
 
@@ -39,7 +38,6 @@ impl Default for BatchRenameState {
             preview_renames: Vec::new(),
             sequence_start: 1,
             sequence_padding: 3,
-            date_format: "%Y-%m-%d".to_string(),
             separator: "_".to_string(),
         }
     }

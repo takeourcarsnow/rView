@@ -10,4 +10,6 @@ todo
 
 [DONE] focus peaking and zebras dont work (normalized GPU threshold)
 
-undo doesnt work
+undo / redo doesnt work or not implemented
+
+doubleclick on slider to reset sliders to default value

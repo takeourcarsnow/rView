@@ -37,6 +37,7 @@ pub struct CatalogDb {
     pub(crate) conn: Connection,
 }
 
+#[allow(dead_code)]
 impl CatalogDb {
     /// Create a new catalog or open existing one
     pub fn new() -> Result<Self> {

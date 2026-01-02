@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
-use crate::gpu::GpuProcessor;
+use crate::gpu::types::GpuProcessor;
 
 #[derive(Debug)]
 pub enum LoaderMessage {

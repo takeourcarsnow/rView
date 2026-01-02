@@ -1,9 +1,8 @@
-use crate::errors::{Result, ViewerError};
-use image::{DynamicImage, ImageBuffer, Rgba, RgbaImage, imageops};
+use image::{DynamicImage, ImageBuffer, Rgba, imageops};
 use rayon::prelude::*;
 use num_cpus;
 
-use super::film_emulation::{FilmEmulation, ImageAdjustments};
+use super::film_emulation::{ImageAdjustments};
 
 // ============ ACES FILMIC TONE MAPPING ============
 // Based on the ACES (Academy Color Encoding System) RRT+ODT approximation
@@ -134,6 +133,7 @@ fn apply_oklab_saturation(r: f32, g: f32, b: f32, saturation: f32) -> (f32, f32,
 
 /// Apply vibrance in OKLab (protects already-saturated colors and skin tones)
 #[inline]
+#[allow(dead_code)]
 fn apply_oklab_vibrance(r: f32, g: f32, b: f32, vibrance: f32) -> (f32, f32, f32) {
     // Convert to linear sRGB
     let r_lin = srgb_to_linear(r);

@@ -1,5 +1,3 @@
-use anyhow::{anyhow, Result};
-
 /// GPU performance and capability information
 #[derive(Debug, Clone)]
 pub struct GpuPerformanceInfo {

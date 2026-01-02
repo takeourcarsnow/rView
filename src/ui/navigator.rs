@@ -1,8 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, RichText, Vec2, Rect, Pos2};
-
-// Lightroom-inspired color scheme
-const LR_BG_DARK: Color32 = Color32::from_rgb(38, 38, 38);
+use egui::{self, Color32, RichText, Vec2, Rect};
 const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
 const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
 const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);

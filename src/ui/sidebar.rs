@@ -1,22 +1,12 @@
 use crate::app::ImageViewerApp;
-use crate::image_loader::{ImageAdjustments, FilmPreset};
-use crate::metadata::FileOperation;
-use crate::settings::ColorLabel;
-use egui::{self, Color32, RichText, Vec2, Rounding, Margin, Stroke, Rect};
-use std::path::PathBuf;
+use egui::{self, Color32, Margin, Stroke};
 
 // Use the modules from the parent ui crate
-use crate::ui::{navigator, histogram, adjustments, metadata, keywording, folders, sidebar_utils};
+use crate::ui::{navigator, histogram, adjustments, metadata, keywording, folders};
 
 // Lightroom-inspired color scheme
 const LR_BG_DARK: Color32 = Color32::from_rgb(38, 38, 38);
-const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
-const LR_BG_INPUT: Color32 = Color32::from_rgb(34, 34, 34);
 const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
-const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
-const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);
-const LR_TEXT_LABEL: Color32 = Color32::from_rgb(180, 180, 180);
-const LR_HEADER_BG: Color32 = Color32::from_rgb(45, 45, 45);
 
 impl ImageViewerApp {
     /// Render the navigator panel on the left side of the screen
@@ -99,10 +89,6 @@ impl ImageViewerApp {
         adjustments::render_basic_panel(self, ui);
     }
 
-    fn render_film_emulation_panel(&mut self, ui: &mut egui::Ui, _previous_adjustments: &ImageAdjustments, adjustments_changed: &mut bool) {
-        adjustments::render_film_emulation_panel(self, ui, adjustments_changed);
-    }
-
     fn render_metadata_info_panel(&mut self, ui: &mut egui::Ui) {
         metadata::render_metadata_info_panel(self, ui);
     }
@@ -113,9 +99,5 @@ impl ImageViewerApp {
 
     fn render_folders_panel(&mut self, ui: &mut egui::Ui) {
         folders::render_folders_panel(self, ui);
-    }
-
-    fn render_folder_node(&mut self, ui: &mut egui::Ui, path: PathBuf, depth: usize) {
-        folders::render_folder_node(self, ui, path, depth);
     }
 }

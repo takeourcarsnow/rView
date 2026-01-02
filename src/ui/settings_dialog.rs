@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{Theme, BackgroundColor, ThumbnailPosition, FocusPeakingColor, GridType};
-use egui::{self, Color32, Vec2, Rounding, Margin, RichText};
+use egui::{self, Color32, Vec2, RichText};
 
 impl ImageViewerApp {
     pub fn render_settings_dialog(&mut self, ctx: &egui::Context) {

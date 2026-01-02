@@ -299,7 +299,7 @@ impl ImageViewerApp {
     /// Add current image to a collection
     pub fn add_current_to_collection(&mut self, collection_id: i64) {
         if let Some(current_path) = self.get_current_path() {
-            self.add_path_to_collection(current_path, collection_id);
+            let _ = self.add_path_to_collection(current_path, collection_id);
         }
     }
 

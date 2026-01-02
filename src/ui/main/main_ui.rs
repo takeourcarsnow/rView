@@ -1,4 +1,5 @@
 use crate::app::{ImageViewerApp, ViewMode};
+use crate::gpu::types::GpuProcessor;
 
 impl eframe::App for ImageViewerApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -11,7 +12,7 @@ impl eframe::App for ImageViewerApp {
             self.gpu_initialization_attempted = true;
             // Use pollster to block on the async GPU initialization
             // This is acceptable since GPU init is typically fast and only happens once
-            match pollster::block_on(crate::gpu::GpuProcessor::new()) {
+            match pollster::block_on(GpuProcessor::new()) {
                 Ok(processor) => {
                     self.gpu_processor = Some(std::sync::Arc::new(processor));
                     self.set_status_message("GPU acceleration enabled".to_string());

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
 use rusqlite::params;
-use std::path::Path;
 
 use super::database::CatalogDb;
 
@@ -31,6 +30,7 @@ impl CollectionType {
 
 /// Represents a collection of images
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Collection {
     pub id: i64,
     pub name: String,
@@ -40,6 +40,7 @@ pub struct Collection {
     pub image_count: usize,
 }
 
+#[allow(dead_code)]
 impl CatalogDb {
     /// Create a new collection
     pub fn create_collection(

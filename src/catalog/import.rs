@@ -7,6 +7,7 @@ use crate::image_loader::extensions::is_supported_image;
 
 /// Import options for catalog
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ImportOptions {
     pub recursive: bool,
     pub skip_existing: bool,
@@ -26,6 +27,7 @@ impl Default for ImportOptions {
 /// Import progress callback
 pub type ProgressCallback = Box<dyn Fn(usize, usize, &str) + Send>;
 
+#[allow(dead_code)]
 impl CatalogDb {
     /// Import a folder into the catalog
     pub fn import_folder<P: AsRef<Path>>(

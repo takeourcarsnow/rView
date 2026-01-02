@@ -3,4 +3,4 @@ pub mod import;
 pub mod collections;
 
 pub use database::CatalogDb;
-pub use collections::{Collection, CollectionType};
+pub use collections::{CollectionType};
