@@ -18,6 +18,8 @@ image = { version = "0.25.9", default-features = false, features = ["png", "jpeg
 rawloader = "0.37"
 imagepipe = "0.5"
 imageproc = "0.25"
+# Note: rsraw (LibRaw bindings) requires Windows SDK with full C++ headers for compilation
+# The improved algorithms (ACES, OKLab, AHD demosaic) are implemented directly in our code instead
 
 # Async runtime - only include what's needed (reduces compile time significantly)
 tokio = { version = "1.40", features = ["rt-multi-thread", "sync", "fs", "io-util", "time", "macros"] }
