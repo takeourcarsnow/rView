@@ -20,8 +20,11 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     env:
-      # Override the custom linker from .cargo/config.toml (which is for Windows cross-compilation)
+      # Override the custom linker/compiler settings from .cargo/config.toml (which are for Windows cross-compilation)
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: cc
+      CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: ""
+      CC_x86_64-unknown-linux-gnu: gcc
+      CFLAGS_x86_64-unknown-linux-gnu: ""
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
