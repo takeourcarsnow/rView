@@ -19,8 +19,8 @@ rawloader = "0.37"
 imagepipe = "0.5"
 imageproc = "0.25"
 
-# Async runtime
-tokio = { version = "1.40", features = ["full"] }
+# Async runtime - only include what's needed (reduces compile time significantly)
+tokio = { version = "1.40", features = ["rt-multi-thread", "sync", "fs", "io-util", "time", "macros"] }
 
 # File dialogs
 rfd = "0.15"
@@ -138,6 +138,31 @@ debug = false
 
 [profile.dev]
 opt-level = 1
+# Faster incremental builds - split debug info
+split-debuginfo = "unpacked"
+# More codegen units for parallelism (faster compile, slower runtime)
+codegen-units = 256
+# Incremental compilation (default, but explicit)
+incremental = true
+# Less debug info for faster builds
+debug = 1
+
+# Fast debug builds that still run reasonably well
+[profile.dev-fast]
+inherits = "dev"
+opt-level = 2
+debug = 0
+codegen-units = 16
+
+# For quick iteration - minimal checks
+[profile.quick-check]
+inherits = "dev"
+opt-level = 0
+debug = 0
 
 [dev-dependencies]
 tempfile = "3"
+
+# Workspace-level settings for faster builds
+[workspace]
+resolver = "2"

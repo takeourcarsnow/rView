@@ -1,0 +1,64 @@
+# Build speed optimizations for image_viewer
+# See: https://nnethercote.github.io/perf-book/compile-times.html
+
+[build]
+# Use all available CPU cores for codegen
+jobs = -1
+
+[target.x86_64-pc-windows-msvc]
+# Use lld linker for faster linking (if available)
+# Install via: rustup component add llvm-tools
+# Or use mold on Linux: linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Alternative: Use native Windows linker with parallel linking
+rustflags = [
+    # Enable parallel code generation
+    "-C", "codegen-units=16",
+    # Faster debug builds
+    "-C", "debuginfo=1",
+]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+    "-C", "codegen-units=16",
+    "-C", "debuginfo=1",
+]
+
+# Optimize build scripts and proc macros
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3
+
+# Faster proc-macro compilation
+[profile.dev.package."*"]
+opt-level = 1
+
+# Heavily used proc macros - compile with more optimization
+[profile.dev.package.syn]
+opt-level = 3
+
+[profile.dev.package.proc-macro2]
+opt-level = 3
+
+[profile.dev.package.quote]
+opt-level = 3
+
+[profile.dev.package.serde_derive]
+opt-level = 3
+
+[profile.dev.package.thiserror-impl]
+opt-level = 3
+
+[registries.crates-io]
+protocol = "sparse"
+
+[net]
+# Use Git CLI for fetching (often faster)
+git-fetch-with-cli = true
+
+[env]
+# Reduce SQLite compile time
+SQLITE_MAX_VARIABLE_NUMBER = "250000"
