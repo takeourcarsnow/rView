@@ -248,7 +248,9 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
                 .show_ui(ui, |ui| {
                     for preset in FilmPreset::all() {
                         let selected = *preset == app.current_film_preset;
-                        if ui.selectable_label(selected, preset.name()).clicked() {
+                        let response = ui.selectable_label(selected, preset.name())
+                            .on_hover_text(preset.description());
+                        if response.clicked() {
                             app.current_film_preset = *preset;
                             let prev_adj = app.adjustments.clone();
                             app.adjustments.apply_preset(*preset);
