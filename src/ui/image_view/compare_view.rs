@@ -75,7 +75,8 @@ impl ImageViewerApp {
                                                 self.compare_large_preview_requests.insert(path.clone());
                                                 rayon::spawn(move || {
                                                     if let Ok(thumb) = crate::image_loader::load_thumbnail(&path_clone, 2048) {
-                                                        cache.insert_thumbnail(path_clone.clone(), thumb.clone());
+                                                        let thumb_clone = thumb.clone();
+                                                        cache.insert_thumbnail(path_clone.clone(), thumb_clone);
                                                         let _ = tx.send(LoaderMessage::ThumbnailLoaded(path_clone, thumb));
                                                     }
                                                 });
@@ -166,7 +167,8 @@ impl ImageViewerApp {
                                                 self.compare_large_preview_requests.insert(path.clone());
                                                 rayon::spawn(move || {
                                                     if let Ok(thumb) = crate::image_loader::load_thumbnail(&path_clone, 2048) {
-                                                        cache.insert_thumbnail(path_clone.clone(), thumb.clone());
+                                                        let thumb_clone = thumb.clone();
+                                                        cache.insert_thumbnail(path_clone.clone(), thumb_clone);
                                                         let _ = tx.send(LoaderMessage::ThumbnailLoaded(path_clone, thumb));
                                                     }
                                                 });

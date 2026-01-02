@@ -326,7 +326,7 @@ impl ImageViewerApp {
                         self.spawn_loader(move || {
                             Some(match crate::image_loader::load_image(&path_clone) {
                                 Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
-                                Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+                                Err(e) => super::LoaderMessage::LoadError(path_clone, format!("{}", e)),
                             })
                         });
                     }

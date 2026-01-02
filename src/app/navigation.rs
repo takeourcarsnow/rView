@@ -185,7 +185,7 @@ impl ImageViewerApp {
             self.spawn_loader(move || {
                 Some(match image_loader::load_image(&path_clone) {
                     Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
-                    Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+                    Err(e) => super::LoaderMessage::LoadError(path_clone, format!("{}", e)),
                 })
             });
         }
@@ -200,7 +200,7 @@ impl ImageViewerApp {
                     let preview = image_loader::generate_thumbnail(&full_image, 1920);
                     Some(super::LoaderMessage::ProgressiveLoaded(path_clone.clone(), preview))
                 }
-                Err(e) => Some(super::LoaderMessage::LoadError(path_clone, e.to_string())),
+                Err(e) => Some(super::LoaderMessage::LoadError(path_clone, format!("{}", e))),
             }
         });
 
@@ -209,7 +209,7 @@ impl ImageViewerApp {
         self.spawn_loader(move || {
             Some(match image_loader::load_image(&path_clone) {
                 Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
-                Err(e) => super::LoaderMessage::LoadError(path_clone, e.to_string()),
+                Err(e) => super::LoaderMessage::LoadError(path_clone, format!("{}", e)),
             })
         });
     }
@@ -490,21 +490,24 @@ impl ImageViewerApp {
             if image_loader::is_raw_file(&p) && !load_raw_full_size {
                 match image_loader::load_raw_embedded_thumbnail(&p, size) {
                     Ok(thumb) => {
-                        cache.insert_thumbnail(p.clone(), thumb.clone());
+                        let thumb_clone = thumb.clone();
+                        cache.insert_thumbnail(p.clone(), thumb_clone);
                         let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                         ctx.request_repaint();
                     }
                     Err(_) => {
                         log::warn!("No embedded thumbnail for {:?} — falling back to full decode for thumbnail", p);
                         if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
-                            cache.insert_thumbnail(p.clone(), thumb.clone());
+                            let thumb_clone = thumb.clone();
+                            cache.insert_thumbnail(p.clone(), thumb_clone);
                             let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                             ctx.request_repaint();
                         }
                     }
                 }
             } else if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
-                    cache.insert_thumbnail(p.clone(), thumb.clone());
+                    let thumb_clone = thumb.clone();
+                    cache.insert_thumbnail(p.clone(), thumb_clone);
                     let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                     ctx.request_repaint();
             }
