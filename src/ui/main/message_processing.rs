@@ -65,8 +65,21 @@ impl ImageViewerApp {
 
     fn handle_thumbnail_loaded(&mut self, path: PathBuf, thumb: DynamicImage, ctx: &egui::Context) {
         crate::profiler::with_profiler(|p| p.increment_counter("thumbnails_loaded"));
-        let size = [thumb.width() as usize, thumb.height() as usize];
-        let rgba = thumb.to_rgba8();
+        
+        // Apply adjustments to thumbnail if any exist for this image
+        // Use the thumbnail-specific adjustment function to avoid parallel processing glitches
+        let display_thumb = if let Some(adj) = self.metadata_db.get_adjustments(&path) {
+            if !adj.is_default() {
+                crate::image_loader::apply_adjustments_thumbnail(&thumb, &adj)
+            } else {
+                thumb
+            }
+        } else {
+            thumb
+        };
+        
+        let size = [display_thumb.width() as usize, display_thumb.height() as usize];
+        let rgba = display_thumb.to_rgba8();
         let pixels = rgba.as_flat_samples();
 
         let texture = ctx.load_texture(

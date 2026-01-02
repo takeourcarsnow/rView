@@ -203,8 +203,11 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                         previous_adjustments: Box::new(previous_adjustments.clone()),
                     });
                     // Save reset adjustments to metadata database
-                    app.metadata_db.set_adjustments(path, &app.adjustments);
+                    app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
                     app.metadata_db.save();
+                    // Invalidate thumbnail to regenerate with new adjustments
+                    app.thumbnail_textures.remove(&path);
+                    app.thumbnail_requests.remove(&path);
                 }
             }
         });
@@ -222,8 +225,11 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                 previous_adjustments: Box::new(previous_adjustments.clone()),
             });
             // Save adjustments to metadata database
-            app.metadata_db.set_adjustments(path, &app.adjustments);
+            app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
             app.metadata_db.save();
+            // Invalidate thumbnail to regenerate with new adjustments
+            app.thumbnail_textures.remove(&path);
+            app.thumbnail_requests.remove(&path);
         }
     }
 }
@@ -254,8 +260,11 @@ pub fn render_film_emulation_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui, 
                                     previous_adjustments: Box::new(prev_adj),
                                 });
                                 // Save adjustments to metadata database
-                                app.metadata_db.set_adjustments(path, &app.adjustments);
+                                app.metadata_db.set_adjustments(path.clone(), &app.adjustments);
                                 app.metadata_db.save();
+                                // Invalidate thumbnail to regenerate with new adjustments
+                                app.thumbnail_textures.remove(&path);
+                                app.thumbnail_requests.remove(&path);
                             }
                         }
                     }

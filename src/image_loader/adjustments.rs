@@ -388,6 +388,90 @@ fn generate_film_grain(x: u32, y: u32, seed: u64, size: f32, roughness: f32) -> 
     rough_noise
 }
 
+/// Apply basic adjustments to a thumbnail (simplified version without film emulation or parallel processing)
+/// This avoids glitches that can occur with parallel chunk processing on small images
+pub fn apply_adjustments_thumbnail(image: &DynamicImage, adj: &ImageAdjustments) -> DynamicImage {
+    if adj.is_default() {
+        return image.clone();
+    }
+
+    let mut img = image.to_rgba8();
+    let (width, height) = img.dimensions();
+
+    // Pre-calculate adjustment factors
+    let exposure_mult = 2.0_f32.powf(adj.exposure);
+    let contrast_factor = adj.contrast;
+    let sat_factor = adj.saturation;
+    let temp_r_add = if adj.temperature > 0.0 { adj.temperature * 25.5 } else { adj.temperature * 15.3 };
+    let temp_b_sub = if adj.temperature > 0.0 { adj.temperature * 15.3 } else { adj.temperature * 25.5 };
+    let brightness_add = adj.brightness * 2.55;
+    let blacks_add = adj.blacks * 25.5;
+    let whites_mult = 1.0 - adj.whites * 0.1;
+
+    // Process each pixel sequentially (safe for small images)
+    for y in 0..height {
+        for x in 0..width {
+            let pixel = img.get_pixel(x, y);
+            let mut r = pixel[0] as f32;
+            let mut g = pixel[1] as f32;
+            let mut b = pixel[2] as f32;
+            let a = pixel[3];
+
+            // Apply exposure
+            r *= exposure_mult;
+            g *= exposure_mult;
+            b *= exposure_mult;
+
+            // Blacks adjustment
+            r += blacks_add;
+            g += blacks_add;
+            b += blacks_add;
+
+            // Whites adjustment
+            r *= whites_mult;
+            g *= whites_mult;
+            b *= whites_mult;
+
+            // Brightness
+            r += brightness_add;
+            g += brightness_add;
+            b += brightness_add;
+
+            // Contrast
+            r = ((r / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
+            g = ((g / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
+            b = ((b / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
+
+            // Temperature
+            r += temp_r_add;
+            b -= temp_b_sub;
+
+            // Saturation
+            let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            r = gray + (r - gray) * sat_factor;
+            g = gray + (g - gray) * sat_factor;
+            b = gray + (b - gray) * sat_factor;
+
+            // Film B&W conversion if enabled
+            if adj.film.enabled && adj.film.is_bw {
+                let luminance = 0.30 * r + 0.59 * g + 0.11 * b;
+                r = luminance;
+                g = luminance;
+                b = luminance;
+            }
+
+            // Clamp values
+            let r = r.clamp(0.0, 255.0) as u8;
+            let g = g.clamp(0.0, 255.0) as u8;
+            let b = b.clamp(0.0, 255.0) as u8;
+
+            img.put_pixel(x, y, Rgba([r, g, b, a]));
+        }
+    }
+
+    DynamicImage::ImageRgba8(img)
+}
+
 // Rotate image losslessly (for JPEG, just update EXIF, for others, actually rotate)
 pub fn rotate_image(image: &DynamicImage, degrees: i32) -> DynamicImage {
     match degrees {

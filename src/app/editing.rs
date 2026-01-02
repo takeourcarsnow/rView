@@ -233,8 +233,11 @@ impl ImageViewerApp {
                         self.refresh_adjustments();
                     }
                     // Save the reverted adjustments to metadata
-                    self.metadata_db.set_adjustments(path, &previous_adjustments);
+                    self.metadata_db.set_adjustments(path.clone(), &previous_adjustments);
                     self.metadata_db.save();
+                    // Invalidate thumbnail to regenerate with reverted adjustments
+                    self.thumbnail_textures.remove(&path);
+                    self.thumbnail_requests.remove(&path);
                     self.show_status("Undo: Adjustments reverted");
                 }
                 FileOperation::Rate { path, previous_rating, .. } => {
@@ -306,8 +309,11 @@ impl ImageViewerApp {
                         self.refresh_adjustments();
                     }
                     // Save the reapplied adjustments to metadata
-                    self.metadata_db.set_adjustments(path, &adjustments);
+                    self.metadata_db.set_adjustments(path.clone(), &adjustments);
                     self.metadata_db.save();
+                    // Invalidate thumbnail to regenerate with reapplied adjustments
+                    self.thumbnail_textures.remove(&path);
+                    self.thumbnail_requests.remove(&path);
                     self.show_status("Redo: Adjustments reapplied");
                 }
                 FileOperation::Rate { path, rating, .. } => {
