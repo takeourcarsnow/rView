@@ -1,0 +1,64 @@
+name: Build and Release Binaries
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image_viewer-windows-x86_64
+          path: target/release/image_viewer.exe
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: |
+          sudo apt update
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image_viewer-linux-x86_64
+          path: target/release/image_viewer
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image_viewer-macos-x86_64
+          path: target/release/image_viewer
+
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image_viewer-windows-x86_64
+          path: artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: image_viewer-linux-x86_64
+          path: artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: image_viewer-macos-x86_64
+          path: artifacts/
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

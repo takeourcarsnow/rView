@@ -14,3 +14,13 @@ Thumbs.db
 # Rust
 **/*.rs.bk
 Cargo.lock
+
+# Cross-compilation artifacts
+dist/
+zig/
+zig.zip
+cc.bat
+linker.bat
+
+# Local cargo config
+.cargo/
