@@ -31,7 +31,16 @@ impl ImageViewerApp {
                 .stroke(Stroke::new(1.0, LR_BORDER))
                 .inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                self.render_navigator_panel(ui);
+                // If catalog is enabled, show catalog panel, otherwise show navigator
+                if self.catalog_enabled && self.catalog_db.is_some() {
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            self.render_catalog_panel(ui);
+                        });
+                } else {
+                    self.render_navigator_panel(ui);
+                }
             });
     }
 

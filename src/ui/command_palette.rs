@@ -100,6 +100,9 @@ impl ImageViewerApp {
             ("Delete Image", "Del", "delete"),
             ("Set as Wallpaper", "", "wallpaper"),
             ("Settings", "", "settings"),
+            ("Import to Catalog", "", "catalog_import"),
+            ("View All Photos", "", "catalog_all"),
+            ("New Collection", "", "catalog_collection"),
         ];
 
         let query = self.command_palette_query.to_lowercase();
@@ -139,6 +142,20 @@ impl ImageViewerApp {
             "delete" => self.delete_current_image(),
             "wallpaper" => self.set_as_wallpaper(),
             "settings" => self.show_settings_dialog = true,
+            "catalog_import" => {
+                if self.catalog_db.is_some() {
+                    self.catalog_show_import_dialog = true;
+                }
+            }
+            "catalog_all" => {
+                self.catalog_view_active = true;
+                self.load_catalog_all_photos();
+            }
+            "catalog_collection" => {
+                if self.catalog_db.is_some() {
+                    self.catalog_show_new_collection_dialog = true;
+                }
+            }
             _ => {}
         }
     }

@@ -75,6 +75,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # UUID for unique IDs
 uuid = { version = "1", features = ["v4", "serde"] }
 
+# SQLite database for catalog
+rusqlite = { version = "0.32", features = ["bundled"] }
+
 # Fuzzy search
 fuzzy-matcher = "0.3"
 

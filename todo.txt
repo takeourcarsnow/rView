@@ -1,3 +1,5 @@
 todo
 
 add a way to batch rename images in folder. i.e. adding date from exif as prefix  to current filename
+
+improve how navigator works when panning with mouse inside it

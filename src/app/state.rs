@@ -4,6 +4,7 @@ use crate::settings::Settings;
 use crate::exif_data::ExifInfo;
 use crate::metadata::{MetadataDb, UndoHistory};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
+use crate::catalog::CatalogDb;
 
 use eframe::egui::{self, TextureHandle, Vec2};
 use image::DynamicImage;
@@ -40,6 +41,19 @@ pub struct ImageViewerApp {
 
     // Metadata database
     pub metadata_db: MetadataDb,
+
+    // Catalog database
+    pub catalog_db: Option<CatalogDb>,
+    pub catalog_enabled: bool,
+    pub catalog_view_active: bool,
+    pub catalog_show_import_dialog: bool,
+    pub catalog_import_path: String,
+    pub catalog_import_recursive: bool,
+    pub catalog_show_new_collection_dialog: bool,
+    pub catalog_new_collection_name: String,
+    pub catalog_new_collection_type: crate::catalog::CollectionType,
+    pub catalog_selected_collection: Option<i64>,
+    pub catalog_show_all_photos: bool,
 
     // Tabs removed
 
@@ -182,10 +196,33 @@ impl ImageViewerApp {
 
         let settings = Settings::load();
         let metadata_db = MetadataDb::load();
+        
+        // Initialize catalog database
+        let catalog_db = match CatalogDb::new() {
+            Ok(db) => {
+                log::info!("Catalog database initialized successfully");
+                Some(db)
+            }
+            Err(e) => {
+                log::error!("Failed to initialize catalog database: {}", e);
+                None
+            }
+        };
 
         let mut app = Self {
             settings,
             metadata_db,
+            catalog_db,
+            catalog_enabled: true,
+            catalog_view_active: false,
+            catalog_show_import_dialog: false,
+            catalog_import_path: String::new(),
+            catalog_import_recursive: true,
+            catalog_show_new_collection_dialog: false,
+            catalog_new_collection_name: String::new(),
+            catalog_new_collection_type: crate::catalog::CollectionType::Regular,
+            catalog_selected_collection: None,
+            catalog_show_all_photos: false,
             image_list: Vec::new(),
             filtered_list: Vec::new(),
             current_index: 0,

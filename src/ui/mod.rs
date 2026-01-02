@@ -5,6 +5,7 @@ mod sidebar;
 mod navigator;
 mod histogram;
 mod adjustments;
+mod catalog;
 mod metadata;
 mod keywording;
 mod folders;
