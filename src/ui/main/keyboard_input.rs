@@ -157,11 +157,17 @@ impl ImageViewerApp {
         if ctrl && i.key_pressed(egui::Key::F) {
             self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
         }
+        // Undo: Ctrl+Z
         if ctrl && i.key_pressed(egui::Key::Z) && !shift {
-            self.settings.show_zebras = !self.settings.show_zebras;
-        }
-        if ctrl && i.key_pressed(egui::Key::Z) && shift {
             self.undo_last_operation();
+        }
+        // Redo: Ctrl+Shift+Z or Ctrl+Y
+        if (ctrl && i.key_pressed(egui::Key::Z) && shift) || (ctrl && i.key_pressed(egui::Key::Y)) {
+            self.redo_last_operation();
+        }
+        // Zebras: Alt+Z
+        if alt && i.key_pressed(egui::Key::Z) {
+            self.settings.show_zebras = !self.settings.show_zebras;
         }
         if i.key_pressed(egui::Key::G) && !ctrl {
             self.toggle_lightbox_mode();

@@ -10,6 +10,6 @@ todo
 
 [DONE] focus peaking and zebras dont work (normalized GPU threshold)
 
-undo / redo doesnt work or not implemented
+[DONE] undo / redo doesnt work or not implemented (fixed: Ctrl+Z=undo, Ctrl+Shift+Z/Ctrl+Y=redo, Alt+Z=zebras)
 
-doubleclick on slider to reset sliders to default value
+[DONE] doubleclick on slider to reset sliders to default value (improved double-click detection)

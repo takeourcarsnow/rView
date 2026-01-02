@@ -476,8 +476,11 @@ fn lr_slider_ex(ui: &mut egui::Ui, label: &str, value: &mut f32, range: std::ops
         // Track if user is actively dragging
         is_dragging = response.dragged();
         
-        // Double-click resets to provided default value
-        if response.double_clicked() {
+        // Double-click on slider area resets to default value
+        // Check for double-click via secondary sense since slider may consume it
+        let double_click = response.double_clicked() || 
+            (ui.input(|i| i.pointer.button_double_clicked(egui::PointerButton::Primary)) && response.hovered());
+        if double_click {
             *value = default;
             changed = true;
         }

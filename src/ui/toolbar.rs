@@ -203,7 +203,7 @@ impl ImageViewerApp {
                     if toggle_button(ui, lucide("focus"), "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
                     }
-                    if toggle_button(ui, lucide("zap"), "Zebras (Ctrl+Z)", show_zebras).clicked() {
+                    if toggle_button(ui, lucide("zap"), "Zebras (Alt+Z)", show_zebras).clicked() {
                         toggle_zebras = true;
                     }
                     if toggle_button(ui, lucide("grid-3x3"), "Grid overlay", show_grid_overlay).clicked() {
