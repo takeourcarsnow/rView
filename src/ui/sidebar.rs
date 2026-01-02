@@ -31,12 +31,14 @@ impl ImageViewerApp {
                 .stroke(Stroke::new(1.0, LR_BORDER))
                 .inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                // If catalog is enabled, show catalog panel, otherwise show navigator
+                // If catalog is enabled, show catalog panel and folders, otherwise show navigator
                 if self.catalog_enabled && self.catalog_db.is_some() {
                     egui::ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .show(ui, |ui| {
                             self.render_catalog_panel(ui);
+                            ui.separator();
+                            self.render_folders_panel(ui);
                         });
                 } else {
                     self.render_navigator_panel(ui);
@@ -79,9 +81,6 @@ impl ImageViewerApp {
 
                         // Keywording / Rating & Labels
                         self.render_keywording_panel(ui);
-
-                        // File Browser (Folders panel like Lightroom)
-                        self.render_folders_panel(ui);
 
                         ui.add_space(20.0);
                     });
