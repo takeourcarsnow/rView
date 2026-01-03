@@ -2,7 +2,6 @@ use crate::app::ImageViewerApp;
 use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, Vec2};
 use std::path::PathBuf;
 
-// Lightroom-inspired color scheme
 const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
 const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
 const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
@@ -68,7 +67,6 @@ pub fn render_folder_node(
     ui.horizontal(|ui| {
         ui.add_space(indent);
 
-        // Expand triangle (like Lightroom)
         if path.is_dir() {
             let icon = if is_expanded { "▼" } else { "▶" };
             if ui
@@ -273,7 +271,6 @@ pub fn render_folder_node(
     }
 }
 
-// Lightroom-style collapsible panel
 fn lr_collapsible_panel<R>(
     ui: &mut egui::Ui,
     title: &str,

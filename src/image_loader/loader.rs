@@ -102,7 +102,7 @@ pub fn load_raw_image(path: &Path) -> Result<DynamicImage> {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             log::debug!("Decoding RAW file: {:?}", path);
             // Attempt to decode with rawloader. If it fails, try a safe fallback: extract an embedded JPEG preview
-            // and use it as the image so that DNGs exported by Lightroom that rawloader can't decode still display.
+            // and use it as the image so that DNGs that rawloader can't decode still display.
             let raw = match rawloader::decode_file(path) {
                 Ok(r) => r,
                 Err(e) => {

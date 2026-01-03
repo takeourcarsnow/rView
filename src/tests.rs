@@ -236,8 +236,49 @@ mod unit_tests {
     }
 
     #[test]
+    fn test_preview_adjustments_lightweight() {
+        use crate::image_loader::{ImageAdjustments, FilmEmulation, FilmGrain, FilmHalation, FilmTone, FilmVignette};
+
+        let mut adj = ImageAdjustments::default();
+        adj.sharpening = 0.5;
+        adj.film = FilmEmulation {
+            enabled: true,
+            grain: FilmGrain {
+                amount: 0.3,
+                size: 1.0,
+                roughness: 0.5,
+            },
+            halation: FilmHalation {
+                amount: 0.2,
+                radius: 1.0,
+                color: [1.0, 0.3, 0.1],
+            },
+            tone: FilmTone {
+                shadows: 0.0,
+                midtones: 0.0,
+                highlights: 0.0,
+                s_curve_strength: 0.4,
+            },
+            vignette: FilmVignette {
+                amount: 0.05,
+                softness: 1.0,
+            },
+            ..FilmEmulation::default()
+        };
+
+        let preview = adj.preview();
+        // Preview should disable sharpening and heavy film features
+        assert_eq!(preview.sharpening, 0.0);
+        assert_eq!(preview.film.enabled, false);
+        assert_eq!(preview.film.grain.amount, 0.0);
+        assert_eq!(preview.film.halation.amount, 0.0);
+        assert_eq!(preview.film.tone.s_curve_strength, 0.0);
+        assert_eq!(preview.film.vignette.amount, 0.0);
+    }
+
+    #[test]
     fn test_film_emulation_grain() {
-        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments};
+        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments, FilmGrain};
 
         // Create a flat gray image
         let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
@@ -250,9 +291,11 @@ mod unit_tests {
         let adj = ImageAdjustments {
             film: FilmEmulation {
                 enabled: true,
-                grain_amount: 0.5,
-                grain_size: 1.0,
-                grain_roughness: 0.5,
+                grain: FilmGrain {
+                    amount: 0.5,
+                    size: 1.0,
+                    roughness: 0.5,
+                },
                 ..FilmEmulation::default()
             },
             ..ImageAdjustments::default()
@@ -278,7 +321,7 @@ mod unit_tests {
 
     #[test]
     fn test_film_emulation_s_curve() {
-        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments};
+        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments, FilmTone};
 
         // Test that S-curve increases contrast (darkens shadows, brightens highlights)
         let dark_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
@@ -295,7 +338,12 @@ mod unit_tests {
         let adj = ImageAdjustments {
             film: FilmEmulation {
                 enabled: true,
-                s_curve_strength: 0.5,
+                tone: FilmTone {
+                    shadows: 0.0,
+                    midtones: 0.0,
+                    highlights: 0.0,
+                    s_curve_strength: 0.5,
+                },
                 ..FilmEmulation::default()
             },
             ..ImageAdjustments::default()
@@ -545,7 +593,7 @@ mod integration_tests {
     }
 
     #[test]
-    fn debug_load_lightroom_dng() {
+    fn debug_load_dng() {
         use std::path::Path;
         let p = Path::new("testfiles/20251121-IMG_20251121_145826.dng");
         if !p.exists() {

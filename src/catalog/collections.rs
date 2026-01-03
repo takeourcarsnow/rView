@@ -4,7 +4,6 @@ use rusqlite::params;
 
 use super::database::CatalogDb;
 
-/// Collection types similar to Lightroom
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum CollectionType {
     #[default]

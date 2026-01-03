@@ -1,7 +1,6 @@
 use crate::gpu::types::GpuProcessor;
 use crate::image_loader::ImageAdjustments;
 use anyhow::Result;
-use std::fs;
 use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
@@ -37,9 +36,9 @@ impl GpuProcessor {
             packed.push(packed_pixel);
         }
 
-        // Load shader from file
-        let shader_source = fs::read_to_string("shaders/adjustments.wgsl")
-            .map_err(|_| anyhow::anyhow!("Failed to load shader file"))?;
+        // Load shader from file instead of embedded source
+        let shader_source = std::fs::read_to_string("shaders/adjustments.wgsl")
+            .expect("Failed to read adjustments shader");
 
         let shader = self
             .device
@@ -69,16 +68,8 @@ impl GpuProcessor {
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
         struct Params {
             exposure: f32,
-            brightness: f32,
-            contrast: f32,
             saturation: f32,
-            highlights: f32,
-            shadows: f32,
             temperature: f32,
-            tint: f32,
-            blacks: f32,
-            whites: f32,
-            sharpening: f32,
             width: u32,
             height: u32,
             // Film emulation
@@ -92,84 +83,80 @@ impl GpuProcessor {
             grain_size: f32,
             grain_roughness: f32,
             halation_amount: f32,
-            halation_radius: f32,
-            halation_color_r: f32,
-            halation_color_g: f32,
-            halation_color_b: f32,
+            vignette_amount: f32,
+            vignette_softness: f32,
+            latitude: f32,
+            red_gamma: f32,
+            green_gamma: f32,
+            blue_gamma: f32,
+            black_point: f32,
+            white_point: f32,
+            // Color crossover matrix
             red_in_green: f32,
             red_in_blue: f32,
             green_in_red: f32,
             green_in_blue: f32,
             blue_in_red: f32,
             blue_in_green: f32,
-            red_gamma: f32,
-            green_gamma: f32,
-            blue_gamma: f32,
-            black_point: f32,
-            white_point: f32,
+            // Shadow/highlight tints
             shadow_tint_r: f32,
             shadow_tint_g: f32,
             shadow_tint_b: f32,
             highlight_tint_r: f32,
             highlight_tint_g: f32,
             highlight_tint_b: f32,
-            vignette_amount: f32,
-            vignette_softness: f32,
-            latitude: f32,
-            _padding: f32,
+            // Halation color
+            halation_color_r: f32,
+            halation_color_g: f32,
+            halation_color_b: f32,
+            halation_radius: f32,
         }
 
         let film = &adj.film;
         let params = Params {
             exposure: adj.exposure,
-            brightness: adj.brightness,
-            contrast: adj.contrast,
             saturation: adj.saturation,
-            highlights: adj.highlights,
-            shadows: adj.shadows,
             temperature: adj.temperature,
-            tint: adj.tint,
-            blacks: adj.blacks,
-            whites: adj.whites,
-            sharpening: adj.sharpening,
             width,
             height,
             // Film emulation
             film_enabled: if film.enabled { 1 } else { 0 },
             film_is_bw: if film.is_bw { 1 } else { 0 },
-            tone_curve_shadows: film.tone_curve_shadows,
-            tone_curve_midtones: film.tone_curve_midtones,
-            tone_curve_highlights: film.tone_curve_highlights,
-            s_curve_strength: film.s_curve_strength,
-            grain_amount: film.grain_amount,
-            grain_size: film.grain_size,
-            grain_roughness: film.grain_roughness,
-            halation_amount: film.halation_amount,
-            halation_radius: film.halation_radius,
-            halation_color_r: film.halation_color[0],
-            halation_color_g: film.halation_color[1],
-            halation_color_b: film.halation_color[2],
-            red_in_green: film.red_in_green,
-            red_in_blue: film.red_in_blue,
-            green_in_red: film.green_in_red,
-            green_in_blue: film.green_in_blue,
-            blue_in_red: film.blue_in_red,
-            blue_in_green: film.blue_in_green,
-            red_gamma: film.red_gamma,
-            green_gamma: film.green_gamma,
-            blue_gamma: film.blue_gamma,
+            tone_curve_shadows: film.tone.shadows,
+            tone_curve_midtones: film.tone.midtones,
+            tone_curve_highlights: film.tone.highlights,
+            s_curve_strength: film.tone.s_curve_strength,
+            grain_amount: film.grain.amount,
+            grain_size: film.grain.size,
+            grain_roughness: film.grain.roughness,
+            halation_amount: film.halation.amount,
+            vignette_amount: film.vignette.amount,
+            vignette_softness: film.vignette.softness,
+            latitude: film.latitude,
+            red_gamma: film.color_gamma.red,
+            green_gamma: film.color_gamma.green,
+            blue_gamma: film.color_gamma.blue,
             black_point: film.black_point,
             white_point: film.white_point,
+            // Color crossover matrix
+            red_in_green: film.color_crossover.red_in_green,
+            red_in_blue: film.color_crossover.red_in_blue,
+            green_in_red: film.color_crossover.green_in_red,
+            green_in_blue: film.color_crossover.green_in_blue,
+            blue_in_red: film.color_crossover.blue_in_red,
+            blue_in_green: film.color_crossover.blue_in_green,
+            // Shadow/highlight tints
             shadow_tint_r: film.shadow_tint[0],
             shadow_tint_g: film.shadow_tint[1],
             shadow_tint_b: film.shadow_tint[2],
             highlight_tint_r: film.highlight_tint[0],
             highlight_tint_g: film.highlight_tint[1],
             highlight_tint_b: film.highlight_tint[2],
-            vignette_amount: film.vignette_amount,
-            vignette_softness: film.vignette_softness,
-            latitude: film.latitude,
-            _padding: 0.0,
+            // Halation color
+            halation_color_r: film.halation.color[0],
+            halation_color_g: film.halation.color[1],
+            halation_color_b: film.halation.color[2],
+            halation_radius: film.halation.radius,
         };
 
         let params_buf = self
@@ -248,7 +235,7 @@ impl GpuProcessor {
                     label: Some("compute_pipeline"),
                     layout: Some(&pipeline_layout),
                     module: &shader,
-                    entry_point: Some("main"),
+                    entry_point: Some("main_v2"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     cache: None,
                 });

@@ -36,7 +36,6 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
             let available_width = ui.available_width();
             let nav_height = 140.0;
 
-            // Zoom level buttons (like Lightroom: FIT, FILL, 1:1, custom)
             ui.horizontal(|ui| {
                 ui.add_space(4.0);
 

@@ -185,9 +185,6 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     // Exposure multiplier (stops)
     let exposure_mult = 2.0_f32.powf(adj.exposure);
 
-    // Contrast adjustment
-    let contrast_factor = adj.contrast;
-
     // Saturation factor
     let sat_factor = adj.saturation;
 
@@ -202,41 +199,6 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     } else {
         adj.temperature * 25.5
     };
-
-    // Brightness addition
-    let brightness_add = adj.brightness * 2.55;
-
-    // Blacks adjustment (lift shadows)
-    let blacks_add = adj.blacks * 25.5; // -1.0 to +1.0 -> -25.5 to +25.5
-
-    // Whites adjustment (reduce highlights)
-    let whites_mult = 1.0 - adj.whites * 0.1; // -1.0 to +1.0 -> 0.9 to 1.1
-
-    // Shadows adjustment (gamma-like curve for shadows)
-    let shadow_lift = adj.shadows * 0.5; // -1.0 to +1.0 -> -0.5 to +0.5
-
-    // Highlights adjustment (compress highlights)
-    let highlight_compress = adj.highlights * 0.7; // -1.0 to +1.0 -> -0.7 to +0.7
-
-    // Tint adjustments
-    let tint_r_add = if adj.tint > 0.0 {
-        adj.tint * 12.75
-    } else {
-        0.0
-    };
-    let tint_b_add = if adj.tint > 0.0 {
-        adj.tint * 12.75
-    } else {
-        0.0
-    };
-    let tint_g_sub = if adj.tint < 0.0 {
-        -adj.tint * 20.4
-    } else {
-        0.0
-    };
-
-    // Sharpening (simplified)
-    let sharpen_strength = adj.sharpening * 0.5;
 
     // Film emulation parameters
     let film = &adj.film;
@@ -297,15 +259,15 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                         let orig_r = r;
                         let orig_g = g;
                         let orig_b = b;
-                        r = orig_r + orig_g * film.green_in_red + orig_b * film.blue_in_red;
-                        g = orig_g + orig_r * film.red_in_green + orig_b * film.blue_in_green;
-                        b = orig_b + orig_r * film.red_in_blue + orig_g * film.green_in_blue;
+                        r = orig_r + orig_g * film.color_crossover.green_in_red + orig_b * film.color_crossover.blue_in_red;
+                        g = orig_g + orig_r * film.color_crossover.red_in_green + orig_b * film.color_crossover.blue_in_green;
+                        b = orig_b + orig_r * film.color_crossover.red_in_blue + orig_g * film.color_crossover.green_in_blue;
                     }
 
                     // Per-channel gamma (color response curves)
-                    r = r.max(0.0).powf(film.red_gamma);
-                    g = g.max(0.0).powf(film.green_gamma);
-                    b = b.max(0.0).powf(film.blue_gamma);
+                    r = r.max(0.0).powf(film.color_gamma.red);
+                    g = g.max(0.0).powf(film.color_gamma.green);
+                    b = b.max(0.0).powf(film.color_gamma.blue);
 
                     // Film latitude (dynamic range compression - recover shadows/highlights)
                     if film.latitude > 0.0 {
@@ -322,8 +284,8 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                     }
 
                     // Tone curve (S-curve for film characteristic curve)
-                    if film.s_curve_strength > 0.0 {
-                        let s = film.s_curve_strength;
+                    if film.tone.s_curve_strength > 0.0 {
+                        let s = film.tone.s_curve_strength;
                         // Apply sigmoid-like S-curve
                         r = apply_s_curve(r, s);
                         g = apply_s_curve(g, s);
@@ -333,21 +295,21 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                     // Tone curve control points (shadows, midtones, highlights)
                     r = apply_tone_curve(
                         r,
-                        film.tone_curve_shadows,
-                        film.tone_curve_midtones,
-                        film.tone_curve_highlights,
+                        film.tone.shadows,
+                        film.tone.midtones,
+                        film.tone.highlights,
                     );
                     g = apply_tone_curve(
                         g,
-                        film.tone_curve_shadows,
-                        film.tone_curve_midtones,
-                        film.tone_curve_highlights,
+                        film.tone.shadows,
+                        film.tone.midtones,
+                        film.tone.highlights,
                     );
                     b = apply_tone_curve(
                         b,
-                        film.tone_curve_shadows,
-                        film.tone_curve_midtones,
-                        film.tone_curve_highlights,
+                        film.tone.shadows,
+                        film.tone.midtones,
+                        film.tone.highlights,
                     );
 
                     // Black point and white point (film base density)
@@ -385,52 +347,9 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                 g *= exposure_mult;
                 b *= exposure_mult;
 
-                // Blacks adjustment (lift shadows)
-                r += blacks_add;
-                g += blacks_add;
-                b += blacks_add;
-
-                // Whites adjustment (reduce highlights)
-                r *= whites_mult;
-                g *= whites_mult;
-                b *= whites_mult;
-
-                // Shadows adjustment (gamma-like curve for shadows)
-                if shadow_lift < 0.0 {
-                    let gamma = 1.0 - shadow_lift;
-                    r = r.max(0.0).powf(gamma);
-                    g = g.max(0.0).powf(gamma);
-                    b = b.max(0.0).powf(gamma);
-                }
-
-                // Highlights adjustment (compress highlights)
-                if highlight_compress > 0.0 {
-                    let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                    let highlight_mask = ((luminance - 127.5) / 127.5).clamp(0.0, 1.0);
-                    let compress = 1.0 - highlight_compress * highlight_mask;
-                    r *= compress;
-                    g *= compress;
-                    b *= compress;
-                }
-
-                // Brightness
-                r += brightness_add;
-                g += brightness_add;
-                b += brightness_add;
-
-                // Contrast
-                r = ((r / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
-                g = ((g / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
-                b = ((b / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
-
                 // Temperature
                 r += temp_r_add;
                 b -= temp_b_sub;
-
-                // Tint
-                r += tint_r_add;
-                g -= tint_g_sub;
-                b += tint_b_add;
 
                 // ============ ACES FILMIC TONE MAPPING ============
                 // Apply ACES tone mapping for better highlight handling
@@ -470,65 +389,36 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                     b = b_sat * 255.0;
                 }
 
-                // Sharpening using local contrast enhancement
-                // Since we process per-pixel, we enhance mid-tone contrast which creates perceived sharpening
-                if sharpen_strength > 0.0 {
-                    // Normalize to 0-1 range
-                    let r_norm = r / 255.0;
-                    let g_norm = g / 255.0;
-                    let b_norm = b / 255.0;
-
-                    // Calculate luminance
-                    let lum = 0.299 * r_norm + 0.587 * g_norm + 0.114 * b_norm;
-
-                    // Local contrast enhancement - boost difference from mid-gray
-                    let mid = 0.5;
-                    let contrast_boost = 1.0 + sharpen_strength * 0.5;
-
-                    // Apply contrast enhancement per channel
-                    let r_enhanced = (r_norm - mid) * contrast_boost + mid;
-                    let g_enhanced = (g_norm - mid) * contrast_boost + mid;
-                    let b_enhanced = (b_norm - mid) * contrast_boost + mid;
-
-                    // Blend based on sharpening amount, with edge emphasis
-                    let detail_factor = (lum - 0.5).abs() * 2.0;
-                    let blend = sharpen_strength * (0.3 + 0.7 * (1.0 - detail_factor));
-
-                    r = r * (1.0 - blend) + r_enhanced * 255.0 * blend;
-                    g = g * (1.0 - blend) + g_enhanced * 255.0 * blend;
-                    b = b * (1.0 - blend) + b_enhanced * 255.0 * blend;
-                }
-
                 // ============ FILM POST-PROCESSING ============
                 if film_enabled {
                     // Vignette (natural lens falloff)
-                    if film.vignette_amount > 0.0 {
+                    if film.vignette.amount > 0.0 {
                         let dx = px - center_x;
                         let dy = py - center_y;
                         let dist = (dx * dx + dy * dy).sqrt() / max_dist;
                         let vignette =
-                            1.0 - film.vignette_amount * (dist / film.vignette_softness).powf(2.0);
-                        let vignette = vignette.clamp(0.0, 1.0);
+                            1.0 - film.vignette.amount * (dist / film.vignette.softness).powf(2.0);
+                        let vignette: f32 = vignette.clamp(0.0, 1.0);
                         r *= vignette;
                         g *= vignette;
                         b *= vignette;
                     }
 
                     // Film grain (applied last for realistic appearance)
-                    if film.grain_amount > 0.0 {
+                    if film.grain.amount > 0.0 {
                         // Generate pseudo-random grain based on pixel position
                         let grain = generate_film_grain(
                             px as u32,
                             py as u32,
                             grain_seed,
-                            film.grain_size,
-                            film.grain_roughness,
+                            film.grain.size,
+                            film.grain.roughness,
                         );
 
                         // Grain intensity varies with luminance (more visible in midtones)
                         let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
                         let grain_mask = 4.0 * lum * (1.0 - lum); // Peaks at midtones
-                        let grain_strength = film.grain_amount * 255.0 * 0.15 * grain_mask;
+                        let grain_strength = film.grain.amount * 255.0 * 0.15 * grain_mask;
 
                         r += grain * grain_strength;
                         g += grain * grain_strength;
@@ -537,13 +427,13 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
 
                     // Halation (subtle glow around bright areas)
                     // Note: Full halation requires multi-pass blur, this is a simplified version
-                    if film.halation_amount > 0.0 {
+                    if film.halation.amount > 0.0 {
                         let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
                         let halation_mask = ((luminance - 0.7) / 0.3).clamp(0.0, 1.0);
-                        let halation_strength = film.halation_amount * halation_mask * 30.0;
-                        r += film.halation_color[0] * halation_strength;
-                        g += film.halation_color[1] * halation_strength;
-                        b += film.halation_color[2] * halation_strength;
+                        let halation_strength = film.halation.amount * halation_mask * 30.0;
+                        r += film.halation.color[0] * halation_strength;
+                        g += film.halation.color[1] * halation_strength;
+                        b += film.halation.color[2] * halation_strength;
                     }
                 }
 
@@ -666,7 +556,6 @@ pub fn apply_adjustments_thumbnail(image: &DynamicImage, adj: &ImageAdjustments)
 
     // Pre-calculate adjustment factors
     let exposure_mult = 2.0_f32.powf(adj.exposure);
-    let contrast_factor = adj.contrast;
     let sat_factor = adj.saturation;
     let temp_r_add = if adj.temperature > 0.0 {
         adj.temperature * 25.5
@@ -678,9 +567,6 @@ pub fn apply_adjustments_thumbnail(image: &DynamicImage, adj: &ImageAdjustments)
     } else {
         adj.temperature * 25.5
     };
-    let brightness_add = adj.brightness * 2.55;
-    let blacks_add = adj.blacks * 25.5;
-    let whites_mult = 1.0 - adj.whites * 0.1;
 
     // Process each pixel sequentially (safe for small images)
     for y in 0..height {
@@ -695,26 +581,6 @@ pub fn apply_adjustments_thumbnail(image: &DynamicImage, adj: &ImageAdjustments)
             r *= exposure_mult;
             g *= exposure_mult;
             b *= exposure_mult;
-
-            // Blacks adjustment
-            r += blacks_add;
-            g += blacks_add;
-            b += blacks_add;
-
-            // Whites adjustment
-            r *= whites_mult;
-            g *= whites_mult;
-            b *= whites_mult;
-
-            // Brightness
-            r += brightness_add;
-            g += brightness_add;
-            b += brightness_add;
-
-            // Contrast
-            r = ((r / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
-            g = ((g / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
-            b = ((b / 255.0 - 0.5) * contrast_factor + 0.5) * 255.0;
 
             // Temperature
             r += temp_r_add;

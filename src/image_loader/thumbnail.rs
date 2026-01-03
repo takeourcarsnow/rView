@@ -21,7 +21,7 @@ fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
         }
 
         // No embedded thumbnail available; as a fallback, attempt a full RAW decode and generate a thumbnail from it.
-        // This is more expensive but ensures files (like some Lightroom-exported DNGs) still show a preview.
+        // This is more expensive but ensures files still show a preview.
         log::warn!(
             "No embedded thumbnail for {:?}; attempting full RAW decode to generate thumbnail",
             path
@@ -99,7 +99,6 @@ pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<Dynamic
     }
 
     // No embedded JPEG found via EXIF tags; try scanning the file for JPEG signatures as a fallback
-    // (Some DNGs exported by Lightroom place previews without standard EXIF thumbnail tags)
     let data = std::fs::read(path).map_err(|e| ViewerError::ImageLoadError {
         path: path.to_path_buf(),
         message: e.to_string(),

@@ -252,11 +252,6 @@ impl ImageViewerApp {
 
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Help button
-                        if icon_button(ui, lucide("help-circle"), "Keyboard shortcuts:\n←/→: Navigate\nSpace: Next\nBackspace: Previous\n1/0: 100%/Fit\nH: Toggle panels\nG: Grid view\nCtrl+F: Search\nF11: Fullscreen\nEsc: Close dialogs").clicked() {
-                            // Just show tooltip, no action needed
-                        }
-
                         // Settings (toggle)
                         if icon_button(ui, lucide("settings"), "Settings").clicked() {
                             show_settings = true;
@@ -385,7 +380,7 @@ impl ImageViewerApp {
                         // Start loading the full image now
                         self.is_loading = true;
                         let path_clone = path.clone();
-                        self.spawn_loader(move || {
+                        self.spawn_loader(move |_| {
                             Some(match crate::image_loader::load_image(&path_clone) {
                                 Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
                                 Err(e) => {

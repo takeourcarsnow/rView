@@ -32,7 +32,18 @@ impl ImageViewerApp {
         // Draw image
         if let Some(tex) = &self.current_texture {
             let tex_size = tex.size_vec2();
-            let display_size = tex_size * self.zoom;
+            // Keep the on-screen image size stable while showing a preview: if a smaller
+            // preview texture is used, upscale it to match the original image size so the
+            // image doesn't appear to shrink while dragging adjustments.
+            let display_size = if self.showing_preview {
+                if let Some(orig) = &self.current_image {
+                    egui::Vec2::new(orig.width() as f32, orig.height() as f32) * self.zoom
+                } else {
+                    tex_size * self.zoom
+                }
+            } else {
+                tex_size * self.zoom
+            };
 
             let image_rect = Rect::from_center_size(rect.center() + self.pan_offset, display_size);
 

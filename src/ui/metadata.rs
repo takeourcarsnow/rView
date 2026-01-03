@@ -1,7 +1,6 @@
 use crate::app::ImageViewerApp;
 use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, Vec2};
 
-// Lightroom-inspired color scheme
 const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
 const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
 const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
@@ -56,7 +55,6 @@ pub fn render_metadata_info_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
     });
 }
 
-// Lightroom-style collapsible panel
 fn lr_collapsible_panel<R>(
     ui: &mut egui::Ui,
     title: &str,
@@ -101,7 +99,6 @@ fn lr_collapsible_panel<R>(
     response
 }
 
-// Lightroom-style info row (label: value)
 fn lr_info_row(ui: &mut egui::Ui, label: &str, value: Option<&str>) {
     if let Some(v) = value {
         if !v.is_empty() && v != "Unknown" {

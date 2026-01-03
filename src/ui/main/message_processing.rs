@@ -42,6 +42,9 @@ impl ImageViewerApp {
             LoaderMessage::TextureCreated(texture_name, texture, image) => {
                 self.handle_texture_created(texture_name, texture, image)
             }
+            LoaderMessage::HistogramUpdated(hist) => {
+                self.histogram_data = Some(hist);
+            }
             LoaderMessage::MoveCompleted {
                 from,
                 dest_folder,
@@ -228,7 +231,17 @@ impl ImageViewerApp {
                 // Do NOT update current_image here - it's the adjusted/display image
                 // current_image should stay as the original for re-applying adjustments
                 self.is_loading = false;
-                self.showing_preview = false;
+                // If the texture matches the original image size, clear preview flag (full-res).
+                // Otherwise keep showing_preview=true while a full-res texture may still be generated.
+                if let Some(orig) = &self.current_image {
+                    if image.width() == orig.width() && image.height() == orig.height() {
+                        self.showing_preview = false;
+                    } else {
+                        self.showing_preview = true;
+                    }
+                } else {
+                    self.showing_preview = false;
+                }
             }
         }
     }

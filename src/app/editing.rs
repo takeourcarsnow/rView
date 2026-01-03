@@ -383,6 +383,8 @@ impl ImageViewerApp {
 
     /// Internal refresh with option to skip expensive operations during slider drag
     pub fn refresh_adjustments_internal(&mut self, full_refresh: bool) {
+        let timer_name = if full_refresh { "refresh_adjustments_internal_full" } else { "refresh_adjustments_internal_fast" };
+        crate::profiler::with_profiler(|p| p.start_timer(timer_name));
         if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
             let image = image.clone();
             let path = path.clone();
@@ -394,6 +396,7 @@ impl ImageViewerApp {
                 self.set_current_image_fast(&path, image.clone());
             }
         }
+        crate::profiler::with_profiler(|p| p.end_timer(timer_name));
     }
 
     pub fn redo_last_operation(&mut self) {

@@ -129,8 +129,7 @@ impl GpuProcessor {
             });
 
         // Create pipelines
-        let adjustment_pipeline =
-            Self::create_adjustment_pipeline(&device, &texture_bind_group_layout);
+        let (adjustment_bind_group_layout, adjustment_pipeline) = Self::create_adjustment_pipeline(&device);
         let (histogram_bind_group_layout, histogram_pipeline) =
             Self::create_histogram_pipeline(&device);
         let overlay_pipeline = Self::create_overlay_pipeline(&device, &texture_bind_group_layout);
@@ -142,6 +141,7 @@ impl GpuProcessor {
             queue,
             texture_bind_group_layout,
             buffer_bind_group_layout,
+            adjustment_bind_group_layout,
             adjustment_pipeline,
             histogram_bind_group_layout,
             histogram_pipeline,

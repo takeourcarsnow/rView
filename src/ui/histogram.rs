@@ -1,7 +1,6 @@
 use crate::app::ImageViewerApp;
 use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, Vec2};
 
-// Lightroom-inspired color scheme
 const LR_BG_INPUT: Color32 = Color32::from_rgb(34, 34, 34);
 
 pub fn render_histogram_panel(app: &ImageViewerApp, ui: &mut egui::Ui) {
@@ -68,7 +67,6 @@ pub fn render_histogram_panel(app: &ImageViewerApp, ui: &mut egui::Ui) {
     });
 }
 
-// Lightroom-style collapsible panel
 fn lr_collapsible_panel<R>(
     ui: &mut egui::Ui,
     title: &str,

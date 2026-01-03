@@ -6,7 +6,7 @@ use tokio::sync::oneshot;
 use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
-    /// Apply adjustments using texture-based processing for better performance
+    /// Apply adjustments using buffer-based processing for compatibility
     pub async fn apply_adjustments_texture(
         &self,
         image: &DynamicImage,
@@ -14,59 +14,32 @@ impl GpuProcessor {
     ) -> Result<DynamicImage> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
+        let pixel_count = (width * height) as usize;
 
-        // Create input texture
-        let input_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("input_texture"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
+        // Convert RGBA to packed u32 array for GPU processing
+        let mut input_pixels = Vec::with_capacity(pixel_count);
+        for pixel in rgba.pixels() {
+            let r = pixel[0] as u32;
+            let g = pixel[1] as u32;
+            let b = pixel[2] as u32;
+            let a = pixel[3] as u32;
+            let packed = (a << 24) | (b << 16) | (g << 8) | r;
+            input_pixels.push(packed);
+        }
+
+        // Create input and output buffers
+        let input_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("adjustment_input_buffer"),
+            contents: bytemuck::cast_slice(&input_pixels),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Create output texture
-        let output_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("output_texture"),
-            size: wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
+        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("adjustment_output_buffer"),
+            size: (pixel_count * std::mem::size_of::<u32>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
         });
-
-        // Upload input data
-        self.queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &input_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            &rgba,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * width),
-                rows_per_image: Some(height),
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
 
         // Create parameter buffer
         let params = Self::create_adjustment_params(adj, width, height);
@@ -78,26 +51,36 @@ impl GpuProcessor {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
-        // Create bind group
+        // Create offset buffer (for chunked processing if needed)
+        let offset = 0u32;
+        let offset_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("adjustment_offset"),
+                contents: bytemuck::bytes_of(&offset),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+        // Create bind group with the correct layout
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("adjustment_bind_group"),
-            layout: &self.texture_bind_group_layout,
+            layout: &self.adjustment_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(
-                        &input_texture.create_view(&wgpu::TextureViewDescriptor::default()),
-                    ),
+                    resource: input_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(
-                        &output_texture.create_view(&wgpu::TextureViewDescriptor::default()),
-                    ),
+                    resource: output_buffer.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: param_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: offset_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -116,45 +99,29 @@ impl GpuProcessor {
             });
             cpass.set_pipeline(&self.adjustment_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
+            cpass.dispatch_workgroups(((pixel_count + 255) / 256) as u32, 1, 1);
         }
 
         // Download result
-        let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-        let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("output_buffer"),
-            size: (bytes_per_row * height) as u64,
+        let staging_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("adjustment_staging_buffer"),
+            size: (pixel_count * std::mem::size_of::<u32>()) as u64,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
 
-        encoder.copy_texture_to_buffer(
-            wgpu::ImageCopyTexture {
-                texture: &output_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::ImageCopyBuffer {
-                buffer: &output_buffer,
-                layout: wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
-                    rows_per_image: Some(height),
-                },
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
+        encoder.copy_buffer_to_buffer(
+            &output_buffer,
+            0,
+            &staging_buffer,
+            0,
+            (pixel_count * std::mem::size_of::<u32>()) as u64,
         );
 
         self.queue.submit(Some(encoder.finish()));
 
         // Read back result
-        let buffer_slice = output_buffer.slice(..);
+        let buffer_slice = staging_buffer.slice(..);
         let (tx, rx) = oneshot::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
             let _ = tx.send(res);
@@ -163,22 +130,25 @@ impl GpuProcessor {
         self.device.poll(wgpu::Maintain::Wait);
         rx.await??;
 
-        // Process the data and drop the view before unmapping
+        // Process the data and create result image
         let result = {
             let data = buffer_slice.get_mapped_range();
-            let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-                * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-            let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
-            for row in 0..height {
-                let start = (row * bytes_per_row) as usize;
-                let end = start + (width * 4) as usize;
-                valid_data.extend_from_slice(&data[start..end]);
+            let output_pixels: &[u32] = bytemuck::cast_slice(&data);
+
+            let mut result_pixels = Vec::with_capacity(pixel_count * 4);
+            for &packed in output_pixels {
+                let r = (packed & 0xFF) as u8;
+                let g = ((packed >> 8) & 0xFF) as u8;
+                let b = ((packed >> 16) & 0xFF) as u8;
+                let a = ((packed >> 24) & 0xFF) as u8;
+                result_pixels.extend_from_slice(&[r, g, b, a]);
             }
-            image::ImageBuffer::from_raw(width, height, valid_data)
+
+            image::ImageBuffer::from_raw(width, height, result_pixels)
                 .ok_or_else(|| anyhow::anyhow!("Failed to create result image"))?
         };
 
-        output_buffer.unmap();
+        staging_buffer.unmap();
 
         Ok(DynamicImage::ImageRgba8(result))
     }

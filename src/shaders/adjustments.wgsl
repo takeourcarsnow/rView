@@ -36,6 +36,25 @@ struct AdjustmentParams {
     blue_gamma: f32,
     black_point: f32,
     white_point: f32,
+    // Color crossover matrix
+    red_in_green: f32,
+    red_in_blue: f32,
+    green_in_red: f32,
+    green_in_blue: f32,
+    blue_in_red: f32,
+    blue_in_green: f32,
+    // Shadow/highlight tints
+    shadow_tint_r: f32,
+    shadow_tint_g: f32,
+    shadow_tint_b: f32,
+    highlight_tint_r: f32,
+    highlight_tint_g: f32,
+    highlight_tint_b: f32,
+    // Halation color
+    halation_color_r: f32,
+    halation_color_g: f32,
+    halation_color_b: f32,
+    halation_radius: f32,
 };
 
 // Hash function for pseudo-random noise
@@ -201,6 +220,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         color.g = pow(max(color.g, 0.0001), params.green_gamma);
         color.b = pow(max(color.b, 0.0001), params.blue_gamma);
 
+        // Color channel crossover (film layer interactions)
+        let original_r = color.r;
+        let original_g = color.g;
+        let original_b = color.b;
+        color.r = original_r + params.red_in_green * original_g + params.red_in_blue * original_b;
+        color.g = original_g + params.green_in_red * original_r + params.green_in_blue * original_b;
+        color.b = original_b + params.blue_in_red * original_r + params.blue_in_green * original_g;
+
         // Film latitude (dynamic range compression)
         if (params.latitude > 0.0) {
             let lat = params.latitude * 0.5;
@@ -228,6 +255,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (range > 0.01) {
             color = vec3<f32>(bp) + color * range;
         }
+
+        // Shadow and highlight tints
+        let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
+        let shadow_mask = 1.0 - smoothstep(0.0, 0.5, lum);
+        let highlight_mask = smoothstep(0.5, 1.0, lum);
+
+        let shadow_tint = vec3<f32>(params.shadow_tint_r, params.shadow_tint_g, params.shadow_tint_b);
+        let highlight_tint = vec3<f32>(params.highlight_tint_r, params.highlight_tint_g, params.highlight_tint_b);
+
+        color = color + shadow_tint * shadow_mask * 0.1;
+        color = color + highlight_tint * highlight_mask * 0.1;
     }
 
     // ============ STANDARD ADJUSTMENTS ============
@@ -352,9 +390,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let lum = dot(color, vec3<f32>(0.299, 0.587, 0.114));
             let halation_mask = clamp((lum - 0.7) / 0.3, 0.0, 1.0);
             let halation_strength = params.halation_amount * halation_mask * 0.12;
-            color.r = color.r + halation_strength;
-            color.g = color.g + halation_strength;
-            color.b = color.b + halation_strength;
+            let halation_color = vec3<f32>(params.halation_color_r, params.halation_color_g, params.halation_color_b);
+            color = color + halation_color * halation_strength;
         }
     }
 

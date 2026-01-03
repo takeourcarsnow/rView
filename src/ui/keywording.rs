@@ -2,7 +2,6 @@ use crate::app::ImageViewerApp;
 use crate::settings::ColorLabel;
 use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, StrokeKind, Vec2};
 
-// Lightroom-inspired color scheme
 const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
 const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
 const LR_TEXT_LABEL: Color32 = Color32::from_rgb(180, 180, 180);
@@ -15,7 +14,6 @@ pub fn render_keywording_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         if let Some(path) = app.get_current_path() {
             let metadata = app.metadata_db.get(&path);
 
-            // Star rating (like Lightroom)
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Rating").size(10.0).color(LR_TEXT_LABEL));
                 ui.add_space(16.0);
@@ -45,7 +43,6 @@ pub fn render_keywording_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
             ui.add_space(4.0);
 
-            // Color labels (like Lightroom)
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Label").size(10.0).color(LR_TEXT_LABEL));
                 ui.add_space(24.0);
@@ -135,7 +132,6 @@ pub fn render_keywording_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
     });
 }
 
-// Lightroom-style collapsible panel
 fn lr_collapsible_panel<R>(
     ui: &mut egui::Ui,
     title: &str,

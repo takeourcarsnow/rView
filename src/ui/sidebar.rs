@@ -4,7 +4,6 @@ use egui::{self, Color32, Margin, Stroke};
 // Use the modules from the parent ui crate
 use crate::ui::{adjustments, folders, histogram, keywording, metadata, navigator};
 
-// Lightroom-inspired color scheme
 const LR_BG_DARK: Color32 = Color32::from_rgb(38, 38, 38);
 const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
 

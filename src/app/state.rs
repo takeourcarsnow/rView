@@ -26,6 +26,7 @@ pub enum LoaderMessage {
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, Box<ExifInfo>),
     TextureCreated(PathBuf, egui::TextureHandle, DynamicImage),
+    HistogramUpdated(Vec<Vec<u32>>),
     MoveCompleted {
         from: PathBuf,
         dest_folder: PathBuf,
@@ -285,13 +286,16 @@ impl ImageViewerApp {
         let elapsed = now.duration_since(self.last_adjustment_time);
 
         // Use longer debounce while dragging for smoother feel, shorter on release
-        let debounce_ms = if self.slider_dragging { 200 } else { 16 };
+        // Reduced from 200ms -> 80ms to improve responsiveness while dragging
+        let debounce_ms = if self.slider_dragging { 80 } else { 16 };
 
         if elapsed.as_millis() >= debounce_ms {
             self.adjustments_dirty = false;
             self.last_adjustment_time = now;
             // Use lightweight refresh while dragging (skip histogram/overlays)
+            crate::profiler::with_profiler(|p| p.start_timer("refresh_adjustments_if_dirty"));
             self.refresh_adjustments_internal(!self.slider_dragging);
+            crate::profiler::with_profiler(|p| p.end_timer("refresh_adjustments_if_dirty"));
         } else {
             // Schedule another repaint to process later
             if let Some(ctx) = &self.ctx {

@@ -1,15 +1,8 @@
+// Updated shader for streamlined adjustments - v2
 struct Params {
     exposure : f32,
-    brightness : f32,
-    contrast : f32,
     saturation : f32,
-    highlights : f32,
-    shadows : f32,
     temperature : f32,
-    tint : f32,
-    blacks : f32,
-    whites : f32,
-    sharpening : f32,
     width : u32,
     height : u32,
     // Film emulation parameters
@@ -23,31 +16,33 @@ struct Params {
     grain_size : f32,
     grain_roughness : f32,
     halation_amount : f32,
-    halation_radius : f32,
-    halation_color_r : f32,
-    halation_color_g : f32,
-    halation_color_b : f32,
+    vignette_amount : f32,
+    vignette_softness : f32,
+    latitude : f32,
+    red_gamma : f32,
+    green_gamma : f32,
+    blue_gamma : f32,
+    black_point : f32,
+    white_point : f32,
+    // Color crossover matrix
     red_in_green : f32,
     red_in_blue : f32,
     green_in_red : f32,
     green_in_blue : f32,
     blue_in_red : f32,
     blue_in_green : f32,
-    red_gamma : f32,
-    green_gamma : f32,
-    blue_gamma : f32,
-    black_point : f32,
-    white_point : f32,
+    // Shadow/highlight tints
     shadow_tint_r : f32,
     shadow_tint_g : f32,
     shadow_tint_b : f32,
     highlight_tint_r : f32,
     highlight_tint_g : f32,
     highlight_tint_b : f32,
-    vignette_amount : f32,
-    vignette_softness : f32,
-    latitude : f32,
-    _padding : f32,
+    // Halation color
+    halation_color_r : f32,
+    halation_color_g : f32,
+    halation_color_b : f32,
+    halation_radius : f32,
 };
 
 @group(0) @binding(0) var<storage, read> input_pixels: array<u32>;
@@ -212,7 +207,7 @@ fn apply_tone_curve(x: f32, shadows: f32, midtones: f32, highlights: f32) -> f32
 }
 
 @compute @workgroup_size(256)
-fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
+fn main_v2(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let idx = GlobalInvocationID.x + offset;
     if (idx >= params.width * params.height) {
         return;
@@ -295,40 +290,9 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
     let exposure_mult = pow(2.0, params.exposure);
     rgb = rgb * exposure_mult;
     
-    // Blacks adjustment (lift shadows)
-    rgb = rgb + vec3<f32>(params.blacks * 25.5);
-    
-    // Whites adjustment (reduce highlights)
-    rgb = rgb * (1.0 - params.whites * 0.1);
-    
-    // Shadows adjustment (gamma-like curve for shadows)
-    if (params.shadows < 0.0) {
-        let gamma = 1.0 - params.shadows;
-        rgb = pow(max(rgb / 255.0, vec3<f32>(0.0)), vec3<f32>(gamma)) * 255.0;
-    }
-    
-    // Highlights adjustment (compress highlights)
-    if (params.highlights > 0.0) {
-        let luminance = 0.299 * rgb.x + 0.587 * rgb.y + 0.114 * rgb.z;
-        let highlight_mask = clamp((luminance - 127.5) / 127.5, 0.0, 1.0);
-        let compress = 1.0 - params.highlights * highlight_mask;
-        rgb = rgb * compress;
-    }
-    
-    // Brightness
-    rgb = rgb + vec3<f32>(params.brightness * 2.55);
-    
-    // Contrast
-    rgb = ((rgb / 255.0 - vec3<f32>(0.5)) * params.contrast + vec3<f32>(0.5)) * 255.0;
-    
     // Temperature
     rgb.x = rgb.x + params.temperature * 25.5;
     rgb.z = rgb.z - params.temperature * 15.3;
-    
-    // Tint
-    rgb.x = rgb.x + params.tint * 12.75;
-    rgb.y = rgb.y - params.tint * 20.4;
-    rgb.z = rgb.z + params.tint * 12.75;
     
     // ============ ACES FILMIC TONE MAPPING ============
     // Apply ACES for better highlight handling and cinematic look
@@ -355,33 +319,6 @@ fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
             
             rgb = rgb_saturated * 255.0;
         }
-    }
-    
-    // Sharpening using local contrast enhancement
-    // Since we can't sample neighbors in compute shader, we enhance mid-tone contrast
-    // which creates a perceived sharpening effect
-    if (params.sharpening > 0.0) {
-        // Convert to 0-1 range for processing
-        let rgb_norm = rgb / 255.0;
-        
-        // Calculate luminance
-        let lum = dot(rgb_norm, vec3<f32>(0.299, 0.587, 0.114));
-        
-        // Local contrast enhancement - boost difference from mid-gray
-        // This enhances edges and detail perception
-        let mid = 0.5;
-        let contrast_boost = 1.0 + params.sharpening * 0.5;
-        
-        // Apply contrast enhancement per channel relative to its local value
-        // This preserves color while enhancing perceived sharpness
-        let enhanced = (rgb_norm - mid) * contrast_boost + mid;
-        
-        // Blend based on sharpening amount, with edge emphasis
-        // Higher luminance variance areas get more enhancement
-        let detail_factor = abs(lum - 0.5) * 2.0; // 0 at mid-gray, 1 at extremes
-        let blend = params.sharpening * (0.3 + 0.7 * (1.0 - detail_factor)); // More in mid-tones
-        
-        rgb = mix(rgb, enhanced * 255.0, blend);
     }
     
     // Convert back to 0-1 range

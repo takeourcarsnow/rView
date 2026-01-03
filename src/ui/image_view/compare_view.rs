@@ -183,7 +183,7 @@ impl ImageViewerApp {
                                         );
                                     } else {
                                         let path_clone = path.clone();
-                                        self.spawn_loader(move || {
+                                        self.spawn_loader(move |_| {
                                             let exif =
                                                 crate::exif_data::ExifInfo::from_file(&path_clone);
                                             Some(LoaderMessage::ExifLoaded(
@@ -452,7 +452,7 @@ impl ImageViewerApp {
                                     );
                                 } else {
                                     let p2 = path.clone();
-                                    self.spawn_loader(move || {
+                                    self.spawn_loader(move |_| {
                                         let exif = crate::exif_data::ExifInfo::from_file(&p2);
                                         Some(LoaderMessage::ExifLoaded(p2, Box::new(exif)))
                                     });
