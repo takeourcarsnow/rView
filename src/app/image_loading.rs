@@ -1,8 +1,9 @@
 use crate::exif_data::ExifInfo;
+use crate::gpu::types::GpuProcessor;
 use crate::image_loader;
 use crate::profiler;
-use eframe::egui::{self, Vec2};
-use image::DynamicImage;
+use eframe::egui::{self, TextureHandle, Vec2};
+use image::{DynamicImage, ImageBuffer, Rgba, imageops};
 use pollster;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -142,120 +143,155 @@ impl ImageViewerApp {
         };
 
         self.current_image = Some(image.clone());
-        // Ensure full-refresh clears the preview flag
         self.showing_preview = false;
 
-        // Apply adjustments if any (use GPU if available and no frames)
-        let display_image = if !self.adjustments.is_default() && !self.show_original {
-            profiler::with_profiler(|p| p.start_timer("apply_adjustments"));
+        let adjusted_image = self.apply_adjustments_with_fallbacks(&image);
+        let display_image = self.apply_frame_to_image(&adjusted_image);
 
-            // Use CPU for frame processing since GPU doesn't support it yet
-            let adjusted = if self.adjustments.frame_enabled {
-                image_loader::apply_adjustments(&image, &self.adjustments)
-            } else if let Some(gpu) = &self.gpu_processor {
-                // Try GPU texture-based path first (async)
-                let gpu_clone = Arc::clone(gpu);
-                let image_clone = image.clone();
-                let adjustments_clone = self.adjustments.clone();
+        self.create_texture_and_setup(&path, &display_image, &ctx, &adjusted_image, &image);
+    }
 
-                match pollster::block_on(async {
-                    gpu_clone
-                        .apply_adjustments_texture(&image_clone, &adjustments_clone)
-                        .await
-                }) {
-                    Ok(img) => img,
-                    Err(e) => {
-                        log::warn!(
-                            "GPU texture adjustments failed: {}; falling back to buffer method",
-                            e
-                        );
-                        // Fallback to buffer-based GPU method
-                        match gpu.apply_adjustments(&image_clone, &adjustments_clone) {
-                            Ok(pixels) => {
-                                let width = image_clone.width();
-                                let height = image_clone.height();
-                                if let Some(buf) =
-                                    image::ImageBuffer::from_raw(width, height, pixels)
-                                {
-                                    DynamicImage::ImageRgba8(buf)
-                                } else {
-                                    log::warn!(
-                                        "GPU returned unexpected buffer size; falling back to CPU"
-                                    );
-                                    image_loader::apply_adjustments(
-                                        &image_clone,
-                                        &adjustments_clone,
-                                    )
-                                }
-                            }
-                            Err(e) => {
-                                log::warn!(
-                                    "GPU buffer adjustments failed: {}; falling back to CPU",
-                                    e
-                                );
-                                image_loader::apply_adjustments(&image_clone, &adjustments_clone)
-                            }
-                        }
-                    }
-                }
-            } else {
-                image_loader::apply_adjustments(&image, &self.adjustments)
-            };
+    fn apply_frame_to_image(&self, image: &DynamicImage) -> DynamicImage {
+        if self.adjustments.frame_enabled && self.adjustments.frame_thickness > 0.0 {
+            let img = image.to_rgba8();
+            let (width, height) = img.dimensions();
+            let thickness = self.adjustments.frame_thickness as u32;
+            let new_width = width + 2 * thickness;
+            let new_height = height + 2 * thickness;
 
-            profiler::with_profiler(|p| p.end_timer("apply_adjustments"));
-            adjusted
+            let mut framed = ImageBuffer::new(new_width, new_height);
+
+            let frame_r = (self.adjustments.frame_color[0] * 255.0) as u8;
+            let frame_g = (self.adjustments.frame_color[1] * 255.0) as u8;
+            let frame_b = (self.adjustments.frame_color[2] * 255.0) as u8;
+
+            for pixel in framed.pixels_mut() {
+                *pixel = Rgba([frame_r, frame_g, frame_b, 255]);
+            }
+
+            imageops::overlay(&mut framed, &img, thickness as i64, thickness as i64);
+
+            DynamicImage::ImageRgba8(framed)
         } else {
             image.clone()
-        };
+        }
+    }
 
-        let size = [
-            display_image.width() as usize,
-            display_image.height() as usize,
-        ];
+    fn apply_adjustments_with_fallbacks(&self, image: &DynamicImage) -> DynamicImage {
+        // Try GPU texture-based path first (async)
+        if let Some(gpu) = &self.gpu_processor {
+            match pollster::block_on(async {
+                gpu.apply_adjustments_texture(&image, &self.adjustments)
+                    .await
+            }) {
+                Ok(img) => return img,
+                Err(e) => {
+                    log::warn!(
+                        "GPU texture adjustments failed: {}; falling back to buffer method",
+                        e
+                    );
+                }
+            }
+
+            // Fallback to buffer-based GPU method
+            match gpu.apply_adjustments(&image, &self.adjustments) {
+                Ok(pixels) => {
+                    let width = image.width();
+                    let height = image.height();
+                    if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                        return DynamicImage::ImageRgba8(buf);
+                    } else {
+                        log::warn!(
+                            "GPU returned unexpected buffer size; falling back to CPU"
+                        );
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "GPU buffer adjustments failed: {}; falling back to CPU",
+                        e
+                    );
+                }
+            }
+        }
+
+        // Final fallback to CPU
+        image_loader::apply_adjustments(&image, &self.adjustments)
+    }
+
+    fn create_texture_and_setup(&mut self, path: &std::path::Path, display_image: &DynamicImage, ctx: &egui::Context, adjusted_image: &DynamicImage, original_image: &DynamicImage) {
+        let size = [display_image.width() as usize, display_image.height() as usize];
         let rgba = display_image.to_rgba8();
         let _pixels = rgba.as_flat_samples();
 
         profiler::with_profiler(|p| p.start_timer("texture_load"));
-        // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
-        let texture_name = format!(
-            "{}_{}_{}x{}",
-            path.to_string_lossy(),
-            self.adjustments.frame_enabled as u8,
-            size[0],
-            size[1]
-        );
+
+        let texture_name = self.generate_texture_name(path, size[0], size[1]);
 
         // Check if texture is already cached
-        let cached_texture =
-            if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
-                Some(cached_texture.clone())
-            } else {
-                None
-            };
-
-        if let Some(texture) = cached_texture {
-            // Update access time for LRU
-            self.texture_cache.insert(
-                texture_name.clone(),
-                (texture.clone(), std::time::Instant::now()),
-            );
-            // Move to front of access order
-            if let Some(pos) = self
-                .texture_access_order
-                .iter()
-                .position(|x| x == &texture_name)
-            {
-                self.texture_access_order.remove(pos);
-            }
-            self.texture_access_order.push_front(texture_name);
-
+        if let Some(texture) = self.get_cached_texture(&texture_name) {
             self.current_texture = Some(texture);
             self.is_loading = false;
             profiler::with_profiler(|p| p.end_timer("texture_load"));
             return;
         }
 
-        // Create texture asynchronously to avoid blocking UI
+        // Create texture asynchronously
+        self.create_texture_async(path, display_image, ctx, texture_name);
+
+        if !self.settings.maintain_pan_on_navigate {
+            self.pan_offset = Vec2::ZERO;
+            self.target_pan = Vec2::ZERO;
+        }
+
+        // Calculate histogram
+        self.histogram_data = Some(self.compute_histogram(adjusted_image));
+
+        // Generate overlays if enabled
+        self.generate_overlays_if_needed(adjusted_image, ctx);
+
+        // Cache the image
+        self.image_cache.insert(path.to_path_buf(), original_image.clone());
+    }
+
+    fn generate_texture_name(&self, path: &std::path::Path, width: usize, height: usize) -> String {
+        format!(
+            "{}_{}_{}x{}",
+            path.to_string_lossy(),
+            self.adjustments.frame_enabled as u8,
+            width,
+            height
+        )
+    }
+
+    fn get_cached_texture(&mut self, texture_name: &str) -> Option<TextureHandle> {
+        if let Some((cached_texture, _)) = self.texture_cache.get(texture_name) {
+            let texture = cached_texture.clone();
+            // Update access time for LRU
+            self.texture_cache.insert(
+                texture_name.to_string(),
+                (texture.clone(), std::time::Instant::now()),
+            );
+            // Move to front of access order
+            self.update_texture_access_order(texture_name);
+            Some(texture)
+        } else {
+            None
+        }
+    }
+
+    fn update_texture_access_order(&mut self, texture_name: &str) {
+        if let Some(pos) = self
+            .texture_access_order
+            .iter()
+            .position(|x| x == texture_name)
+        {
+            self.texture_access_order.remove(pos);
+        }
+        self.texture_access_order.push_front(texture_name.to_string());
+    }
+
+    fn create_texture_async(&self, _path: &std::path::Path, display_image: &DynamicImage, _ctx: &egui::Context, texture_name: String) {
         let ctx_clone = self.ctx.clone();
         let texture_name_clone = texture_name.clone();
         let display_image_clone = display_image.clone();
@@ -286,36 +322,30 @@ impl ImageViewerApp {
         });
 
         profiler::with_profiler(|p| p.end_timer("texture_load"));
+    }
 
-        if !self.settings.maintain_pan_on_navigate {
-            self.pan_offset = Vec2::ZERO;
-            self.target_pan = Vec2::ZERO;
-        }
-
-        // Calculate histogram
-        self.histogram_data = if let Some(gpu) = &self.gpu_processor {
-            match pollster::block_on(async { gpu.compute_histogram(&display_image).await }) {
-                Ok(hist) => Some(hist),
+    fn compute_histogram(&self, display_image: &DynamicImage) -> Vec<Vec<u32>> {
+        if let Some(gpu) = &self.gpu_processor {
+            match pollster::block_on(async { gpu.compute_histogram(display_image).await }) {
+                Ok(hist) => hist,
                 Err(e) => {
                     log::warn!("GPU histogram failed: {}; falling back to CPU", e);
-                    Some(image_loader::calculate_histogram(&display_image))
+                    image_loader::calculate_histogram(display_image)
                 }
             }
         } else {
-            Some(image_loader::calculate_histogram(&display_image))
-        };
+            image_loader::calculate_histogram(display_image)
+        }
+    }
 
-        // Generate overlays if enabled
+    fn generate_overlays_if_needed(&mut self, image: &DynamicImage, ctx: &egui::Context) {
         if self.settings.show_focus_peaking {
-            self.generate_focus_peaking_overlay(&image, &ctx);
+            self.generate_focus_peaking_overlay(image, ctx);
         }
 
         if self.settings.show_zebras {
-            self.generate_zebra_overlay(&image, &ctx);
+            self.generate_zebra_overlay(image, ctx);
         }
-
-        // Cache the image
-        self.image_cache.insert(path.to_path_buf(), image);
     }
 
     /// Fast version of set_current_image that skips histogram and overlay generation.
@@ -331,21 +361,34 @@ impl ImageViewerApp {
         image: DynamicImage,
         compute_histogram: bool,
     ) {
-        // Silence unused variable warning; spawn_loader will check ctx again as needed
-        let _ctx = match &self.ctx {
-            Some(c) => c.clone(),
-            None => return,
-        };
-
         crate::profiler::with_profiler(|p| p.start_timer("set_current_image_fast_total"));
 
         self.current_image = Some(image.clone());
 
-        // Fast-path: when dragging, use a downscaled preview and avoid GPU/blocking calls.
+        let display_input = self.prepare_display_image(&image);
+        let size = [display_input.width() as usize, display_input.height() as usize];
+        let texture_name = self.generate_texture_name(path, size[0], size[1]);
+
+        // Check if texture is already cached (fast path)
+        if let Some(texture) = self.get_cached_texture(&texture_name) {
+            self.current_texture = Some(texture);
+            self.is_loading = false;
+            crate::profiler::with_profiler(|p| p.end_timer("set_current_image_fast_total"));
+            return;
+        }
+
+        // Defer heavy work to background thread
+        self.process_image_in_background(path, &display_input, &texture_name, compute_histogram);
+
+        crate::profiler::with_profiler(|p| p.end_timer("set_current_image_fast_total"));
+    }
+
+    fn prepare_display_image(&mut self, image: &DynamicImage) -> DynamicImage {
+        // Fast-path: when dragging, use a downscaled preview
         let mut display_input = image.clone();
         self.showing_preview = false;
+
         if self.slider_dragging {
-            // Target maximum preview dimension (fast to compute) — keep it modest
             let max_preview_dim = 1024u32;
             let max_dim = std::cmp::max(display_input.width(), display_input.height());
             if max_dim > max_preview_dim {
@@ -367,52 +410,18 @@ impl ImageViewerApp {
             }
         }
 
-        // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
-        let size = [
-            display_input.width() as usize,
-            display_input.height() as usize,
-        ];
-        let texture_name = format!(
-            "{}_{}_{}x{}",
-            path.to_string_lossy(),
-            self.adjustments.frame_enabled as u8,
-            size[0],
-            size[1]
-        );
+        display_input
+    }
 
-        // Check if texture is already cached (fast path)
-        let cached_texture =
-            if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
-                Some(cached_texture.clone())
-            } else {
-                None
-            };
-
-        if let Some(texture) = cached_texture {
-            // Update access time for LRU
-            self.texture_cache.insert(
-                texture_name.clone(),
-                (texture.clone(), std::time::Instant::now()),
-            );
-            // Move to front of access order
-            if let Some(pos) = self
-                .texture_access_order
-                .iter()
-                .position(|x| x == &texture_name)
-            {
-                self.texture_access_order.remove(pos);
-            }
-            self.texture_access_order.push_front(texture_name);
-
-            self.current_texture = Some(texture);
-            self.is_loading = false;
-            crate::profiler::with_profiler(|p| p.end_timer("set_current_image_fast_total"));
-            return;
-        }
-
-        // Defer heavy work (apply_adjustments + texture creation) to background thread to keep UI responsive.
+    fn process_image_in_background(
+        &self,
+        _path: &std::path::Path,
+        display_input: &DynamicImage,
+        texture_name: &str,
+        compute_histogram: bool,
+    ) {
         let ctx_clone = self.ctx.clone();
-        let texture_name_clone = texture_name.clone();
+        let texture_name_clone = texture_name.to_string();
         let display_input_clone = display_input.clone();
         let adjustments_clone = if self.slider_dragging {
             self.adjustments.preview()
@@ -422,12 +431,36 @@ impl ImageViewerApp {
         let show_original_clone = self.show_original;
         let gpu_clone = self.gpu_processor.clone();
         let compute_histogram_clone = compute_histogram;
+
         self.spawn_loader(move |tx| {
             let start = std::time::Instant::now();
-            let display_image = if !adjustments_clone.is_default() && !show_original_clone {
+            let adjusted_image = if !adjustments_clone.is_default() && !show_original_clone {
                 image_loader::apply_adjustments(&display_input_clone, &adjustments_clone)
             } else {
                 display_input_clone.clone()
+            };
+            let display_image = if adjustments_clone.frame_enabled && adjustments_clone.frame_thickness > 0.0 {
+                let img = adjusted_image.to_rgba8();
+                let (width, height) = img.dimensions();
+                let thickness = adjustments_clone.frame_thickness as u32;
+                let new_width = width + 2 * thickness;
+                let new_height = height + 2 * thickness;
+
+                let mut framed = ImageBuffer::new(new_width, new_height);
+
+                let frame_r = (adjustments_clone.frame_color[0] * 255.0) as u8;
+                let frame_g = (adjustments_clone.frame_color[1] * 255.0) as u8;
+                let frame_b = (adjustments_clone.frame_color[2] * 255.0) as u8;
+
+                for pixel in framed.pixels_mut() {
+                    *pixel = Rgba([frame_r, frame_g, frame_b, 255]);
+                }
+
+                imageops::overlay(&mut framed, &img, thickness as i64, thickness as i64);
+
+                DynamicImage::ImageRgba8(framed)
+            } else {
+                adjusted_image.clone()
             };
             let elapsed = start.elapsed().as_millis();
             log::debug!(
@@ -436,45 +469,55 @@ impl ImageViewerApp {
             );
 
             if compute_histogram_clone {
-                let hist = if let Some(gpu) = &gpu_clone {
-                    match pollster::block_on(async { gpu.compute_histogram(&display_image).await })
-                    {
-                        Ok(h) => h,
-                        Err(e) => {
-                            log::warn!("GPU histogram failed: {}; falling back to CPU", e);
-                            image_loader::calculate_histogram(&display_image)
-                        }
-                    }
-                } else {
-                    image_loader::calculate_histogram(&display_image)
-                };
+                let hist = Self::compute_histogram_static(&adjusted_image, &gpu_clone);
                 let _ = tx.send(super::LoaderMessage::HistogramUpdated(hist));
             }
 
-            if let Some(ctx) = ctx_clone {
-                let rgba = display_image.to_rgba8();
-                let pixels = rgba.as_flat_samples();
-                let size = [
-                    display_image.width() as usize,
-                    display_image.height() as usize,
-                ];
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-                let texture = ctx.load_texture(
-                    texture_name_clone.clone(),
-                    color_image,
-                    egui::TextureOptions::LINEAR,
-                );
-                Some(super::LoaderMessage::TextureCreated(
-                    PathBuf::from(texture_name_clone),
-                    texture,
-                    display_image,
-                ))
-            } else {
-                None
-            }
+            Self::create_texture_for_background(&ctx_clone, &texture_name_clone, &display_image, tx)
         });
-        crate::profiler::with_profiler(|p| p.end_timer("set_current_image_fast_total"));
-        // NOTE: Histogram and overlays are NOT updated here for performance
+    }
+
+    fn compute_histogram_static(display_image: &DynamicImage, gpu: &Option<Arc<GpuProcessor>>) -> Vec<Vec<u32>> {
+        if let Some(gpu) = gpu {
+            match pollster::block_on(async { gpu.compute_histogram(display_image).await }) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::warn!("GPU histogram failed: {}; falling back to CPU", e);
+                    image_loader::calculate_histogram(display_image)
+                }
+            }
+        } else {
+            image_loader::calculate_histogram(display_image)
+        }
+    }
+
+    fn create_texture_for_background(
+        ctx: &Option<egui::Context>,
+        texture_name: &str,
+        display_image: &DynamicImage,
+        _tx: &Sender<super::LoaderMessage>,
+    ) -> Option<super::LoaderMessage> {
+        if let Some(ctx) = ctx {
+            let rgba = display_image.to_rgba8();
+            let pixels = rgba.as_flat_samples();
+            let size = [
+                display_image.width() as usize,
+                display_image.height() as usize,
+            ];
+            let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+            let texture = ctx.load_texture(
+                texture_name.to_string(),
+                color_image,
+                egui::TextureOptions::LINEAR,
+            );
+            Some(super::LoaderMessage::TextureCreated(
+                PathBuf::from(texture_name),
+                texture,
+                display_image.clone(),
+            ))
+        } else {
+            None
+        }
     }
 
     fn preload_adjacent(&self) {

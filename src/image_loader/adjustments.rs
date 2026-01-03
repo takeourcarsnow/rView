@@ -182,13 +182,9 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     let mut img = image.to_rgba8();
     let (width, height) = img.dimensions();
 
-    // Exposure multiplier (stops)
+    // Pre-calculate common values
     let exposure_mult = 2.0_f32.powf(adj.exposure);
-
-    // Saturation factor
     let sat_factor = adj.saturation;
-
-    // Temperature adjustments
     let temp_r_add = if adj.temperature > 0.0 {
         adj.temperature * 25.5
     } else {
@@ -200,28 +196,52 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
         adj.temperature * 25.5
     };
 
-    // Film emulation parameters
-    let film = &adj.film;
-    let film_enabled = film.enabled;
-
     // Pre-generate grain texture for consistent grain pattern
-    // Using a simple hash-based pseudo-random for reproducibility
     let grain_seed = 12345u64;
-
-    // Process pixels in parallel for maximum CPU utilization
-    let mut samples = img.as_flat_samples_mut();
-    let raw_pixels = samples.as_mut_slice();
-
-    // Calculate bytes per chunk, ensuring it's aligned to 4-byte pixel boundaries
-    // This prevents chunk boundaries from splitting pixels which causes stripe artifacts
-    let pixel_count = (width * height) as usize;
-    let pixels_per_thread = (pixel_count / num_cpus::get()).max(1);
-    let bytes_per_chunk = pixels_per_thread * 4; // 4 bytes per RGBA pixel
 
     // Calculate center for vignette
     let center_x = width as f32 / 2.0;
     let center_y = height as f32 / 2.0;
     let max_dist = (center_x * center_x + center_y * center_y).sqrt();
+
+    // Process pixels in parallel
+    process_pixels_parallel(
+        &mut img,
+        adj,
+        exposure_mult,
+        sat_factor,
+        temp_r_add,
+        temp_b_sub,
+        grain_seed,
+        center_x,
+        center_y,
+        max_dist,
+    );
+
+    // Apply frame if enabled
+    apply_frame_if_needed(img, adj)
+}
+
+fn process_pixels_parallel(
+    img: &mut ImageBuffer<Rgba<u8>, Vec<u8>>,
+    adj: &ImageAdjustments,
+    exposure_mult: f32,
+    sat_factor: f32,
+    temp_r_add: f32,
+    temp_b_sub: f32,
+    grain_seed: u64,
+    center_x: f32,
+    center_y: f32,
+    max_dist: f32,
+) {
+    let (width, height) = img.dimensions();
+    let mut samples = img.as_flat_samples_mut();
+    let raw_pixels = samples.as_mut_slice();
+
+    // Calculate bytes per chunk, ensuring it's aligned to 4-byte pixel boundaries
+    let pixel_count = (width * height) as usize;
+    let pixels_per_thread = (pixel_count / num_cpus::get()).max(1);
+    let bytes_per_chunk = pixels_per_thread * 4; // 4 bytes per RGBA pixel
 
     raw_pixels
         .par_chunks_mut(bytes_per_chunk)
@@ -238,221 +258,266 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                 let px = (pixel_idx % width as usize) as f32;
                 let py = (pixel_idx / width as usize) as f32;
 
-                let mut r = pixel[0] as f32 / 255.0;
-                let mut g = pixel[1] as f32 / 255.0;
-                let mut b = pixel[2] as f32 / 255.0;
-                let a = pixel[3] as f32;
-
-                // ============ FILM EMULATION (applied first for characteristic curve) ============
-                if film_enabled {
-                    // B&W conversion for monochrome films (uses proper luminance weights)
-                    if film.is_bw {
-                        // Use film-like spectral sensitivity (red-sensitive for classic B&W look)
-                        let luminance = 0.30 * r + 0.59 * g + 0.11 * b;
-                        r = luminance;
-                        g = luminance;
-                        b = luminance;
-                    }
-
-                    // Color channel crossover/crosstalk (film layer interaction)
-                    if !film.is_bw {
-                        let orig_r = r;
-                        let orig_g = g;
-                        let orig_b = b;
-                        r = orig_r
-                            + orig_g * film.color_crossover.green_in_red
-                            + orig_b * film.color_crossover.blue_in_red;
-                        g = orig_g
-                            + orig_r * film.color_crossover.red_in_green
-                            + orig_b * film.color_crossover.blue_in_green;
-                        b = orig_b
-                            + orig_r * film.color_crossover.red_in_blue
-                            + orig_g * film.color_crossover.green_in_blue;
-                    }
-
-                    // Per-channel gamma (color response curves)
-                    r = r.max(0.0).powf(film.color_gamma.red);
-                    g = g.max(0.0).powf(film.color_gamma.green);
-                    b = b.max(0.0).powf(film.color_gamma.blue);
-
-                    // Film latitude (dynamic range compression - recover shadows/highlights)
-                    if film.latitude > 0.0 {
-                        let latitude_factor = film.latitude * 0.5;
-                        // Soft-clip highlights
-                        r = r / (1.0 + r * latitude_factor);
-                        g = g / (1.0 + g * latitude_factor);
-                        b = b / (1.0 + b * latitude_factor);
-                        // Compensate for compression
-                        let comp = 1.0 + latitude_factor * 0.5;
-                        r *= comp;
-                        g *= comp;
-                        b *= comp;
-                    }
-
-                    // Tone curve (S-curve for film characteristic curve)
-                    if film.tone.s_curve_strength > 0.0 {
-                        let s = film.tone.s_curve_strength;
-                        // Apply sigmoid-like S-curve
-                        r = apply_s_curve(r, s);
-                        g = apply_s_curve(g, s);
-                        b = apply_s_curve(b, s);
-                    }
-
-                    // Tone curve control points (shadows, midtones, highlights)
-                    r = apply_tone_curve(
-                        r,
-                        film.tone.shadows,
-                        film.tone.midtones,
-                        film.tone.highlights,
-                    );
-                    g = apply_tone_curve(
-                        g,
-                        film.tone.shadows,
-                        film.tone.midtones,
-                        film.tone.highlights,
-                    );
-                    b = apply_tone_curve(
-                        b,
-                        film.tone.shadows,
-                        film.tone.midtones,
-                        film.tone.highlights,
-                    );
-
-                    // Black point and white point (film base density)
-                    let bp = film.black_point;
-                    let wp = film.white_point;
-                    let range = wp - bp;
-                    if range > 0.01 {
-                        r = bp + r * range;
-                        g = bp + g * range;
-                        b = bp + b * range;
-                    }
-
-                    // Shadow and highlight tinting
-                    let luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-                    let shadow_amount = (1.0 - luminance * 2.0).clamp(0.0, 1.0);
-                    let highlight_amount = ((luminance - 0.5) * 2.0).clamp(0.0, 1.0);
-
-                    r += film.shadow_tint[0] * shadow_amount
-                        + film.highlight_tint[0] * highlight_amount;
-                    g += film.shadow_tint[1] * shadow_amount
-                        + film.highlight_tint[1] * highlight_amount;
-                    b += film.shadow_tint[2] * shadow_amount
-                        + film.highlight_tint[2] * highlight_amount;
-                }
-
-                // Convert to 0-255 range for standard adjustments
-                r *= 255.0;
-                g *= 255.0;
-                b *= 255.0;
-
-                // ============ STANDARD ADJUSTMENTS ============
-
-                // Apply exposure
-                r *= exposure_mult;
-                g *= exposure_mult;
-                b *= exposure_mult;
-
-                // Temperature
-                r += temp_r_add;
-                b -= temp_b_sub;
-
-                // ============ ACES FILMIC TONE MAPPING ============
-                // Apply ACES tone mapping for better highlight handling
-                // This provides cinematic highlight rolloff and natural color preservation
-                {
-                    // Normalize to 0-1 for tone mapping
-                    let r_norm = (r / 255.0).max(0.0);
-                    let g_norm = (g / 255.0).max(0.0);
-                    let b_norm = (b / 255.0).max(0.0);
-
-                    // Apply ACES with moderate strength by default
-                    // Strength increases with exposure to handle highlight clipping better
-                    let aces_strength = 0.5 + (exposure_mult - 1.0).abs() * 0.3;
-                    let aces_strength = aces_strength.clamp(0.3, 0.9);
-
-                    let (r_tm, g_tm, b_tm) =
-                        apply_aces_tonemap(r_norm, g_norm, b_norm, aces_strength);
-                    r = r_tm * 255.0;
-                    g = g_tm * 255.0;
-                    b = b_tm * 255.0;
-                }
-
-                // ============ OKLAB SATURATION (perceptually uniform) ============
-                // Saturation (skip for B&W film)
-                if (!film_enabled || !film.is_bw) && (sat_factor - 1.0).abs() > 0.001 {
-                    // Normalize to 0-1
-                    let r_norm = (r / 255.0).clamp(0.0, 1.0);
-                    let g_norm = (g / 255.0).clamp(0.0, 1.0);
-                    let b_norm = (b / 255.0).clamp(0.0, 1.0);
-
-                    // Apply OKLab saturation for perceptually uniform results
-                    let (r_sat, g_sat, b_sat) =
-                        apply_oklab_saturation(r_norm, g_norm, b_norm, sat_factor);
-
-                    r = r_sat * 255.0;
-                    g = g_sat * 255.0;
-                    b = b_sat * 255.0;
-                }
-
-                // ============ FILM POST-PROCESSING ============
-                if film_enabled {
-                    // Vignette (natural lens falloff)
-                    if film.vignette.amount > 0.0 {
-                        let dx = px - center_x;
-                        let dy = py - center_y;
-                        let dist = (dx * dx + dy * dy).sqrt() / max_dist;
-                        let vignette =
-                            1.0 - film.vignette.amount * (dist / film.vignette.softness).powf(2.0);
-                        let vignette: f32 = vignette.clamp(0.0, 1.0);
-                        r *= vignette;
-                        g *= vignette;
-                        b *= vignette;
-                    }
-
-                    // Film grain (applied last for realistic appearance)
-                    if film.grain.amount > 0.0 {
-                        // Generate pseudo-random grain based on pixel position
-                        let grain = generate_film_grain(
-                            px as u32,
-                            py as u32,
-                            grain_seed,
-                            film.grain.size,
-                            film.grain.roughness,
-                        );
-
-                        // Grain intensity varies with luminance (more visible in midtones)
-                        let lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                        let grain_mask = 4.0 * lum * (1.0 - lum); // Peaks at midtones
-                        let grain_strength = film.grain.amount * 255.0 * 0.15 * grain_mask;
-
-                        r += grain * grain_strength;
-                        g += grain * grain_strength;
-                        b += grain * grain_strength;
-                    }
-
-                    // Halation (subtle glow around bright areas)
-                    // Note: Full halation requires multi-pass blur, this is a simplified version
-                    if film.halation.amount > 0.0 {
-                        let luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
-                        let halation_mask = ((luminance - 0.7) / 0.3).clamp(0.0, 1.0);
-                        let halation_strength = film.halation.amount * halation_mask * 30.0;
-                        r += film.halation.color[0] * halation_strength;
-                        g += film.halation.color[1] * halation_strength;
-                        b += film.halation.color[2] * halation_strength;
-                    }
-                }
-
-                // Clamp values
-                pixel[0] = r.clamp(0.0, 255.0) as u8;
-                pixel[1] = g.clamp(0.0, 255.0) as u8;
-                pixel[2] = b.clamp(0.0, 255.0) as u8;
-                pixel[3] = a as u8; // Alpha unchanged
+                process_single_pixel(
+                    pixel,
+                    px,
+                    py,
+                    adj,
+                    exposure_mult,
+                    sat_factor,
+                    temp_r_add,
+                    temp_b_sub,
+                    grain_seed,
+                    center_x,
+                    center_y,
+                    max_dist,
+                );
             }
         });
+}
 
-    // Apply frame if enabled
-    let result_img = if adj.frame_enabled && adj.frame_thickness > 0.0 {
+fn process_single_pixel(
+    pixel: &mut [u8],
+    px: f32,
+    py: f32,
+    adj: &ImageAdjustments,
+    exposure_mult: f32,
+    sat_factor: f32,
+    temp_r_add: f32,
+    temp_b_sub: f32,
+    grain_seed: u64,
+    center_x: f32,
+    center_y: f32,
+    max_dist: f32,
+) {
+    let mut r = pixel[0] as f32 / 255.0;
+    let mut g = pixel[1] as f32 / 255.0;
+    let mut b = pixel[2] as f32 / 255.0;
+    let a = pixel[3] as f32;
+
+    // Apply film emulation first
+    if adj.film.enabled {
+        apply_film_emulation(&mut r, &mut g, &mut b, &adj.film);
+    }
+
+    // Convert to 0-255 range for standard adjustments
+    r *= 255.0;
+    g *= 255.0;
+    b *= 255.0;
+
+    // Apply standard adjustments
+    apply_standard_adjustments(
+        &mut r,
+        &mut g,
+        &mut b,
+        exposure_mult,
+        sat_factor,
+        temp_r_add,
+        temp_b_sub,
+        adj,
+    );
+
+    // Apply film post-processing
+    if adj.film.enabled {
+        apply_film_post_processing(
+            &mut r,
+            &mut g,
+            &mut b,
+            px,
+            py,
+            &adj.film,
+            grain_seed,
+            center_x,
+            center_y,
+            max_dist,
+        );
+    }
+
+    // Clamp values
+    pixel[0] = r.clamp(0.0, 255.0) as u8;
+    pixel[1] = g.clamp(0.0, 255.0) as u8;
+    pixel[2] = b.clamp(0.0, 255.0) as u8;
+    pixel[3] = a as u8; // Alpha unchanged
+}
+
+fn apply_film_emulation(r: &mut f32, g: &mut f32, b: &mut f32, film: &super::film_emulation::FilmEmulation) {
+    // B&W conversion
+    if film.is_bw {
+        let luminance = 0.30 * *r + 0.59 * *g + 0.11 * *b;
+        *r = luminance;
+        *g = luminance;
+        *b = luminance;
+    }
+
+    // Color channel crossover
+    if !film.is_bw {
+        let orig_r = *r;
+        let orig_g = *g;
+        let orig_b = *b;
+        *r = orig_r
+            + orig_g * film.color_crossover.green_in_red
+            + orig_b * film.color_crossover.blue_in_red;
+        *g = orig_g
+            + orig_r * film.color_crossover.red_in_green
+            + orig_b * film.color_crossover.blue_in_green;
+        *b = orig_b
+            + orig_r * film.color_crossover.red_in_blue
+            + orig_g * film.color_crossover.green_in_blue;
+    }
+
+    // Per-channel gamma
+    *r = r.max(0.0).powf(film.color_gamma.red);
+    *g = g.max(0.0).powf(film.color_gamma.green);
+    *b = b.max(0.0).powf(film.color_gamma.blue);
+
+    // Film latitude
+    if film.latitude > 0.0 {
+        let latitude_factor = film.latitude * 0.5;
+        *r = *r / (1.0 + *r * latitude_factor);
+        *g = *g / (1.0 + *g * latitude_factor);
+        *b = *b / (1.0 + *b * latitude_factor);
+        let comp = 1.0 + latitude_factor * 0.5;
+        *r *= comp;
+        *g *= comp;
+        *b *= comp;
+    }
+
+    // Tone curve
+    if film.tone.s_curve_strength > 0.0 {
+        let s = film.tone.s_curve_strength;
+        *r = apply_s_curve(*r, s);
+        *g = apply_s_curve(*g, s);
+        *b = apply_s_curve(*b, s);
+    }
+
+    // Tone curve control points
+    *r = apply_tone_curve(*r, film.tone.shadows, film.tone.midtones, film.tone.highlights);
+    *g = apply_tone_curve(*g, film.tone.shadows, film.tone.midtones, film.tone.highlights);
+    *b = apply_tone_curve(*b, film.tone.shadows, film.tone.midtones, film.tone.highlights);
+
+    // Black point and white point
+    let bp = film.black_point;
+    let wp = film.white_point;
+    let range = wp - bp;
+    if range > 0.01 {
+        *r = bp + *r * range;
+        *g = bp + *g * range;
+        *b = bp + *b * range;
+    }
+
+    // Shadow and highlight tinting
+    let luminance = 0.299 * *r + 0.587 * *g + 0.114 * *b;
+    let shadow_amount = (1.0 - luminance * 2.0).clamp(0.0, 1.0);
+    let highlight_amount = ((luminance - 0.5) * 2.0).clamp(0.0, 1.0);
+
+    *r += film.shadow_tint[0] * shadow_amount + film.highlight_tint[0] * highlight_amount;
+    *g += film.shadow_tint[1] * shadow_amount + film.highlight_tint[1] * highlight_amount;
+    *b += film.shadow_tint[2] * shadow_amount + film.highlight_tint[2] * highlight_amount;
+}
+
+fn apply_standard_adjustments(
+    r: &mut f32,
+    g: &mut f32,
+    b: &mut f32,
+    exposure_mult: f32,
+    sat_factor: f32,
+    temp_r_add: f32,
+    temp_b_sub: f32,
+    adj: &ImageAdjustments,
+) {
+    // Apply exposure
+    *r *= exposure_mult;
+    *g *= exposure_mult;
+    *b *= exposure_mult;
+
+    // Temperature
+    *r += temp_r_add;
+    *b -= temp_b_sub;
+
+    // ACES tone mapping
+    apply_aces_tone_mapping(r, g, b, exposure_mult);
+
+    // Saturation (skip for B&W film)
+    if (!adj.film.enabled || !adj.film.is_bw) && (sat_factor - 1.0).abs() > 0.001 {
+        apply_saturation(r, g, b, sat_factor);
+    }
+}
+
+fn apply_aces_tone_mapping(r: &mut f32, g: &mut f32, b: &mut f32, exposure_mult: f32) {
+    let r_norm = (*r / 255.0).max(0.0);
+    let g_norm = (*g / 255.0).max(0.0);
+    let b_norm = (*b / 255.0).max(0.0);
+
+    let aces_strength = 0.5 + (exposure_mult - 1.0).abs() * 0.3;
+    let aces_strength = aces_strength.clamp(0.3, 0.9);
+
+    let (r_tm, g_tm, b_tm) = apply_aces_tonemap(r_norm, g_norm, b_norm, aces_strength);
+    *r = r_tm * 255.0;
+    *g = g_tm * 255.0;
+    *b = b_tm * 255.0;
+}
+
+fn apply_saturation(r: &mut f32, g: &mut f32, b: &mut f32, sat_factor: f32) {
+    let r_norm = (*r / 255.0).clamp(0.0, 1.0);
+    let g_norm = (*g / 255.0).clamp(0.0, 1.0);
+    let b_norm = (*b / 255.0).clamp(0.0, 1.0);
+
+    let (r_sat, g_sat, b_sat) = apply_oklab_saturation(r_norm, g_norm, b_norm, sat_factor);
+
+    *r = r_sat * 255.0;
+    *g = g_sat * 255.0;
+    *b = b_sat * 255.0;
+}
+
+fn apply_film_post_processing(
+    r: &mut f32,
+    g: &mut f32,
+    b: &mut f32,
+    px: f32,
+    py: f32,
+    film: &super::film_emulation::FilmEmulation,
+    grain_seed: u64,
+    center_x: f32,
+    center_y: f32,
+    max_dist: f32,
+) {
+    // Vignette
+    if film.vignette.amount > 0.0 {
+        let dx = px - center_x;
+        let dy = py - center_y;
+        let dist = (dx * dx + dy * dy).sqrt() / max_dist;
+        let vignette = 1.0 - film.vignette.amount * (dist / film.vignette.softness).powf(2.0);
+        let vignette = vignette.clamp(0.0, 1.0);
+        *r *= vignette;
+        *g *= vignette;
+        *b *= vignette;
+    }
+
+    // Film grain
+    if film.grain.amount > 0.0 {
+        let grain = generate_film_grain(px as u32, py as u32, grain_seed, film.grain.size, film.grain.roughness);
+        let lum = (0.299 * *r + 0.587 * *g + 0.114 * *b) / 255.0;
+        let grain_mask = 4.0 * lum * (1.0 - lum);
+        let grain_strength = film.grain.amount * 255.0 * 0.15 * grain_mask;
+
+        *r += grain * grain_strength;
+        *g += grain * grain_strength;
+        *b += grain * grain_strength;
+    }
+
+    // Halation
+    if film.halation.amount > 0.0 {
+        let luminance = (0.299 * *r + 0.587 * *g + 0.114 * *b) / 255.0;
+        let halation_mask = ((luminance - 0.7) / 0.3).clamp(0.0, 1.0);
+        let halation_strength = film.halation.amount * halation_mask * 30.0;
+        *r += film.halation.color[0] * halation_strength;
+        *g += film.halation.color[1] * halation_strength;
+        *b += film.halation.color[2] * halation_strength;
+    }
+}
+
+fn apply_frame_if_needed(img: ImageBuffer<Rgba<u8>, Vec<u8>>, adj: &ImageAdjustments) -> DynamicImage {
+    if adj.frame_enabled && adj.frame_thickness > 0.0 {
         let (width, height) = img.dimensions();
         let thickness = adj.frame_thickness as u32;
         let new_width = width + 2 * thickness;
@@ -475,9 +540,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
         DynamicImage::ImageRgba8(framed)
     } else {
         DynamicImage::ImageRgba8(img)
-    };
-
-    result_img
+    }
 }
 
 /// Apply S-curve contrast enhancement (film characteristic curve)

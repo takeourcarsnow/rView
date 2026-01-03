@@ -554,7 +554,7 @@ pub fn render_film_emulation_panel(
                     app.mark_adjustments_dirty();
                 }
 
-                // Frame Color (RGB sliders)
+                // Frame Color
                 ui.label(
                     RichText::new("Frame Color")
                         .size(10.0)
@@ -562,38 +562,27 @@ pub fn render_film_emulation_panel(
                 );
                 ui.add_space(2.0);
 
-                let mut r = (app.adjustments.frame_color[0] * 255.0) as u8;
-                let mut g = (app.adjustments.frame_color[1] * 255.0) as u8;
-                let mut b = (app.adjustments.frame_color[2] * 255.0) as u8;
+                // Determine current preset based on color
+                let is_black = app.adjustments.frame_color[0] < 0.1
+                    && app.adjustments.frame_color[1] < 0.1
+                    && app.adjustments.frame_color[2] < 0.1;
+                let current_preset = if is_black { "Black" } else { "White" };
 
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new("R").size(10.0).color(LR_TEXT_LABEL));
-                    if ui
-                        .add(egui::Slider::new(&mut r, 0..=255).show_value(false))
-                        .changed()
-                    {
-                        app.adjustments.frame_color[0] = r as f32 / 255.0;
-                        *adjustments_changed = true;
-                        app.mark_adjustments_dirty();
-                    }
-                    ui.label(RichText::new("G").size(10.0).color(LR_TEXT_LABEL));
-                    if ui
-                        .add(egui::Slider::new(&mut g, 0..=255).show_value(false))
-                        .changed()
-                    {
-                        app.adjustments.frame_color[1] = g as f32 / 255.0;
-                        *adjustments_changed = true;
-                        app.mark_adjustments_dirty();
-                    }
-                    ui.label(RichText::new("B").size(10.0).color(LR_TEXT_LABEL));
-                    if ui
-                        .add(egui::Slider::new(&mut b, 0..=255).show_value(false))
-                        .changed()
-                    {
-                        app.adjustments.frame_color[2] = b as f32 / 255.0;
-                        *adjustments_changed = true;
-                        app.mark_adjustments_dirty();
-                    }
+                    egui::ComboBox::from_id_salt("frame_color_preset")
+                        .selected_text(current_preset)
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(current_preset == "Black", "Black").clicked() {
+                                app.adjustments.frame_color = [0.0, 0.0, 0.0];
+                                *adjustments_changed = true;
+                                app.mark_adjustments_dirty();
+                            }
+                            if ui.selectable_label(current_preset == "White", "White").clicked() {
+                                app.adjustments.frame_color = [1.0, 1.0, 1.0];
+                                *adjustments_changed = true;
+                                app.mark_adjustments_dirty();
+                            }
+                        });
                 });
             }
         }
