@@ -236,8 +236,11 @@ impl ImageViewerApp {
                 info_rect.left_top() + Vec2::new(8.0, 8.0),
                 Vec2::splat(30.0),
             );
-            ui.painter()
-                .rect_filled(swatch_rect, CornerRadius::same(2), Color32::from_rgb(r, g, b));
+            ui.painter().rect_filled(
+                swatch_rect,
+                CornerRadius::same(2),
+                Color32::from_rgb(r, g, b),
+            );
 
             // RGB values
             ui.painter().text(
@@ -304,7 +307,12 @@ impl ImageViewerApp {
 
             // Draw crop rectangle border
             let border_stroke = Stroke::new(2.0, Color32::from_rgb(255, 255, 255));
-            painter.rect_stroke(crop_rect, CornerRadius::ZERO, border_stroke, StrokeKind::Inside);
+            painter.rect_stroke(
+                crop_rect,
+                CornerRadius::ZERO,
+                border_stroke,
+                StrokeKind::Inside,
+            );
 
             // Draw corner handles
             let handle_size = 8.0;
@@ -322,7 +330,12 @@ impl ImageViewerApp {
             for corner in corners {
                 let handle_rect = Rect::from_center_size(corner, Vec2::splat(handle_size));
                 painter.rect_filled(handle_rect, CornerRadius::ZERO, handle_color);
-                painter.rect_stroke(handle_rect, CornerRadius::ZERO, handle_stroke, StrokeKind::Inside);
+                painter.rect_stroke(
+                    handle_rect,
+                    CornerRadius::ZERO,
+                    handle_stroke,
+                    StrokeKind::Inside,
+                );
             }
         }
     }

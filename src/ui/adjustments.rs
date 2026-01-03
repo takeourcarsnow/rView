@@ -470,8 +470,11 @@ fn lr_collapsible_panel<R>(
     let header_rect = ui.available_rect_before_wrap();
     let header_rect = Rect::from_min_size(header_rect.min, Vec2::new(ui.available_width(), 24.0));
 
-    ui.painter()
-        .rect_filled(header_rect, CornerRadius::ZERO, Color32::from_rgb(45, 45, 45));
+    ui.painter().rect_filled(
+        header_rect,
+        CornerRadius::ZERO,
+        Color32::from_rgb(45, 45, 45),
+    );
     ui.painter().hline(
         header_rect.x_range(),
         header_rect.bottom(),
