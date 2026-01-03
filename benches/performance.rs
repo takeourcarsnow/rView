@@ -5,7 +5,11 @@ use imageproc::geometric_transformations::rotate_about_center;
 use std::f32::consts::PI;
 
 fn bench_image_adjustments(c: &mut Criterion) {
-    let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(1920, 1080, image::Rgba([128, 128, 128, 255])));
+    let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+        1920,
+        1080,
+        image::Rgba([128, 128, 128, 255]),
+    ));
 
     c.bench_function("cpu_image_adjustments_1920x1080", |b| {
         b.iter(|| {
@@ -15,11 +19,20 @@ fn bench_image_adjustments(c: &mut Criterion) {
 }
 
 fn bench_film_emulation(c: &mut Criterion) {
-    let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(1000, 1000, image::Rgba([200, 150, 100, 255])));
+    let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+        1000,
+        1000,
+        image::Rgba([200, 150, 100, 255]),
+    ));
 
     c.bench_function("cpu_film_emulation_1000x1000", |b| {
         b.iter(|| {
-            let _result = rotate_about_center(&test_image.to_rgba8(), PI / 180.0 * 5.0, imageproc::geometric_transformations::Interpolation::Bilinear, image::Rgba([0, 0, 0, 0]));
+            let _result = rotate_about_center(
+                &test_image.to_rgba8(),
+                PI / 180.0 * 5.0,
+                imageproc::geometric_transformations::Interpolation::Bilinear,
+                image::Rgba([0, 0, 0, 0]),
+            );
         })
     });
 }
@@ -37,5 +50,10 @@ fn bench_cache_operations(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_image_adjustments, bench_film_emulation, bench_cache_operations);
+criterion_group!(
+    benches,
+    bench_image_adjustments,
+    bench_film_emulation,
+    bench_cache_operations
+);
 criterion_main!(benches);

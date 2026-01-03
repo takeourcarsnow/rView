@@ -1,5 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Vec2, Rounding, Margin};
+use egui::{self, Color32, Margin, Rounding, Vec2};
 
 impl ImageViewerApp {
     pub fn render_command_palette(&mut self, ctx: &egui::Context) {
@@ -19,17 +19,19 @@ impl ImageViewerApp {
             .resizable(false)
             .fixed_size(Vec2::new(500.0, 400.0))
             .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 100.0))
-            .frame(egui::Frame::none()
-                .fill(Color32::from_rgb(35, 35, 40))
-                .rounding(Rounding::same(8.0))
-                .inner_margin(Margin::same(12.0)))
+            .frame(
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(35, 35, 40))
+                    .rounding(Rounding::same(8.0))
+                    .inner_margin(Margin::same(12.0)),
+            )
             .show(ctx, |ui| {
                 // Search input
                 let response = ui.add_sized(
                     Vec2::new(ui.available_width(), 32.0),
                     egui::TextEdit::singleline(&mut self.command_palette_query)
                         .hint_text("Type a command...")
-                        .font(egui::TextStyle::Heading)
+                        .font(egui::TextStyle::Heading),
                 );
                 response.request_focus();
 
@@ -47,9 +49,8 @@ impl ImageViewerApp {
                         for (name, shortcut, action) in commands {
                             let response = ui.add_sized(
                                 Vec2::new(ui.available_width(), 28.0),
-                                egui::Button::new(
-                                    egui::RichText::new(&name).size(13.0)
-                                ).fill(Color32::TRANSPARENT)
+                                egui::Button::new(egui::RichText::new(&name).size(13.0))
+                                    .fill(Color32::TRANSPARENT),
                             );
 
                             // Show shortcut
@@ -109,7 +110,8 @@ impl ImageViewerApp {
 
         let query = self.command_palette_query.to_lowercase();
 
-        all_commands.into_iter()
+        all_commands
+            .into_iter()
             .filter(|(name, _, _)| query.is_empty() || name.to_lowercase().contains(&query))
             .map(|(n, s, a)| (n.to_string(), s.to_string(), a.to_string()))
             .collect()

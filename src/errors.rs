@@ -52,13 +52,13 @@ pub enum ViewerError {
     #[error("IO error: {source}")]
     IoError {
         #[from]
-        source: std::io::Error
+        source: std::io::Error,
     },
 
     #[error("JSON parsing error: {source}")]
     JsonError {
         #[from]
-        source: serde_json::Error
+        source: serde_json::Error,
     },
 
     #[error("Image processing error: {message}")]
@@ -80,14 +80,15 @@ pub type Result<T> = std::result::Result<T, ViewerError>;
 impl ViewerError {
     /// Returns true if this error is recoverable (user can retry)
     pub fn is_recoverable(&self) -> bool {
-        matches!(self,
-            ViewerError::FileNotFound { .. } |
-            ViewerError::PermissionDenied { .. } |
-            ViewerError::NetworkError { .. } |
-            ViewerError::Timeout { .. } |
-            ViewerError::IoError { .. } |
-            ViewerError::GpuError { .. } |
-            ViewerError::ThreadPoolError { .. }
+        matches!(
+            self,
+            ViewerError::FileNotFound { .. }
+                | ViewerError::PermissionDenied { .. }
+                | ViewerError::NetworkError { .. }
+                | ViewerError::Timeout { .. }
+                | ViewerError::IoError { .. }
+                | ViewerError::GpuError { .. }
+                | ViewerError::ThreadPoolError { .. }
         )
     }
 
@@ -151,9 +152,16 @@ impl ViewerError {
 
         // For critical errors, we could send crash reports here
         // This is a placeholder for future crash reporting implementation
-        if matches!(self, ViewerError::CorruptedImage { .. } | ViewerError::GpuError { .. } | ViewerError::ThreadPoolError { .. }) {
+        if matches!(
+            self,
+            ViewerError::CorruptedImage { .. }
+                | ViewerError::GpuError { .. }
+                | ViewerError::ThreadPoolError { .. }
+        ) {
             // In a real implementation, this could send anonymized crash reports
-            eprintln!("Critical error detected. Consider checking system resources or updating drivers.");
+            eprintln!(
+                "Critical error detected. Consider checking system resources or updating drivers."
+            );
         }
     }
 }

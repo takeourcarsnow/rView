@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
-use crate::settings::{Theme, BackgroundColor, ThumbnailPosition, FocusPeakingColor, GridType};
-use egui::{self, Color32, Vec2, RichText};
+use crate::settings::{BackgroundColor, FocusPeakingColor, GridType, Theme, ThumbnailPosition};
+use egui::{self, Color32, RichText, Vec2};
 
 impl ImageViewerApp {
     pub fn render_settings_dialog(&mut self, ctx: &egui::Context) {
@@ -42,11 +42,20 @@ impl ImageViewerApp {
                 ui.add_space(8.0);
 
                 ui.horizontal(|ui| {
-                    if ui.add_sized(Vec2::new(80.0, 28.0), egui::Button::new("✓ Close")).clicked() {
+                    if ui
+                        .add_sized(Vec2::new(80.0, 28.0), egui::Button::new("✓ Close"))
+                        .clicked()
+                    {
                         self.show_settings_dialog = false;
                     }
                     ui.add_space(8.0);
-                    if ui.add_sized(Vec2::new(120.0, 28.0), egui::Button::new("↺ Reset Defaults")).clicked() {
+                    if ui
+                        .add_sized(
+                            Vec2::new(120.0, 28.0),
+                            egui::Button::new("↺ Reset Defaults"),
+                        )
+                        .clicked()
+                    {
                         self.settings = crate::settings::Settings::default();
                     }
                 });
@@ -74,11 +83,31 @@ impl ImageViewerApp {
             egui::ComboBox::from_id_salt("bg_combo")
                 .selected_text(format!("{:?}", self.settings.background_color))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.settings.background_color, BackgroundColor::Black, "Black");
-                    ui.selectable_value(&mut self.settings.background_color, BackgroundColor::Dark, "Dark");
-                    ui.selectable_value(&mut self.settings.background_color, BackgroundColor::Gray, "Gray");
-                    ui.selectable_value(&mut self.settings.background_color, BackgroundColor::Light, "Light");
-                    ui.selectable_value(&mut self.settings.background_color, BackgroundColor::Checkered, "Checkered");
+                    ui.selectable_value(
+                        &mut self.settings.background_color,
+                        BackgroundColor::Black,
+                        "Black",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.background_color,
+                        BackgroundColor::Dark,
+                        "Dark",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.background_color,
+                        BackgroundColor::Gray,
+                        "Gray",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.background_color,
+                        BackgroundColor::Light,
+                        "Light",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.background_color,
+                        BackgroundColor::Checkered,
+                        "Checkered",
+                    );
                 });
         });
 
@@ -91,10 +120,26 @@ impl ImageViewerApp {
             egui::ComboBox::from_id_salt("thumb_pos")
                 .selected_text(format!("{:?}", self.settings.thumbnail_position))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.settings.thumbnail_position, ThumbnailPosition::Bottom, "Bottom");
-                    ui.selectable_value(&mut self.settings.thumbnail_position, ThumbnailPosition::Top, "Top");
-                    ui.selectable_value(&mut self.settings.thumbnail_position, ThumbnailPosition::Left, "Left");
-                    ui.selectable_value(&mut self.settings.thumbnail_position, ThumbnailPosition::Right, "Right");
+                    ui.selectable_value(
+                        &mut self.settings.thumbnail_position,
+                        ThumbnailPosition::Bottom,
+                        "Bottom",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.thumbnail_position,
+                        ThumbnailPosition::Top,
+                        "Top",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.thumbnail_position,
+                        ThumbnailPosition::Left,
+                        "Left",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.thumbnail_position,
+                        ThumbnailPosition::Right,
+                        "Right",
+                    );
                 });
         });
 
@@ -111,7 +156,10 @@ impl ImageViewerApp {
         ui.checkbox(&mut self.settings.show_thumbnails, "Show thumbnails");
         ui.checkbox(&mut self.settings.show_exif, "Show EXIF panel");
         ui.checkbox(&mut self.settings.show_histogram, "Show histogram");
-        ui.checkbox(&mut self.settings.show_adjustments, "Show adjustments panel");
+        ui.checkbox(
+            &mut self.settings.show_adjustments,
+            "Show adjustments panel",
+        );
         ui.checkbox(&mut self.settings.show_toolbar, "Show toolbar");
         ui.checkbox(&mut self.settings.show_statusbar, "Show status bar");
     }
@@ -121,9 +169,18 @@ impl ImageViewerApp {
         ui.add_space(4.0);
 
         ui.checkbox(&mut self.settings.smooth_zoom, "Smooth zoom animation");
-        ui.checkbox(&mut self.settings.maintain_zoom_on_navigate, "Keep zoom when navigating");
-        ui.checkbox(&mut self.settings.maintain_pan_on_navigate, "Keep pan position when navigating");
-        ui.checkbox(&mut self.settings.auto_rotate_exif, "Auto-rotate based on EXIF");
+        ui.checkbox(
+            &mut self.settings.maintain_zoom_on_navigate,
+            "Keep zoom when navigating",
+        );
+        ui.checkbox(
+            &mut self.settings.maintain_pan_on_navigate,
+            "Keep pan position when navigating",
+        );
+        ui.checkbox(
+            &mut self.settings.auto_rotate_exif,
+            "Auto-rotate based on EXIF",
+        );
 
         ui.horizontal(|ui| {
             ui.label("Grid overlay:");
@@ -131,9 +188,21 @@ impl ImageViewerApp {
                 .selected_text(format!("{:?}", self.settings.grid_type))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut self.settings.grid_type, GridType::Off, "Off");
-                    ui.selectable_value(&mut self.settings.grid_type, GridType::RuleOfThirds, "Rule of Thirds");
-                    ui.selectable_value(&mut self.settings.grid_type, GridType::GoldenRatio, "Golden Ratio");
-                    ui.selectable_value(&mut self.settings.grid_type, GridType::Diagonal, "Diagonal");
+                    ui.selectable_value(
+                        &mut self.settings.grid_type,
+                        GridType::RuleOfThirds,
+                        "Rule of Thirds",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.grid_type,
+                        GridType::GoldenRatio,
+                        "Golden Ratio",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.grid_type,
+                        GridType::Diagonal,
+                        "Diagonal",
+                    );
                     ui.selectable_value(&mut self.settings.grid_type, GridType::Center, "Center");
                 });
         });
@@ -151,22 +220,48 @@ impl ImageViewerApp {
             egui::ComboBox::from_id_salt("focus_color")
                 .selected_text(format!("{:?}", self.settings.focus_peaking_color))
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.settings.focus_peaking_color, FocusPeakingColor::Red, "Red");
-                    ui.selectable_value(&mut self.settings.focus_peaking_color, FocusPeakingColor::Green, "Green");
-                    ui.selectable_value(&mut self.settings.focus_peaking_color, FocusPeakingColor::Blue, "Blue");
-                    ui.selectable_value(&mut self.settings.focus_peaking_color, FocusPeakingColor::Yellow, "Yellow");
-                    ui.selectable_value(&mut self.settings.focus_peaking_color, FocusPeakingColor::White, "White");
+                    ui.selectable_value(
+                        &mut self.settings.focus_peaking_color,
+                        FocusPeakingColor::Red,
+                        "Red",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.focus_peaking_color,
+                        FocusPeakingColor::Green,
+                        "Green",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.focus_peaking_color,
+                        FocusPeakingColor::Blue,
+                        "Blue",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.focus_peaking_color,
+                        FocusPeakingColor::Yellow,
+                        "Yellow",
+                    );
+                    ui.selectable_value(
+                        &mut self.settings.focus_peaking_color,
+                        FocusPeakingColor::White,
+                        "White",
+                    );
                 });
         });
 
         ui.horizontal(|ui| {
             ui.label("Focus peaking threshold:");
-            ui.add(egui::Slider::new(&mut self.settings.focus_peaking_threshold, 10.0..=100.0));
+            ui.add(egui::Slider::new(
+                &mut self.settings.focus_peaking_threshold,
+                10.0..=100.0,
+            ));
         });
 
         ui.horizontal(|ui| {
             ui.label("Zebra high threshold:");
-            ui.add(egui::Slider::new(&mut self.settings.zebra_high_threshold, 200..=255));
+            ui.add(egui::Slider::new(
+                &mut self.settings.zebra_high_threshold,
+                200..=255,
+            ));
         });
     }
 
@@ -176,7 +271,9 @@ impl ImageViewerApp {
 
         ui.horizontal(|ui| {
             ui.label("Interval:");
-            ui.add(egui::Slider::new(&mut self.settings.slideshow_interval, 0.5..=30.0).suffix("s"));
+            ui.add(
+                egui::Slider::new(&mut self.settings.slideshow_interval, 0.5..=30.0).suffix("s"),
+            );
         });
 
         ui.checkbox(&mut self.settings.slideshow_loop, "Loop slideshow");
@@ -193,14 +290,18 @@ impl ImageViewerApp {
 
         ui.horizontal(|ui| {
             ui.label("Preload ahead:");
-            ui.add(egui::Slider::new(&mut self.settings.preload_adjacent, 0..=10).suffix(" images"));
+            ui.add(
+                egui::Slider::new(&mut self.settings.preload_adjacent, 0..=10).suffix(" images"),
+            );
         });
 
         // Cache stats
         let stats = self.image_cache.get_stats();
-        ui.label(format!("Cache: {} images ({:.1} MB)",
+        ui.label(format!(
+            "Cache: {} images ({:.1} MB)",
             stats.image_count,
-            stats.image_size_bytes as f64 / 1_048_576.0));
+            stats.image_size_bytes as f64 / 1_048_576.0
+        ));
 
         if ui.button("Clear Cache").clicked() {
             self.image_cache.clear();
@@ -212,7 +313,10 @@ impl ImageViewerApp {
         ui.add_space(4.0);
 
         ui.checkbox(&mut self.profiler_enabled, "Enable performance profiling");
-        ui.checkbox(&mut self.settings.gpu_enabled, "Enable GPU acceleration (experimental)");
+        ui.checkbox(
+            &mut self.settings.gpu_enabled,
+            "Enable GPU acceleration (experimental)",
+        );
 
         if self.profiler_enabled {
             ui.add_space(8.0);
@@ -222,14 +326,24 @@ impl ImageViewerApp {
             ui.add_space(2.0);
 
             let cache_stats = &self.cache_stats;
-            ui.label(format!("Images cached: {} / {} ({:.1}%)",
+            ui.label(format!(
+                "Images cached: {} / {} ({:.1}%)",
                 cache_stats.cached_images,
                 cache_stats.total_images,
                 if cache_stats.total_images > 0 {
                     (cache_stats.cached_images as f64 / cache_stats.total_images as f64) * 100.0
-                } else { 0.0 }));
-            ui.label(format!("Cache hit rate: {:.1}%", cache_stats.hit_rate() * 100.0));
-            ui.label(format!("Memory usage: {:.1} MB", cache_stats.memory_usage_mb()));
+                } else {
+                    0.0
+                }
+            ));
+            ui.label(format!(
+                "Cache hit rate: {:.1}%",
+                cache_stats.hit_rate() * 100.0
+            ));
+            ui.label(format!(
+                "Memory usage: {:.1} MB",
+                cache_stats.memory_usage_mb()
+            ));
             ui.label(format!("Evictions: {}", cache_stats.eviction_count));
 
             ui.add_space(8.0);
@@ -239,10 +353,19 @@ impl ImageViewerApp {
             ui.add_space(2.0);
 
             let diag = &self.loading_diagnostics;
-            ui.label(format!("Total load time: {:.2}s", diag.total_load_time.as_secs_f64()));
-            ui.label(format!("Average load time: {:.2}s", diag.average_load_time().as_secs_f64()));
+            ui.label(format!(
+                "Total load time: {:.2}s",
+                diag.total_load_time.as_secs_f64()
+            ));
+            ui.label(format!(
+                "Average load time: {:.2}s",
+                diag.average_load_time().as_secs_f64()
+            ));
             ui.label(format!("Images loaded: {}", diag.images_loaded));
-            ui.label(format!("Thumbnails generated: {}", diag.thumbnails_generated));
+            ui.label(format!(
+                "Thumbnails generated: {}",
+                diag.thumbnails_generated
+            ));
             ui.label(format!("Errors encountered: {}", diag.errors_encountered));
 
             if !diag.bottlenecks.is_empty() {
@@ -261,10 +384,12 @@ impl ImageViewerApp {
 
             let profiler_stats = crate::profiler::with_profiler(|p| p.get_stats());
             for (name, stats) in &profiler_stats.measurements {
-                ui.label(format!("{}: {:.2}ms avg ({} samples)",
+                ui.label(format!(
+                    "{}: {:.2}ms avg ({} samples)",
                     name,
                     stats.average_time.as_millis(),
-                    stats.count));
+                    stats.count
+                ));
             }
 
             for (name, count) in &profiler_stats.counters {
@@ -288,8 +413,22 @@ impl ImageViewerApp {
             ui.label(format!("Adapter: {}", perf_info.adapter_name));
             ui.label(format!("Backend: {}", perf_info.backend));
             ui.label(format!("Device Type: {}", perf_info.device_type));
-            ui.label(format!("Texture Operations: {}", if perf_info.supports_texture_operations { "Supported" } else { "Not Supported" }));
-            ui.label(format!("RAW Demosaic: {}", if perf_info.supports_raw_demosaic { "Supported" } else { "Not Supported" }));
+            ui.label(format!(
+                "Texture Operations: {}",
+                if perf_info.supports_texture_operations {
+                    "Supported"
+                } else {
+                    "Not Supported"
+                }
+            ));
+            ui.label(format!(
+                "RAW Demosaic: {}",
+                if perf_info.supports_raw_demosaic {
+                    "Supported"
+                } else {
+                    "Not Supported"
+                }
+            ));
 
             let adapter_info = gpu.adapter_info();
             ui.label(format!("Driver: {}", adapter_info.driver));

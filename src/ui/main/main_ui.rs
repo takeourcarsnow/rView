@@ -139,13 +139,31 @@ impl eframe::App for ImageViewerApp {
         }
 
         // Process pending navigation actions (deferred to avoid UI blocking)
-        if self.pending_navigate_prev { self.previous_image(); }
-        if self.pending_navigate_next { self.next_image(); }
-        if self.pending_navigate_first { self.go_to_first(); }
-        if self.pending_navigate_last { self.go_to_last(); }
-        if self.pending_navigate_page_up { for _ in 0..10 { self.previous_image(); } }
-        if self.pending_navigate_page_down { for _ in 0..10 { self.next_image(); } }
-        if self.pending_fit_to_window { self.fit_to_window_internal(); }
+        if self.pending_navigate_prev {
+            self.previous_image();
+        }
+        if self.pending_navigate_next {
+            self.next_image();
+        }
+        if self.pending_navigate_first {
+            self.go_to_first();
+        }
+        if self.pending_navigate_last {
+            self.go_to_last();
+        }
+        if self.pending_navigate_page_up {
+            for _ in 0..10 {
+                self.previous_image();
+            }
+        }
+        if self.pending_navigate_page_down {
+            for _ in 0..10 {
+                self.next_image();
+            }
+        }
+        if self.pending_fit_to_window {
+            self.fit_to_window_internal();
+        }
 
         // Reset pending flags
         self.pending_navigate_prev = false;

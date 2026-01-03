@@ -34,12 +34,16 @@ impl UpdateChecker {
     }
 
     /// Check for updates if it's been more than 24 hours since last check
-    pub async fn check_for_updates(&mut self) -> Result<Option<ReleaseInfo>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn check_for_updates(
+        &mut self,
+    ) -> Result<Option<ReleaseInfo>, Box<dyn std::error::Error + Send + Sync>> {
         let now = SystemTime::now();
 
         // Check if we should skip (less than 24 hours since last check)
         if let Some(last) = self.last_check {
-            if now.duration_since(last).unwrap_or(Duration::from_secs(0)) < Duration::from_secs(24 * 60 * 60) {
+            if now.duration_since(last).unwrap_or(Duration::from_secs(0))
+                < Duration::from_secs(24 * 60 * 60)
+            {
                 return Ok(None);
             }
         }

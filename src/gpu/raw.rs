@@ -6,7 +6,13 @@ use wgpu::util::DeviceExt;
 impl GpuProcessor {
     /// Demosaic RAW image data using GPU acceleration
     #[allow(dead_code)]
-    pub async fn demosaic_raw(&self, raw_data: &[u16], width: u32, height: u32, bayer_pattern: u32) -> Result<DynamicImage> {
+    pub async fn demosaic_raw(
+        &self,
+        raw_data: &[u16],
+        width: u32,
+        height: u32,
+        bayer_pattern: u32,
+    ) -> Result<DynamicImage> {
         if self.raw_demosaic_pipeline.is_none() {
             return Err(anyhow!("RAW demosaicing not supported on this GPU"));
         }
@@ -20,11 +26,13 @@ impl GpuProcessor {
         }
 
         // Create input buffer
-        let input_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("raw_input_buffer"),
-            contents: bytemuck::cast_slice(&gpu_raw_data),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let input_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("raw_input_buffer"),
+                contents: bytemuck::cast_slice(&gpu_raw_data),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
 
         // Create output buffer
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
@@ -61,11 +69,13 @@ impl GpuProcessor {
             gamma: 2.2,
         };
 
-        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("demosaic_params"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let param_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("demosaic_params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -88,9 +98,11 @@ impl GpuProcessor {
         });
 
         // Create command encoder
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("demosaic_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("demosaic_encoder"),
+            });
 
         // Dispatch compute shader
         {
@@ -102,8 +114,8 @@ impl GpuProcessor {
             compute_pass.set_pipeline(self.raw_demosaic_pipeline.as_ref().unwrap());
             compute_pass.set_bind_group(0, &bind_group, &[]);
 
-            let workgroups_x = (width + 15) / 16;
-            let workgroups_y = (height + 15) / 16;
+            let workgroups_x = width.div_ceil(16);
+            let workgroups_y = height.div_ceil(16);
             compute_pass.dispatch_workgroups(workgroups_x, workgroups_y, 1);
         }
 
@@ -116,7 +128,13 @@ impl GpuProcessor {
         });
 
         // Copy output to staging buffer
-        encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, (pixel_count * 4) as u64);
+        encoder.copy_buffer_to_buffer(
+            &output_buffer,
+            0,
+            &staging_buffer,
+            0,
+            (pixel_count * 4) as u64,
+        );
 
         // Submit commands
         self.queue.submit(Some(encoder.finish()));
@@ -128,7 +146,10 @@ impl GpuProcessor {
             tx.send(result).unwrap();
         });
         self.device.poll(wgpu::Maintain::Wait);
-        let _ = rx.receive().await.ok_or_else(|| anyhow!("Failed to receive demosaic result"))?;
+        let _ = rx
+            .receive()
+            .await
+            .ok_or_else(|| anyhow!("Failed to receive demosaic result"))?;
 
         let data = buffer_slice.get_mapped_range().to_vec();
         staging_buffer.unmap();

@@ -11,12 +11,15 @@ impl ImageViewerApp {
 
         // Library section
         ui.label("LIBRARY");
-        
+
         // All Photos
-        if ui.selectable_label(
-            self.catalog_view_active && self.catalog_show_all_photos,
-            "📷 All Photos"
-        ).clicked() {
+        if ui
+            .selectable_label(
+                self.catalog_view_active && self.catalog_show_all_photos,
+                "📷 All Photos",
+            )
+            .clicked()
+        {
             self.catalog_view_active = true;
             self.catalog_show_all_photos = true;
             self.catalog_selected_collection = None;
@@ -33,7 +36,11 @@ impl ImageViewerApp {
 
         // Collapsible triangle toggle below the New Collection button — symbol only, no text or frame
         ui.horizontal(|ui| {
-            let symbol = if self.catalog_collections_open { "▾" } else { "▸" };
+            let symbol = if self.catalog_collections_open {
+                "▾"
+            } else {
+                "▸"
+            };
             let triangle = egui::Button::new(symbol).small().frame(false);
             if ui.add(triangle).clicked() {
                 self.catalog_collections_open = !self.catalog_collections_open;
@@ -52,25 +59,24 @@ impl ImageViewerApp {
                         let is_selected = self.catalog_selected_collection == Some(collection.id);
                         let label = format!("📁 {} ({})", collection.name, collection.image_count);
                         let collection_id = collection.id;
-                        
+
                         // Make collection droppable for drag-and-drop from thumbnails
-                        let (drop_response, dropped_payload) = ui.dnd_drop_zone::<std::path::PathBuf, _>(
-                            egui::Frame::none(),
-                            |ui: &mut egui::Ui| {
-                                ui.selectable_label(is_selected, &label)
-                            }
-                        );
-                        
+                        let (drop_response, dropped_payload) = ui
+                            .dnd_drop_zone::<std::path::PathBuf, _>(
+                                egui::Frame::none(),
+                                |ui: &mut egui::Ui| ui.selectable_label(is_selected, &label),
+                            );
+
                         if let Some(payload) = dropped_payload {
                             // Queue path to add to collection
                             paths_to_add.push(((*payload).clone(), collection_id));
                         }
-                        
+
                         // Use .inner to get the selectable_label response
                         if drop_response.inner.clicked() {
                             collection_to_select = Some(collection_id);
                         }
-                        
+
                         // Context menu for collection actions
                         drop_response.inner.context_menu(|ui| {
                             if ui.button("🗑 Delete Collection").clicked() {
@@ -82,19 +88,19 @@ impl ImageViewerApp {
                 }
             }
         }
-        
+
         // Process queued actions after iteration
         for (path, collection_id) in paths_to_add {
             let _ = self.add_path_to_collection(path, collection_id);
         }
-        
+
         if let Some(collection_id) = collection_to_select {
             self.catalog_view_active = true;
             self.catalog_show_all_photos = false;
             self.catalog_selected_collection = Some(collection_id);
             self.load_catalog_collection(collection_id);
         }
-        
+
         if let Some(collection_id) = collection_to_delete {
             self.delete_catalog_collection(collection_id);
         }
@@ -172,12 +178,12 @@ impl ImageViewerApp {
                 ui.radio_value(
                     &mut self.catalog_new_collection_type,
                     CollectionType::Regular,
-                    "Regular Collection (manual)"
+                    "Regular Collection (manual)",
                 );
                 ui.radio_value(
                     &mut self.catalog_new_collection_type,
                     CollectionType::Smart,
-                    "Smart Collection (auto-populated)"
+                    "Smart Collection (auto-populated)",
                 );
 
                 ui.separator();
@@ -185,7 +191,10 @@ impl ImageViewerApp {
                 // Show info about selected images
                 let selected_count = self.selected_indices.len();
                 if selected_count > 0 {
-                    ui.label(format!("📸 {} selected image(s) will be added to this collection", selected_count));
+                    ui.label(format!(
+                        "📸 {} selected image(s) will be added to this collection",
+                        selected_count
+                    ));
                     ui.separator();
                 }
 
@@ -232,7 +241,7 @@ impl ImageViewerApp {
     pub fn start_catalog_import(&mut self) {
         let import_path = self.catalog_import_path.clone();
         let recursive = self.catalog_import_recursive;
-        
+
         if import_path.is_empty() {
             return;
         }
@@ -274,19 +283,22 @@ impl ImageViewerApp {
                     self.set_status_message(format!("Created collection: {}", name));
                     self.catalog_new_collection_name.clear();
                     self.catalog_selected_collection = Some(id);
-                    
+
                     // Auto-add selected images to the new collection
                     let selected_count = self.selected_indices.len();
                     if selected_count > 0 {
                         // Collect paths first to avoid borrowing issues
-                        let selected_paths: Vec<std::path::PathBuf> = self.selected_indices.iter()
+                        let selected_paths: Vec<std::path::PathBuf> = self
+                            .selected_indices
+                            .iter()
                             .filter_map(|&display_idx| {
-                                self.filtered_list.get(display_idx)
+                                self.filtered_list
+                                    .get(display_idx)
                                     .and_then(|&real_idx| self.image_list.get(real_idx))
                                     .cloned()
                             })
                             .collect();
-                        
+
                         let mut added_count = 0;
                         for path in selected_paths {
                             if self.add_path_to_collection(path, id).is_ok() {
@@ -294,7 +306,10 @@ impl ImageViewerApp {
                             }
                         }
                         if added_count > 0 {
-                            self.set_status_message(format!("Created collection '{}' with {} images", name, added_count));
+                            self.set_status_message(format!(
+                                "Created collection '{}' with {} images",
+                                name, added_count
+                            ));
                             // Refresh the collection view
                             self.load_catalog_collection(id);
                         }
@@ -315,7 +330,11 @@ impl ImageViewerApp {
     }
 
     /// Add a specific image path to a collection
-    pub fn add_path_to_collection(&mut self, path: std::path::PathBuf, collection_id: i64) -> Result<(), ()> {
+    pub fn add_path_to_collection(
+        &mut self,
+        path: std::path::PathBuf,
+        collection_id: i64,
+    ) -> Result<(), ()> {
         if let Some(ref mut catalog_db) = self.catalog_db {
             // Get or import image
             let image_id = if let Ok(Some(img)) = catalog_db.get_image(&path) {
@@ -332,7 +351,7 @@ impl ImageViewerApp {
 
             match catalog_db.add_to_collection(collection_id, image_id) {
                 Ok(_) => {
-                    self.set_status_message(format!("Added image to collection"));
+                    self.set_status_message("Added image to collection".to_string());
                     // Refresh collection count if currently viewing this collection
                     if self.catalog_selected_collection == Some(collection_id) {
                         self.load_catalog_collection(collection_id);
@@ -348,14 +367,14 @@ impl ImageViewerApp {
             Err(())
         }
     }
-    
+
     /// Delete a collection from the catalog
     pub fn delete_catalog_collection(&mut self, collection_id: i64) {
         if let Some(ref mut catalog_db) = self.catalog_db {
             match catalog_db.delete_collection(collection_id) {
                 Ok(_) => {
                     self.set_status_message("Collection deleted".to_string());
-                    
+
                     // If we were viewing the deleted collection, clear the selection
                     if self.catalog_selected_collection == Some(collection_id) {
                         self.catalog_selected_collection = None;

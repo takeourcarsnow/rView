@@ -16,7 +16,11 @@ impl ImageViewerApp {
             .show(ctx, |ui| {
                 ui.label("Choose a folder to move the current image to:");
                 ui.add_space(4.0);
-                ui.label(egui::RichText::new("Press M again to move to most recent folder").small().weak());
+                ui.label(
+                    egui::RichText::new("Press M again to move to most recent folder")
+                        .small()
+                        .weak(),
+                );
 
                 ui.add_space(8.0);
 
@@ -32,16 +36,17 @@ impl ImageViewerApp {
                         .max_height(150.0)
                         .show(ui, |ui| {
                             for (index, folder) in quick_folders.iter().enumerate() {
-                                if let Some(folder_name) = folder.file_name().and_then(|n| n.to_str()) {
+                                if let Some(folder_name) =
+                                    folder.file_name().and_then(|n| n.to_str())
+                                {
                                     let folder_path = folder.display().to_string();
                                     let button_text = if index == 0 {
                                         format!("📁 {} (press M)", folder_name)
                                     } else {
                                         format!("📁 {}", folder_name)
                                     };
-                                    if ui.button(button_text)
-                                        .on_hover_text(&folder_path)
-                                        .clicked() {
+                                    if ui.button(button_text).on_hover_text(&folder_path).clicked()
+                                    {
                                         self.move_to_folder(folder.clone());
                                         self.show_move_dialog = false;
                                     }

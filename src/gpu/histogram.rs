@@ -49,12 +49,16 @@ impl GpuProcessor {
         let histogram_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("histogram_buffer"),
             size: (4 * 256 * std::mem::size_of::<u32>()) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_SRC
+                | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         // Clear histogram buffer
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         encoder.clear_buffer(&histogram_buffer, 0, None);
         self.queue.submit(Some(encoder.finish()));
 
@@ -65,7 +69,9 @@ impl GpuProcessor {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -75,9 +81,11 @@ impl GpuProcessor {
         });
 
         // Execute histogram computation
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("histogram_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("histogram_encoder"),
+            });
 
         {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -86,7 +94,7 @@ impl GpuProcessor {
             });
             cpass.set_pipeline(&self.histogram_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+            cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
 
         // Download histogram
@@ -97,7 +105,13 @@ impl GpuProcessor {
             mapped_at_creation: false,
         });
 
-        encoder.copy_buffer_to_buffer(&histogram_buffer, 0, &staging_buffer, 0, 4 * 256 * std::mem::size_of::<u32>() as u64);
+        encoder.copy_buffer_to_buffer(
+            &histogram_buffer,
+            0,
+            &staging_buffer,
+            0,
+            4 * 256 * std::mem::size_of::<u32>() as u64,
+        );
         self.queue.submit(Some(encoder.finish()));
 
         // Read back result

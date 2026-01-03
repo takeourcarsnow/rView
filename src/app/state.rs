@@ -1,10 +1,10 @@
-use crate::image_cache::ImageCache;
-use crate::image_loader::{ImageAdjustments};
-use crate::settings::Settings;
+use crate::catalog::CatalogDb;
 use crate::exif_data::ExifInfo;
+use crate::image_cache::ImageCache;
+use crate::image_loader::ImageAdjustments;
 use crate::metadata::{MetadataDb, UndoHistory};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
-use crate::catalog::CatalogDb;
+use crate::settings::Settings;
 use crate::ui::BatchRenameState;
 
 use eframe::egui::{self, TextureHandle, Vec2};
@@ -25,9 +25,13 @@ pub enum LoaderMessage {
     ThumbnailRequestComplete(PathBuf),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, Box<ExifInfo>),
-    MoveCompleted { from: PathBuf, dest_folder: PathBuf, success: bool, error: Option<String> },
+    MoveCompleted {
+        from: PathBuf,
+        dest_folder: PathBuf,
+        success: bool,
+        error: Option<String>,
+    },
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -100,7 +104,7 @@ pub struct ImageViewerApp {
     pub show_original: bool, // Before/After toggle
     pub last_adjustment_time: std::time::Instant,
     pub adjustments_dirty: bool, // Flag to indicate adjustments need to be applied
-    pub slider_dragging: bool, // True while user is actively dragging a slider
+    pub slider_dragging: bool,   // True while user is actively dragging a slider
     pub pre_drag_adjustments: Option<ImageAdjustments>, // Adjustments before drag started (for undo)
 
     // Cached data
@@ -181,9 +185,11 @@ pub struct ImageViewerApp {
 
     // Update checker
     pub update_checker: Option<crate::updates::UpdateChecker>,
+    #[allow(dead_code)]
     pub update_available: Option<crate::updates::ReleaseInfo>,
 
     // Telemetry
+    #[allow(dead_code)]
     pub telemetry: Option<crate::telemetry::Telemetry>,
 }
 
@@ -191,7 +197,7 @@ impl ImageViewerApp {
     pub fn set_status_message(&mut self, msg: String) {
         self.status_message = Some((msg, std::time::Instant::now()));
     }
-    
+
     /// Mark adjustments as needing refresh without debounce check
     pub fn mark_adjustments_dirty(&mut self) {
         self.adjustments_dirty = true;
@@ -199,20 +205,20 @@ impl ImageViewerApp {
             ctx.request_repaint();
         }
     }
-    
+
     /// Process any pending adjustments if dirty flag is set
     /// Call this from the update loop with proper timing
     pub fn process_pending_adjustments(&mut self) {
         if !self.adjustments_dirty {
             return;
         }
-        
+
         let now = std::time::Instant::now();
         let elapsed = now.duration_since(self.last_adjustment_time);
-        
+
         // Use longer debounce while dragging for smoother feel, shorter on release
         let debounce_ms = if self.slider_dragging { 100 } else { 16 };
-        
+
         if elapsed.as_millis() >= debounce_ms {
             self.adjustments_dirty = false;
             self.last_adjustment_time = now;
@@ -237,7 +243,7 @@ impl ImageViewerApp {
         let settings = Settings::load();
         let telemetry_enabled = settings.telemetry_enabled;
         let metadata_db = MetadataDb::load();
-        
+
         // Initialize catalog database
         let catalog_db = match CatalogDb::new() {
             Ok(db) => {
@@ -333,7 +339,9 @@ impl ImageViewerApp {
             panels_hidden: false,
             gpu_initialization_attempted: false,
             batch_rename_state: BatchRenameState::default(),
-            update_checker: Some(crate::updates::UpdateChecker::new(env!("CARGO_PKG_VERSION").to_string())),
+            update_checker: Some(crate::updates::UpdateChecker::new(
+                env!("CARGO_PKG_VERSION").to_string(),
+            )),
             update_available: None,
             telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
         };
@@ -376,14 +384,18 @@ impl ImageViewerApp {
     pub fn check_for_updates(&mut self) {
         if let Some(checker) = &mut self.update_checker {
             let mut checker_clone = checker.clone();
-            let ctx = self.ctx.clone();
+            let _ctx = self.ctx.clone();
 
             // Spawn async task to check for updates
             tokio::spawn(async move {
                 match checker_clone.check_for_updates().await {
                     Ok(Some(release)) => {
                         // In a real implementation, you'd update the app state
-                        log::info!("New version available: {} - {}", release.tag_name, release.html_url);
+                        log::info!(
+                            "New version available: {} - {}",
+                            release.tag_name,
+                            release.html_url
+                        );
                         // For now, just log it. In production, you'd show a dialog
                     }
                     Ok(None) => {

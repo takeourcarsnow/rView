@@ -1,4 +1,4 @@
-use super::types::{GpuProcessor, GpuPerformanceInfo};
+use super::types::{GpuPerformanceInfo, GpuProcessor};
 
 impl GpuProcessor {
     /// Get GPU information

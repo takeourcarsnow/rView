@@ -2,7 +2,11 @@ use crate::gpu::types::AdjustmentParams;
 use crate::image_loader::ImageAdjustments;
 
 impl crate::gpu::types::GpuProcessor {
-    pub fn create_adjustment_params(adj: &ImageAdjustments, width: u32, height: u32) -> AdjustmentParams {
+    pub fn create_adjustment_params(
+        adj: &ImageAdjustments,
+        width: u32,
+        height: u32,
+    ) -> AdjustmentParams {
         let film = &adj.film;
         AdjustmentParams {
             exposure: adj.exposure,

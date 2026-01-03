@@ -1,6 +1,6 @@
+use super::ImageViewerApp;
 use crate::image_loader;
 use image::DynamicImage;
-use super::ImageViewerApp;
 
 impl ImageViewerApp {
     pub fn generate_focus_peaking_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
@@ -11,16 +11,23 @@ impl ImageViewerApp {
                 // The CPU version uses raw pixel values (0-255), so threshold of 50 means magnitude ~50.
                 // For GPU, we need to convert: threshold / 255.0 gives us a comparable normalized threshold.
                 let normalized_threshold = self.settings.focus_peaking_threshold / 255.0;
-                gpu.generate_focus_peaking_overlay(image, normalized_threshold).await
+                gpu.generate_focus_peaking_overlay(image, normalized_threshold)
+                    .await
             }) {
                 Ok(overlay) => overlay,
                 Err(e) => {
                     log::warn!("GPU focus peaking failed: {}; falling back to CPU", e);
-                    DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold))
+                    DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(
+                        image,
+                        self.settings.focus_peaking_threshold,
+                    ))
                 }
             }
         } else {
-            DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(image, self.settings.focus_peaking_threshold))
+            DynamicImage::ImageRgba8(image_loader::generate_focus_peaking_overlay(
+                image,
+                self.settings.focus_peaking_threshold,
+            ))
         };
 
         let size = [overlay.width() as usize, overlay.height() as usize];
@@ -39,7 +46,12 @@ impl ImageViewerApp {
     pub fn generate_zebra_overlay(&mut self, image: &DynamicImage, ctx: &egui::Context) {
         let overlay = if let Some(gpu) = &self.gpu_processor {
             match pollster::block_on(async {
-                gpu.generate_zebra_overlay(image, self.settings.zebra_high_threshold as f32 / 255.0, self.settings.zebra_low_threshold as f32 / 255.0).await
+                gpu.generate_zebra_overlay(
+                    image,
+                    self.settings.zebra_high_threshold as f32 / 255.0,
+                    self.settings.zebra_low_threshold as f32 / 255.0,
+                )
+                .await
             }) {
                 Ok(overlay) => overlay,
                 Err(e) => {
@@ -47,7 +59,7 @@ impl ImageViewerApp {
                     DynamicImage::ImageRgba8(image_loader::generate_zebra_overlay(
                         image,
                         self.settings.zebra_high_threshold,
-                        self.settings.zebra_low_threshold
+                        self.settings.zebra_low_threshold,
                     ))
                 }
             }
@@ -55,7 +67,7 @@ impl ImageViewerApp {
             DynamicImage::ImageRgba8(image_loader::generate_zebra_overlay(
                 image,
                 self.settings.zebra_high_threshold,
-                self.settings.zebra_low_threshold
+                self.settings.zebra_low_threshold,
             ))
         };
 

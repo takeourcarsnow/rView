@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -8,7 +8,7 @@ pub struct Settings {
     pub theme: Theme,
     pub background_color: BackgroundColor,
     pub accent_color: AccentColor,
-    
+
     // Panels
     pub show_sidebar: bool,
     pub show_thumbnails: bool,
@@ -22,22 +22,22 @@ pub struct Settings {
     pub show_adjustments: bool,
     pub show_toolbar: bool,
     pub show_statusbar: bool,
-    
+
     // Zoom behavior
     pub zoom_increment: f32,
     pub smooth_zoom: bool,
     pub zoom_animation_speed: f32,
     pub maintain_zoom_on_navigate: bool,
     pub maintain_pan_on_navigate: bool,
-    
+
     // View modes
     pub fit_mode: FitMode,
     pub auto_rotate_exif: bool,
-    
+
     // Slideshow
     pub slideshow_interval: f32,
     pub slideshow_loop: bool,
-    
+
     // Overlays
     pub show_focus_peaking: bool,
     pub focus_peaking_color: FocusPeakingColor,
@@ -47,13 +47,13 @@ pub struct Settings {
     pub zebra_low_threshold: u8,
     pub show_grid_overlay: bool,
     pub grid_type: GridType,
-    
+
     // Sorting and filtering
     pub sort_mode: SortMode,
     pub sort_order: SortOrder,
     pub sort_ascending: bool,
     pub include_subfolders: bool,
-    
+
     // File management
     pub recent_folders: Vec<PathBuf>,
     pub max_recent_folders: usize,
@@ -62,7 +62,7 @@ pub struct Settings {
     pub external_editors: Vec<ExternalEditor>,
     pub confirm_delete: bool,
     pub delete_to_trash: bool,
-    
+
     // Cache and performance
     pub preload_adjacent: usize,
     pub cache_size_mb: usize,
@@ -75,26 +75,26 @@ pub struct Settings {
 
     // Telemetry
     pub telemetry_enabled: bool,
-    
+
     // Export presets
-    
+
     // Window state
     pub window_maximized: bool,
     pub window_size: (f32, f32),
     pub window_position: Option<(f32, f32)>,
-    
+
     // Session
     pub restore_session: bool,
     pub last_folder: Option<PathBuf>,
     pub last_file: Option<PathBuf>,
-    
+
     // Loupe
     pub loupe_size: f32,
     pub loupe_zoom: f32,
     /// If false, RAW files will not be decoded to full resolution; only embedded JPEG previews will be used
     pub load_raw_full_size: bool,
     pub loupe_enabled: bool,
-} 
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -102,7 +102,7 @@ impl Default for Settings {
             theme: Theme::Dark,
             background_color: BackgroundColor::Dark,
             accent_color: AccentColor::Blue,
-            
+
             show_sidebar: true,
             show_thumbnails: true,
             thumbnail_size: 100.0,
@@ -114,19 +114,19 @@ impl Default for Settings {
             show_adjustments: true,
             show_toolbar: true,
             show_statusbar: true,
-            
+
             zoom_increment: 0.1,
             smooth_zoom: true,
             zoom_animation_speed: 8.0,
             maintain_zoom_on_navigate: true,
             maintain_pan_on_navigate: true,
-            
+
             fit_mode: FitMode::Fit,
             auto_rotate_exif: true,
-            
+
             slideshow_interval: 3.0,
             slideshow_loop: true,
-            
+
             show_focus_peaking: false,
             focus_peaking_color: FocusPeakingColor::Red,
             focus_peaking_threshold: 50.0,
@@ -135,12 +135,12 @@ impl Default for Settings {
             zebra_low_threshold: 5,
             show_grid_overlay: false,
             grid_type: GridType::RuleOfThirds,
-            
+
             sort_mode: SortMode::Name,
             sort_order: SortOrder::Ascending,
             sort_ascending: true,
             include_subfolders: false,
-            
+
             recent_folders: Vec::new(),
             max_recent_folders: 20,
             favorite_folders: Vec::new(),
@@ -148,7 +148,7 @@ impl Default for Settings {
             external_editors: Vec::new(),
             confirm_delete: true,
             delete_to_trash: true,
-            
+
             preload_adjacent: 3,
             cache_size_mb: 1024,
             thumbnail_cache_size: 1000,
@@ -160,15 +160,15 @@ impl Default for Settings {
 
             // Telemetry (disabled by default)
             telemetry_enabled: false,
-            
+
             window_maximized: false,
             window_size: (1400.0, 900.0),
             window_position: None,
-            
+
             restore_session: true,
             last_folder: None,
             last_file: None,
-            
+
             loupe_size: 200.0,
             loupe_zoom: 2.0,
             load_raw_full_size: true,
@@ -293,7 +293,7 @@ impl FocusPeakingColor {
             FocusPeakingColor::White => egui::Color32::WHITE,
         }
     }
-} 
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GridType {
@@ -327,7 +327,7 @@ impl ColorLabel {
             ColorLabel::Purple => egui::Color32::from_rgb(180, 100, 255),
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn name(&self) -> &'static str {
         match self {
@@ -339,7 +339,7 @@ impl ColorLabel {
             ColorLabel::Purple => "Purple",
         }
     }
-    
+
     #[allow(dead_code)]
     pub fn all() -> &'static [ColorLabel] {
         &[
@@ -378,11 +378,12 @@ fn default_panel_positions() -> HashMap<String, PanelPosition> {
     positions.insert("toolbar".to_string(), PanelPosition::Top);
     positions.insert("statusbar".to_string(), PanelPosition::Bottom);
     positions
-} 
+}
 
 impl Settings {
     pub fn load() -> Self {
-        if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer") {
+        if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer")
+        {
             let config_path = proj_dirs.config_dir().join("settings.json");
             if config_path.exists() {
                 if let Ok(content) = std::fs::read_to_string(&config_path) {
@@ -394,9 +395,10 @@ impl Settings {
         }
         Self::default()
     }
-    
+
     pub fn save(&self) {
-        if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer") {
+        if let Some(proj_dirs) = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer")
+        {
             let config_dir = proj_dirs.config_dir();
             let _ = std::fs::create_dir_all(config_dir);
             let config_path = config_dir.join("settings.json");
@@ -405,7 +407,7 @@ impl Settings {
             }
         }
     }
-    
+
     pub fn add_recent_folder(&mut self, path: PathBuf) {
         self.recent_folders.retain(|p| p != &path);
         self.recent_folders.insert(0, path);
@@ -417,7 +419,8 @@ impl Settings {
     pub fn add_quick_move_folder(&mut self, path: PathBuf) {
         self.quick_move_folders.retain(|p| p != &path);
         self.quick_move_folders.insert(0, path);
-        if self.quick_move_folders.len() > 10 { // Keep max 10 quick move folders
+        if self.quick_move_folders.len() > 10 {
+            // Keep max 10 quick move folders
             self.quick_move_folders.truncate(10);
         }
     }

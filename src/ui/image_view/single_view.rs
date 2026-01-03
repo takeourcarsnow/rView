@@ -1,16 +1,15 @@
 use crate::app::ImageViewerApp;
-use crate::settings::{BackgroundColor};
-use egui::{self, Color32, Vec2, Rect, Rounding};
+use crate::settings::BackgroundColor;
+use egui::{self, Color32, Rect, Rounding, Vec2};
 
 impl ImageViewerApp {
     pub fn render_main_view(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none()
-                .fill(self.settings.background_color.to_color()))
+            .frame(egui::Frame::none().fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
                 match self.view_mode {
                     crate::app::ViewMode::Single => self.render_single_view(ui, ctx),
-                    crate::app::ViewMode::Lightbox => {} , // Handled separately
+                    crate::app::ViewMode::Lightbox => {} // Handled separately
                     crate::app::ViewMode::Compare => self.render_compare_view(ctx),
                 }
             });
@@ -35,10 +34,7 @@ impl ImageViewerApp {
             let tex_size = tex.size_vec2();
             let display_size = tex_size * self.zoom;
 
-            let image_rect = Rect::from_center_size(
-                rect.center() + self.pan_offset,
-                display_size
-            );
+            let image_rect = Rect::from_center_size(rect.center() + self.pan_offset, display_size);
 
             ui.painter().image(
                 tex.id(),
@@ -61,12 +57,12 @@ impl ImageViewerApp {
             if self.showing_preview && self.is_loading {
                 let indicator_rect = Rect::from_min_size(
                     rect.left_top() + Vec2::new(10.0, 10.0),
-                    Vec2::new(200.0, 30.0)
+                    Vec2::new(200.0, 30.0),
                 );
                 ui.painter().rect_filled(
                     indicator_rect,
                     Rounding::same(6.0),
-                    Color32::from_rgba_unmultiplied(0, 0, 0, 200)
+                    Color32::from_rgba_unmultiplied(0, 0, 0, 200),
                 );
                 ui.painter().text(
                     indicator_rect.center(),
@@ -82,21 +78,21 @@ impl ImageViewerApp {
             let _spinner_phase = (time * 2.0) % (std::f64::consts::PI * 2.0);
             let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
             let spinner_idx = ((time * 10.0) as usize) % spinner_chars.len();
-            
+
             let loading_text = if self.showing_preview {
                 format!("{} Loading full resolution...", spinner_chars[spinner_idx])
             } else {
                 format!("{} Loading image...", spinner_chars[spinner_idx])
             };
-            
+
             // Draw a subtle background
             let bg_rect = Rect::from_center_size(rect.center(), Vec2::new(300.0, 80.0));
             ui.painter().rect_filled(
                 bg_rect,
                 Rounding::same(12.0),
-                Color32::from_rgba_unmultiplied(20, 20, 25, 220)
+                Color32::from_rgba_unmultiplied(20, 20, 25, 220),
             );
-            
+
             ui.painter().text(
                 rect.center() + Vec2::new(0.0, -10.0),
                 egui::Align2::CENTER_CENTER,
@@ -104,35 +100,35 @@ impl ImageViewerApp {
                 egui::FontId::proportional(16.0),
                 Color32::from_rgb(220, 220, 220),
             );
-            
+
             // Add a simple progress bar animation
             let progress_width = 200.0;
             let progress_height = 4.0;
             let progress_rect = Rect::from_center_size(
                 rect.center() + Vec2::new(0.0, 15.0),
-                Vec2::new(progress_width, progress_height)
+                Vec2::new(progress_width, progress_height),
             );
-            
+
             // Background
             ui.painter().rect_filled(
                 progress_rect,
                 Rounding::same(2.0),
-                Color32::from_rgb(60, 60, 65)
+                Color32::from_rgb(60, 60, 65),
             );
-            
+
             // Animated progress fill
             let progress_fill = (time.sin() * 0.5 + 0.5) * 0.7 + 0.1; // 10% to 80%
             let fill_width = progress_width * progress_fill as f32;
             let fill_rect = Rect::from_min_size(
                 progress_rect.left_top(),
-                Vec2::new(fill_width, progress_height)
+                Vec2::new(fill_width, progress_height),
             );
             ui.painter().rect_filled(
                 fill_rect,
                 Rounding::same(2.0),
-                Color32::from_rgb(100, 150, 255)
+                Color32::from_rgb(100, 150, 255),
             );
-            
+
             ui.ctx().request_repaint();
         } else if let Some(ref error) = self.load_error {
             // Error message
@@ -167,13 +163,22 @@ impl ImageViewerApp {
         // Note: EXIF overlay shown inline above when drawing the image so it has access to image_rect
     }
 
-    fn draw_exif_overlay(&self, ui: &mut egui::Ui, image_rect: Rect, exif: &crate::exif_data::ExifInfo) {
+    fn draw_exif_overlay(
+        &self,
+        ui: &mut egui::Ui,
+        image_rect: Rect,
+        exif: &crate::exif_data::ExifInfo,
+    ) {
         // Small semi-transparent overlay in bottom-left showing camera/date/settings
         let overlay_size = egui::Vec2::new(320.0, 44.0);
         let pos = image_rect.left_bottom() + egui::Vec2::new(12.0, -12.0 - overlay_size.y);
         let overlay_rect = Rect::from_min_size(pos, overlay_size);
 
-        ui.painter().rect_filled(overlay_rect, Rounding::same(6.0), Color32::from_rgba_unmultiplied(0,0,0,180));
+        ui.painter().rect_filled(
+            overlay_rect,
+            Rounding::same(6.0),
+            Color32::from_rgba_unmultiplied(0, 0, 0, 180),
+        );
 
         if !exif.has_data() {
             ui.painter().text(
@@ -184,9 +189,20 @@ impl ImageViewerApp {
                 Color32::WHITE,
             );
         } else {
-            let camera = exif.camera_model.clone().unwrap_or_else(|| "Unknown Camera".to_string());
-            let date = exif.date_taken.clone().unwrap_or_else(|| "Unknown Date".to_string());
-            let settings = format!("{} • {} • ISO {}", exif.focal_length_formatted(), exif.aperture_formatted(), exif.iso.clone().unwrap_or_default());
+            let camera = exif
+                .camera_model
+                .clone()
+                .unwrap_or_else(|| "Unknown Camera".to_string());
+            let date = exif
+                .date_taken
+                .clone()
+                .unwrap_or_else(|| "Unknown Date".to_string());
+            let settings = format!(
+                "{} • {} • ISO {}",
+                exif.focal_length_formatted(),
+                exif.aperture_formatted(),
+                exif.iso.clone().unwrap_or_default()
+            );
 
             ui.painter().text(
                 overlay_rect.left_top() + egui::Vec2::new(8.0, 6.0),
@@ -200,7 +216,7 @@ impl ImageViewerApp {
                 egui::Align2::LEFT_BOTTOM,
                 format!("{} — {}", settings, date),
                 egui::FontId::proportional(11.0),
-                Color32::from_rgb(200,200,200),
+                Color32::from_rgb(200, 200, 200),
             );
         }
     }

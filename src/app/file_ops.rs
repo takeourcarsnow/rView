@@ -1,4 +1,4 @@
-use crate::image_loader::{SUPPORTED_EXTENSIONS, is_supported_image};
+use crate::image_loader::{is_supported_image, SUPPORTED_EXTENSIONS};
 use eframe::egui;
 use image::DynamicImage;
 use std::path::PathBuf;
@@ -51,9 +51,7 @@ impl ImageViewerApp {
 
     pub fn open_in_external_editor(&self, editor_path: &std::path::Path) {
         if let Some(path) = self.get_current_path() {
-            let _ = std::process::Command::new(editor_path)
-                .arg(&path)
-                .spawn();
+            let _ = std::process::Command::new(editor_path).arg(&path).spawn();
         }
     }
 
@@ -80,7 +78,11 @@ impl ImageViewerApp {
             let default_filename = if let Some(current_path) = self.get_current_path() {
                 if let Some(file_stem) = current_path.file_stem() {
                     if let Some(extension) = current_path.extension() {
-                        format!("{}_rView.{}", file_stem.to_string_lossy(), extension.to_string_lossy())
+                        format!(
+                            "{}_rView.{}",
+                            file_stem.to_string_lossy(),
+                            extension.to_string_lossy()
+                        )
                     } else {
                         format!("{}_rView.jpg", file_stem.to_string_lossy())
                     }
@@ -107,25 +109,36 @@ impl ImageViewerApp {
                         let adjustments_clone = self.adjustments.clone();
 
                         match pollster::block_on(async {
-                            gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                            gpu_clone
+                                .apply_adjustments_texture(&image_clone, &adjustments_clone)
+                                .await
                         }) {
                             Ok(img) => img,
                             Err(e) => {
-                                log::warn!("GPU texture export failed: {}; falling back to buffer method", e);
+                                log::warn!(
+                                    "GPU texture export failed: {}; falling back to buffer method",
+                                    e
+                                );
                                 // Fallback to buffer-based GPU method
                                 match gpu.apply_adjustments(&image_clone, &adjustments_clone) {
                                     Ok(pixels) => {
                                         let width = image_clone.width();
                                         let height = image_clone.height();
-                                        if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                                        if let Some(buf) =
+                                            image::ImageBuffer::from_raw(width, height, pixels)
+                                        {
                                             DynamicImage::ImageRgba8(buf)
                                         } else {
-                                            crate::image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                                            crate::image_loader::apply_adjustments(
+                                                &image_clone,
+                                                &adjustments_clone,
+                                            )
                                         }
                                     }
-                                    Err(_) => {
-                                        crate::image_loader::apply_adjustments(&image_clone, &adjustments_clone)
-                                    }
+                                    Err(_) => crate::image_loader::apply_adjustments(
+                                        &image_clone,
+                                        &adjustments_clone,
+                                    ),
                                 }
                             }
                         }
@@ -149,8 +162,6 @@ impl ImageViewerApp {
             self.show_status("No image to export");
         }
     }
-
-
 
     pub fn toggle_lightbox_mode(&mut self) {
         if self.view_mode == super::ViewMode::Lightbox {

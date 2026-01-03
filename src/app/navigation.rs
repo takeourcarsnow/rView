@@ -1,10 +1,11 @@
-use std::path::PathBuf;
-use crate::image_loader::ImageAdjustments;
 use super::ImageViewerApp;
+use crate::image_loader::ImageAdjustments;
+use std::path::PathBuf;
 
 impl ImageViewerApp {
     pub fn get_current_path(&self) -> Option<PathBuf> {
-        self.filtered_list.get(self.current_index)
+        self.filtered_list
+            .get(self.current_index)
             .and_then(|&idx| self.image_list.get(idx))
             .cloned()
     }
@@ -56,10 +57,10 @@ impl ImageViewerApp {
         let saved_pan = self.pan_offset;
 
         self.current_index = index;
-        
+
         // Load adjustments for the new image
         self.load_adjustments_for_current();
-        
+
         self.load_current_image();
 
         if self.settings.maintain_zoom_on_navigate {
@@ -75,7 +76,7 @@ impl ImageViewerApp {
     pub fn go_to_index(&mut self, index: usize) {
         self.navigate_to_index(index);
     }
-    
+
     /// Save current image's adjustments to metadata database
     pub fn save_current_adjustments(&mut self) {
         if let Some(path) = self.get_current_path() {
@@ -83,7 +84,7 @@ impl ImageViewerApp {
             self.metadata_db.save();
         }
     }
-    
+
     /// Load adjustments for the current image from metadata database
     pub fn load_adjustments_for_current(&mut self) {
         if let Some(path) = self.get_current_path() {

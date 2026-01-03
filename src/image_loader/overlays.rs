@@ -1,4 +1,4 @@
-use image::{DynamicImage, RgbaImage, Rgba};
+use image::{DynamicImage, Rgba, RgbaImage};
 
 // Focus peaking - detect edges/sharp areas
 pub fn generate_focus_peaking_overlay(image: &DynamicImage, threshold: f32) -> RgbaImage {
@@ -7,23 +7,21 @@ pub fn generate_focus_peaking_overlay(image: &DynamicImage, threshold: f32) -> R
     let mut overlay = RgbaImage::new(width, height);
 
     // Sobel edge detection
-    for y in 1..height-1 {
-        for x in 1..width-1 {
-            let gx =
-                -(gray.get_pixel(x-1, y-1).0[0] as f32) +
-                 1.0 * gray.get_pixel(x+1, y-1).0[0] as f32 +
-                -2.0 * gray.get_pixel(x-1, y).0[0] as f32 +
-                 2.0 * gray.get_pixel(x+1, y).0[0] as f32 +
-                -(gray.get_pixel(x-1, y+1).0[0] as f32) +
-                 1.0 * gray.get_pixel(x+1, y+1).0[0] as f32;
+    for y in 1..height - 1 {
+        for x in 1..width - 1 {
+            let gx = -(gray.get_pixel(x - 1, y - 1).0[0] as f32)
+                + 1.0 * gray.get_pixel(x + 1, y - 1).0[0] as f32
+                + -2.0 * gray.get_pixel(x - 1, y).0[0] as f32
+                + 2.0 * gray.get_pixel(x + 1, y).0[0] as f32
+                + -(gray.get_pixel(x - 1, y + 1).0[0] as f32)
+                + 1.0 * gray.get_pixel(x + 1, y + 1).0[0] as f32;
 
-            let gy =
-                -(gray.get_pixel(x-1, y-1).0[0] as f32) +
-                -2.0 * gray.get_pixel(x, y-1).0[0] as f32 +
-                -(gray.get_pixel(x+1, y-1).0[0] as f32) +
-                 1.0 * gray.get_pixel(x-1, y+1).0[0] as f32 +
-                 2.0 * gray.get_pixel(x, y+1).0[0] as f32 +
-                 1.0 * gray.get_pixel(x+1, y+1).0[0] as f32;
+            let gy = -(gray.get_pixel(x - 1, y - 1).0[0] as f32)
+                + -2.0 * gray.get_pixel(x, y - 1).0[0] as f32
+                + -(gray.get_pixel(x + 1, y - 1).0[0] as f32)
+                + 1.0 * gray.get_pixel(x - 1, y + 1).0[0] as f32
+                + 2.0 * gray.get_pixel(x, y + 1).0[0] as f32
+                + 1.0 * gray.get_pixel(x + 1, y + 1).0[0] as f32;
 
             let magnitude = (gx * gx + gy * gy).sqrt();
 
@@ -39,7 +37,11 @@ pub fn generate_focus_peaking_overlay(image: &DynamicImage, threshold: f32) -> R
 }
 
 // Zebra pattern for overexposure
-pub fn generate_zebra_overlay(image: &DynamicImage, high_threshold: u8, low_threshold: u8) -> RgbaImage {
+pub fn generate_zebra_overlay(
+    image: &DynamicImage,
+    high_threshold: u8,
+    low_threshold: u8,
+) -> RgbaImage {
     let rgb = image.to_rgb8();
     let (width, height) = rgb.dimensions();
     let mut overlay = RgbaImage::new(width, height);

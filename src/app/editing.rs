@@ -129,7 +129,12 @@ impl ImageViewerApp {
             std::thread::spawn(move || {
                 // Create the destination folder if it doesn't exist
                 if let Err(e) = std::fs::create_dir_all(&dest_folder) {
-                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: false, error: Some(format!("Failed to create folder: {}", e)) });
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted {
+                        from: path,
+                        dest_folder,
+                        success: false,
+                        error: Some(format!("Failed to create folder: {}", e)),
+                    });
                     if let Some(ctx) = ctx {
                         ctx.request_repaint();
                     }
@@ -140,9 +145,19 @@ impl ImageViewerApp {
                 let dest_path = dest_folder.join(filename);
 
                 if std::fs::rename(&path, &dest_path).is_ok() {
-                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: true, error: None });
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted {
+                        from: path,
+                        dest_folder,
+                        success: true,
+                        error: None,
+                    });
                 } else {
-                    let _ = tx.send(super::LoaderMessage::MoveCompleted { from: path, dest_folder, success: false, error: Some("Failed to move image".to_string()) });
+                    let _ = tx.send(super::LoaderMessage::MoveCompleted {
+                        from: path,
+                        dest_folder,
+                        success: false,
+                        error: Some("Failed to move image".to_string()),
+                    });
                 }
                 if let Some(ctx) = ctx {
                     ctx.request_repaint();
@@ -177,14 +192,23 @@ impl ImageViewerApp {
 
         if let Some(op) = op {
             match op {
-                FileOperation::Delete { original_path, trash_path, metadata_backup } => {
+                FileOperation::Delete {
+                    original_path,
+                    trash_path,
+                    metadata_backup,
+                } => {
                     // Try to restore from trash or show message
                     if let Some(trash_path) = trash_path {
                         if std::fs::rename(trash_path, &original_path).is_ok() {
                             // Restore metadata if available
                             if let Some(metadata_json) = metadata_backup {
-                                if let Ok(metadata) = serde_json::from_str::<crate::metadata::ImageMetadata>(&metadata_json) {
-                                    self.metadata_db.restore_metadata(original_path.clone(), metadata);
+                                if let Ok(metadata) =
+                                    serde_json::from_str::<crate::metadata::ImageMetadata>(
+                                        &metadata_json,
+                                    )
+                                {
+                                    self.metadata_db
+                                        .restore_metadata(original_path.clone(), metadata);
                                 }
                             }
                             self.image_list.push(original_path.clone());
@@ -192,10 +216,16 @@ impl ImageViewerApp {
                             self.apply_filter();
                             self.show_status("Undo: File restored");
                         } else {
-                            self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                            self.show_status(&format!(
+                                "Cannot undo delete of {}",
+                                original_path.display()
+                            ));
                         }
                     } else {
-                        self.show_status(&format!("Cannot undo delete of {}", original_path.display()));
+                        self.show_status(&format!(
+                            "Cannot undo delete of {}",
+                            original_path.display()
+                        ));
                     }
                 }
                 FileOperation::Move { from, to } => {
@@ -214,39 +244,58 @@ impl ImageViewerApp {
                         self.show_status("Undo: Rename reverted");
                     }
                 }
-                FileOperation::Rotate { path, degrees: _degrees, previous_rotation } => {
+                FileOperation::Rotate {
+                    path,
+                    degrees: _degrees,
+                    previous_rotation,
+                } => {
                     if current_path.as_ref() == Some(&path) {
                         // Calculate the reverse rotation to undo
                         let reverse_degrees = previous_rotation - self.rotation;
                         self.rotation = previous_rotation;
 
                         if let Some(image) = &self.current_image {
-                            let rotated_image = image_loader::rotate_image(image, reverse_degrees as i32);
+                            let rotated_image =
+                                image_loader::rotate_image(image, reverse_degrees as i32);
                             self.set_current_image(&path, rotated_image);
                         }
                     }
                     self.show_status("Undo: Rotation reverted");
                 }
-                FileOperation::Adjust { path, previous_adjustments, .. } => {
+                FileOperation::Adjust {
+                    path,
+                    previous_adjustments,
+                    ..
+                } => {
                     if current_path.as_ref() == Some(&path) {
                         self.adjustments = *previous_adjustments.clone();
                         self.refresh_adjustments();
                     }
                     // Save the reverted adjustments to metadata
-                    self.metadata_db.set_adjustments(path.clone(), &previous_adjustments);
+                    self.metadata_db
+                        .set_adjustments(path.clone(), &previous_adjustments);
                     self.metadata_db.save();
                     // Invalidate thumbnail to regenerate with reverted adjustments
                     self.thumbnail_textures.remove(&path);
                     self.thumbnail_requests.remove(&path);
                     self.show_status("Undo: Adjustments reverted");
                 }
-                FileOperation::Rate { path, previous_rating, .. } => {
+                FileOperation::Rate {
+                    path,
+                    previous_rating,
+                    ..
+                } => {
                     self.metadata_db.set_rating(path.clone(), previous_rating);
                     self.metadata_db.save();
                     self.show_status("Undo: Rating reverted");
                 }
-                FileOperation::Label { path, previous_color_label, .. } => {
-                    self.metadata_db.set_color_label(path.clone(), previous_color_label);
+                FileOperation::Label {
+                    path,
+                    previous_color_label,
+                    ..
+                } => {
+                    self.metadata_db
+                        .set_color_label(path.clone(), previous_color_label);
                     self.metadata_db.save();
                     self.show_status("Undo: Label reverted");
                 }
@@ -313,7 +362,9 @@ impl ImageViewerApp {
                     }
                     self.show_status("Redo: Rotation reapplied");
                 }
-                FileOperation::Adjust { path, adjustments, .. } => {
+                FileOperation::Adjust {
+                    path, adjustments, ..
+                } => {
                     if current_path.as_ref() == Some(&path) {
                         self.adjustments = adjustments.clone();
                         self.refresh_adjustments();
@@ -331,7 +382,9 @@ impl ImageViewerApp {
                     self.metadata_db.save();
                     self.show_status("Redo: Rating reapplied");
                 }
-                FileOperation::Label { path, color_label, .. } => {
+                FileOperation::Label {
+                    path, color_label, ..
+                } => {
                     self.metadata_db.set_color_label(path.clone(), color_label);
                     self.metadata_db.save();
                     self.show_status("Redo: Label reapplied");

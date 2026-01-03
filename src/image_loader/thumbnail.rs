@@ -22,12 +22,22 @@ fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
 
         // No embedded thumbnail available; as a fallback, attempt a full RAW decode and generate a thumbnail from it.
         // This is more expensive but ensures files (like some Lightroom-exported DNGs) still show a preview.
-        log::warn!("No embedded thumbnail for {:?}; attempting full RAW decode to generate thumbnail", path);
+        log::warn!(
+            "No embedded thumbnail for {:?}; attempting full RAW decode to generate thumbnail",
+            path
+        );
         match super::loader::load_raw_image(path) {
             Ok(img) => return Ok(generate_thumbnail(&img, max_size)),
             Err(e) => {
-                log::warn!("Full RAW decode fallback for thumbnail failed for {:?}: {}", path, e);
-                return Err(ViewerError::ImageLoadError { path: path.to_path_buf(), message: "No embedded thumbnail for RAW file".to_string() });
+                log::warn!(
+                    "Full RAW decode fallback for thumbnail failed for {:?}: {}",
+                    path,
+                    e
+                );
+                return Err(ViewerError::ImageLoadError {
+                    path: path.to_path_buf(),
+                    message: "No embedded thumbnail for RAW file".to_string(),
+                });
             }
         }
     }
@@ -39,11 +49,13 @@ fn load_thumbnail_impl(path: &Path, max_size: u32) -> Result<DynamicImage> {
 /// Load embedded JPEG thumbnail from RAW file (very fast). This version attempts to extract an embedded JPEG via EXIF tags
 /// but does NOT fall back to full RAW decoding to avoid expensive or unsafe raw processing here.
 pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<DynamicImage> {
-    use std::io::{BufReader, Read, Seek, SeekFrom};
     use std::fs::File;
+    use std::io::{BufReader, Read, Seek, SeekFrom};
 
-    let file = File::open(path)
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+    let file = File::open(path).map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })?;
     let mut bufreader = BufReader::new(&file);
 
     // Try to read EXIF data which may contain an embedded JPEG thumbnail with offset/length fields
@@ -65,13 +77,21 @@ pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<Dynamic
 
         if let (Some(off), Some(len)) = (offset, length) {
             // Read embedded JPEG bytes directly
-            let mut f = File::open(path)
-                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+            let mut f = File::open(path).map_err(|e| ViewerError::ImageLoadError {
+                path: path.to_path_buf(),
+                message: e.to_string(),
+            })?;
             f.seek(SeekFrom::Start(off))
-                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+                .map_err(|e| ViewerError::ImageLoadError {
+                    path: path.to_path_buf(),
+                    message: e.to_string(),
+                })?;
             let mut buf = vec![0u8; len as usize];
             f.read_exact(&mut buf)
-                .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+                .map_err(|e| ViewerError::ImageLoadError {
+                    path: path.to_path_buf(),
+                    message: e.to_string(),
+                })?;
             if let Ok(img) = image::load_from_memory(&buf) {
                 return Ok(img.thumbnail(max_size, max_size));
             }
@@ -80,8 +100,10 @@ pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<Dynamic
 
     // No embedded JPEG found via EXIF tags; try scanning the file for JPEG signatures as a fallback
     // (Some DNGs exported by Lightroom place previews without standard EXIF thumbnail tags)
-    let data = std::fs::read(path)
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+    let data = std::fs::read(path).map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })?;
 
     // Find JPEG start (0xFFD8) and end (0xFFD9) markers and try the largest candidates first
     let mut candidates: Vec<(usize, usize)> = Vec::new();
@@ -108,12 +130,21 @@ pub fn load_raw_embedded_thumbnail(path: &Path, max_size: u32) -> Result<Dynamic
     for (s, e) in candidates {
         let slice = &data[s..e];
         // skip obviously too small fragments
-        if slice.len() < 512 { continue; }
+        if slice.len() < 512 {
+            continue;
+        }
         if let Ok(img) = image::load_from_memory(slice) {
-            log::warn!("Using embedded JPEG scan fallback for {:?} ({} bytes)", path, slice.len());
+            log::warn!(
+                "Using embedded JPEG scan fallback for {:?} ({} bytes)",
+                path,
+                slice.len()
+            );
             return Ok(img.thumbnail(max_size, max_size));
         }
     }
 
-    Err(ViewerError::ImageLoadError { path: path.to_path_buf(), message: "No embedded thumbnail found".to_string() })
+    Err(ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: "No embedded thumbnail found".to_string(),
+    })
 }

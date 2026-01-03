@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 /// Represents an image in the catalog
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,17 +43,17 @@ impl CatalogDb {
     pub fn new() -> Result<Self> {
         let proj_dirs = directories::ProjectDirs::from("com", "imageviewer", "ImageViewer")
             .context("Failed to get project directory")?;
-        
+
         let data_dir = proj_dirs.data_dir();
         std::fs::create_dir_all(data_dir)?;
-        
+
         let db_path = data_dir.join("catalog.db");
         let conn = Connection::open(&db_path)
             .context(format!("Failed to open catalog database at {:?}", db_path))?;
-        
+
         let mut catalog = Self { conn };
         catalog.init_database()?;
-        
+
         Ok(catalog)
     }
 
@@ -171,23 +171,19 @@ impl CatalogDb {
 
     /// Import an image into the catalog
     pub fn import_image(&mut self, path: &Path) -> Result<i64> {
-        let file_name = path.file_name()
+        let file_name = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("unknown")
             .to_string();
-        
-        let folder_path = path.parent()
-            .unwrap_or_else(|| Path::new(""))
-            .to_path_buf();
+
+        let folder_path = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
 
         let metadata = std::fs::metadata(path)?;
         let file_size = metadata.len() as i64;
-        
+
         let now = Utc::now();
-        let date_modified = metadata.modified()
-            .ok()
-            .map(|t| t.into())
-            .unwrap_or(now);
+        let date_modified = metadata.modified().ok().map(|t| t.into()).unwrap_or(now);
 
         // Try to get image dimensions
         let (width, height) = if let Ok(img) = image::open(path) {
@@ -230,42 +226,47 @@ impl CatalogDb {
                     rating, color_label, flagged, rejected, caption,
                     camera_make, camera_model, lens, iso, aperture, 
                     shutter_speed, focal_length
-             FROM images WHERE file_path = ?1"
+             FROM images WHERE file_path = ?1",
         )?;
 
-        let result = stmt.query_row(params![path.to_string_lossy().to_string()], |row| {
-            Ok(CatalogImage {
-                id: row.get(0)?,
-                file_path: PathBuf::from(row.get::<_, String>(1)?),
-                file_name: row.get(2)?,
-                folder_path: PathBuf::from(row.get::<_, String>(3)?),
-                file_size: row.get(4)?,
-                width: row.get(5)?,
-                height: row.get(6)?,
-                date_taken: row.get::<_, Option<String>>(7)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                date_added: row.get::<_, String>(8)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                date_modified: row.get::<_, String>(9)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                rating: row.get(10)?,
-                color_label: row.get(11)?,
-                flagged: row.get::<_, i32>(12)? != 0,
-                rejected: row.get::<_, i32>(13)? != 0,
-                keywords: Vec::new(), // Loaded separately
-                caption: row.get(14)?,
-                camera_make: row.get(15)?,
-                camera_model: row.get(16)?,
-                lens: row.get(17)?,
-                iso: row.get(18)?,
-                aperture: row.get(19)?,
-                shutter_speed: row.get(20)?,
-                focal_length: row.get(21)?,
+        let result = stmt
+            .query_row(params![path.to_string_lossy().to_string()], |row| {
+                Ok(CatalogImage {
+                    id: row.get(0)?,
+                    file_path: PathBuf::from(row.get::<_, String>(1)?),
+                    file_name: row.get(2)?,
+                    folder_path: PathBuf::from(row.get::<_, String>(3)?),
+                    file_size: row.get(4)?,
+                    width: row.get(5)?,
+                    height: row.get(6)?,
+                    date_taken: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    date_added: row
+                        .get::<_, String>(8)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    date_modified: row
+                        .get::<_, String>(9)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    rating: row.get(10)?,
+                    color_label: row.get(11)?,
+                    flagged: row.get::<_, i32>(12)? != 0,
+                    rejected: row.get::<_, i32>(13)? != 0,
+                    keywords: Vec::new(), // Loaded separately
+                    caption: row.get(14)?,
+                    camera_make: row.get(15)?,
+                    camera_model: row.get(16)?,
+                    lens: row.get(17)?,
+                    iso: row.get(18)?,
+                    aperture: row.get(19)?,
+                    shutter_speed: row.get(20)?,
+                    focal_length: row.get(21)?,
+                })
             })
-        }).optional()?;
+            .optional()?;
 
         // Load keywords if image found
         if let Some(mut img) = result {
@@ -284,42 +285,47 @@ impl CatalogDb {
                     rating, color_label, flagged, rejected, caption,
                     camera_make, camera_model, lens, iso, aperture, 
                     shutter_speed, focal_length
-             FROM images ORDER BY date_added DESC"
+             FROM images ORDER BY date_added DESC",
         )?;
 
-        let images = stmt.query_map([], |row| {
-            Ok(CatalogImage {
-                id: row.get(0)?,
-                file_path: PathBuf::from(row.get::<_, String>(1)?),
-                file_name: row.get(2)?,
-                folder_path: PathBuf::from(row.get::<_, String>(3)?),
-                file_size: row.get(4)?,
-                width: row.get(5)?,
-                height: row.get(6)?,
-                date_taken: row.get::<_, Option<String>>(7)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                date_added: row.get::<_, String>(8)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                date_modified: row.get::<_, String>(9)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                rating: row.get(10)?,
-                color_label: row.get(11)?,
-                flagged: row.get::<_, i32>(12)? != 0,
-                rejected: row.get::<_, i32>(13)? != 0,
-                keywords: Vec::new(),
-                caption: row.get(14)?,
-                camera_make: row.get(15)?,
-                camera_model: row.get(16)?,
-                lens: row.get(17)?,
-                iso: row.get(18)?,
-                aperture: row.get(19)?,
-                shutter_speed: row.get(20)?,
-                focal_length: row.get(21)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let images = stmt
+            .query_map([], |row| {
+                Ok(CatalogImage {
+                    id: row.get(0)?,
+                    file_path: PathBuf::from(row.get::<_, String>(1)?),
+                    file_name: row.get(2)?,
+                    folder_path: PathBuf::from(row.get::<_, String>(3)?),
+                    file_size: row.get(4)?,
+                    width: row.get(5)?,
+                    height: row.get(6)?,
+                    date_taken: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    date_added: row
+                        .get::<_, String>(8)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    date_modified: row
+                        .get::<_, String>(9)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    rating: row.get(10)?,
+                    color_label: row.get(11)?,
+                    flagged: row.get::<_, i32>(12)? != 0,
+                    rejected: row.get::<_, i32>(13)? != 0,
+                    keywords: Vec::new(),
+                    caption: row.get(14)?,
+                    camera_make: row.get(15)?,
+                    camera_model: row.get(16)?,
+                    lens: row.get(17)?,
+                    iso: row.get(18)?,
+                    aperture: row.get(19)?,
+                    shutter_speed: row.get(20)?,
+                    focal_length: row.get(21)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(images)
     }
@@ -349,13 +355,13 @@ impl CatalogDb {
             params![image_id],
             |row| row.get(0),
         )?;
-        
+
         let new_value = if current == 0 { 1 } else { 0 };
         self.conn.execute(
             "UPDATE images SET flagged = ?1 WHERE id = ?2",
             params![new_value, image_id],
         )?;
-        
+
         Ok(new_value != 0)
     }
 
@@ -401,10 +407,11 @@ impl CatalogDb {
              FROM keywords k
              JOIN image_keywords ik ON k.id = ik.keyword_id
              WHERE ik.image_id = ?1
-             ORDER BY k.keyword"
+             ORDER BY k.keyword",
         )?;
 
-        let keywords = stmt.query_map(params![image_id], |row| row.get(0))?
+        let keywords = stmt
+            .query_map(params![image_id], |row| row.get(0))?
             .collect::<Result<Vec<String>, _>>()?;
 
         Ok(keywords)
@@ -422,43 +429,48 @@ impl CatalogDb {
              JOIN image_keywords ik ON i.id = ik.image_id
              JOIN keywords k ON ik.keyword_id = k.id
              WHERE k.keyword LIKE ?1
-             ORDER BY i.date_added DESC"
+             ORDER BY i.date_added DESC",
         )?;
 
         let search_pattern = format!("%{}%", keyword);
-        let images = stmt.query_map(params![search_pattern], |row| {
-            Ok(CatalogImage {
-                id: row.get(0)?,
-                file_path: PathBuf::from(row.get::<_, String>(1)?),
-                file_name: row.get(2)?,
-                folder_path: PathBuf::from(row.get::<_, String>(3)?),
-                file_size: row.get(4)?,
-                width: row.get(5)?,
-                height: row.get(6)?,
-                date_taken: row.get::<_, Option<String>>(7)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                date_added: row.get::<_, String>(8)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                date_modified: row.get::<_, String>(9)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                rating: row.get(10)?,
-                color_label: row.get(11)?,
-                flagged: row.get::<_, i32>(12)? != 0,
-                rejected: row.get::<_, i32>(13)? != 0,
-                keywords: Vec::new(),
-                caption: row.get(14)?,
-                camera_make: row.get(15)?,
-                camera_model: row.get(16)?,
-                lens: row.get(17)?,
-                iso: row.get(18)?,
-                aperture: row.get(19)?,
-                shutter_speed: row.get(20)?,
-                focal_length: row.get(21)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let images = stmt
+            .query_map(params![search_pattern], |row| {
+                Ok(CatalogImage {
+                    id: row.get(0)?,
+                    file_path: PathBuf::from(row.get::<_, String>(1)?),
+                    file_name: row.get(2)?,
+                    folder_path: PathBuf::from(row.get::<_, String>(3)?),
+                    file_size: row.get(4)?,
+                    width: row.get(5)?,
+                    height: row.get(6)?,
+                    date_taken: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    date_added: row
+                        .get::<_, String>(8)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    date_modified: row
+                        .get::<_, String>(9)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    rating: row.get(10)?,
+                    color_label: row.get(11)?,
+                    flagged: row.get::<_, i32>(12)? != 0,
+                    rejected: row.get::<_, i32>(13)? != 0,
+                    keywords: Vec::new(),
+                    caption: row.get(14)?,
+                    camera_make: row.get(15)?,
+                    camera_model: row.get(16)?,
+                    lens: row.get(17)?,
+                    iso: row.get(18)?,
+                    aperture: row.get(19)?,
+                    shutter_speed: row.get(20)?,
+                    focal_length: row.get(21)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(images)
     }
@@ -473,62 +485,63 @@ impl CatalogDb {
                     shutter_speed, focal_length
              FROM images
              WHERE rating >= ?1
-             ORDER BY rating DESC, date_added DESC"
+             ORDER BY rating DESC, date_added DESC",
         )?;
 
-        let images = stmt.query_map(params![min_rating], |row| {
-            Ok(CatalogImage {
-                id: row.get(0)?,
-                file_path: PathBuf::from(row.get::<_, String>(1)?),
-                file_name: row.get(2)?,
-                folder_path: PathBuf::from(row.get::<_, String>(3)?),
-                file_size: row.get(4)?,
-                width: row.get(5)?,
-                height: row.get(6)?,
-                date_taken: row.get::<_, Option<String>>(7)?
-                    .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
-                    .map(|dt| dt.with_timezone(&Utc)),
-                date_added: row.get::<_, String>(8)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                date_modified: row.get::<_, String>(9)?
-                    .parse::<DateTime<Utc>>()
-                    .unwrap_or_else(|_| Utc::now()),
-                rating: row.get(10)?,
-                color_label: row.get(11)?,
-                flagged: row.get::<_, i32>(12)? != 0,
-                rejected: row.get::<_, i32>(13)? != 0,
-                keywords: Vec::new(),
-                caption: row.get(14)?,
-                camera_make: row.get(15)?,
-                camera_model: row.get(16)?,
-                lens: row.get(17)?,
-                iso: row.get(18)?,
-                aperture: row.get(19)?,
-                shutter_speed: row.get(20)?,
-                focal_length: row.get(21)?,
-            })
-        })?.collect::<Result<Vec<_>, _>>()?;
+        let images = stmt
+            .query_map(params![min_rating], |row| {
+                Ok(CatalogImage {
+                    id: row.get(0)?,
+                    file_path: PathBuf::from(row.get::<_, String>(1)?),
+                    file_name: row.get(2)?,
+                    folder_path: PathBuf::from(row.get::<_, String>(3)?),
+                    file_size: row.get(4)?,
+                    width: row.get(5)?,
+                    height: row.get(6)?,
+                    date_taken: row
+                        .get::<_, Option<String>>(7)?
+                        .and_then(|s| DateTime::parse_from_rfc3339(&s).ok())
+                        .map(|dt| dt.with_timezone(&Utc)),
+                    date_added: row
+                        .get::<_, String>(8)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    date_modified: row
+                        .get::<_, String>(9)?
+                        .parse::<DateTime<Utc>>()
+                        .unwrap_or_else(|_| Utc::now()),
+                    rating: row.get(10)?,
+                    color_label: row.get(11)?,
+                    flagged: row.get::<_, i32>(12)? != 0,
+                    rejected: row.get::<_, i32>(13)? != 0,
+                    keywords: Vec::new(),
+                    caption: row.get(14)?,
+                    camera_make: row.get(15)?,
+                    camera_model: row.get(16)?,
+                    lens: row.get(17)?,
+                    iso: row.get(18)?,
+                    aperture: row.get(19)?,
+                    shutter_speed: row.get(20)?,
+                    focal_length: row.get(21)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(images)
     }
 
     /// Get image count
     pub fn get_image_count(&self) -> Result<usize> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM images",
-            [],
-            |row| row.get(0),
-        )?;
+        let count: i64 = self
+            .conn
+            .query_row("SELECT COUNT(*) FROM images", [], |row| row.get(0))?;
         Ok(count as usize)
     }
 
     /// Remove an image from the catalog
     pub fn remove_image(&mut self, image_id: i64) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM images WHERE id = ?1",
-            params![image_id],
-        )?;
+        self.conn
+            .execute("DELETE FROM images WHERE id = ?1", params![image_id])?;
         Ok(())
     }
 }

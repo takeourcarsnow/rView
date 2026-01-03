@@ -7,7 +7,11 @@ use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
     /// Apply adjustments using texture-based processing for better performance
-    pub async fn apply_adjustments_texture(&self, image: &DynamicImage, adj: &ImageAdjustments) -> Result<DynamicImage> {
+    pub async fn apply_adjustments_texture(
+        &self,
+        image: &DynamicImage,
+        adj: &ImageAdjustments,
+    ) -> Result<DynamicImage> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
 
@@ -66,11 +70,13 @@ impl GpuProcessor {
 
         // Create parameter buffer
         let params = Self::create_adjustment_params(adj, width, height);
-        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("adjustment_params"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let param_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("adjustment_params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -79,11 +85,15 @@ impl GpuProcessor {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&input_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &input_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &output_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -93,9 +103,11 @@ impl GpuProcessor {
         });
 
         // Execute compute pass
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("adjustment_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("adjustment_encoder"),
+            });
 
         {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -104,11 +116,12 @@ impl GpuProcessor {
             });
             cpass.set_pipeline(&self.adjustment_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+            cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
 
         // Download result
-        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("output_buffer"),
             size: (bytes_per_row * height) as u64,
@@ -153,7 +166,8 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
             let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
             for row in 0..height {
                 let start = (row * bytes_per_row) as usize;

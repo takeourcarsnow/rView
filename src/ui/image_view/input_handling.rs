@@ -134,7 +134,8 @@ impl ImageViewerApp {
         // Swipe navigation (two-finger swipe)
         if input.pointer.secondary_down() && input.pointer.primary_down() {
             let delta = input.pointer.delta();
-            if delta.x.abs() > 50.0 { // Threshold for swipe
+            if delta.x.abs() > 50.0 {
+                // Threshold for swipe
                 if delta.x > 0.0 {
                     self.previous_image();
                 } else {

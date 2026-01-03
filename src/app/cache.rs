@@ -1,4 +1,3 @@
-
 use super::ImageViewerApp;
 
 #[allow(dead_code)]

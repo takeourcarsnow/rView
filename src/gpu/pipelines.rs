@@ -1,7 +1,10 @@
 use super::types::GpuProcessor;
 
 impl GpuProcessor {
-    pub fn create_adjustment_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> wgpu::ComputePipeline {
+    pub fn create_adjustment_pipeline(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::ComputePipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("adjustment_shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/adjustments.wgsl").into()),
@@ -9,11 +12,13 @@ impl GpuProcessor {
 
         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("adjustment_pipeline"),
-            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("adjustment_pipeline_layout"),
-                bind_group_layouts: &[layout],
-                push_constant_ranges: &[],
-            })),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("adjustment_pipeline_layout"),
+                    bind_group_layouts: &[layout],
+                    push_constant_ranges: &[],
+                }),
+            ),
             module: &shader,
             entry_point: "main",
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -21,7 +26,9 @@ impl GpuProcessor {
         })
     }
 
-    pub fn create_histogram_pipeline(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::ComputePipeline) {
+    pub fn create_histogram_pipeline(
+        device: &wgpu::Device,
+    ) -> (wgpu::BindGroupLayout, wgpu::ComputePipeline) {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("histogram_shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/histogram.wgsl").into()),
@@ -71,7 +78,10 @@ impl GpuProcessor {
         (bind_group_layout, pipeline)
     }
 
-    pub fn create_overlay_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> wgpu::ComputePipeline {
+    pub fn create_overlay_pipeline(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+    ) -> wgpu::ComputePipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("overlay_shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/overlays.wgsl").into()),
@@ -79,11 +89,13 @@ impl GpuProcessor {
 
         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("overlay_pipeline"),
-            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("overlay_pipeline_layout"),
-                bind_group_layouts: &[layout],
-                push_constant_ranges: &[],
-            })),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("overlay_pipeline_layout"),
+                    bind_group_layouts: &[layout],
+                    push_constant_ranges: &[],
+                }),
+            ),
             module: &shader,
             entry_point: "main",
             compilation_options: wgpu::PipelineCompilationOptions::default(),
@@ -91,9 +103,15 @@ impl GpuProcessor {
         })
     }
 
-    pub fn create_raw_demosaic_pipeline(device: &wgpu::Device, layout: &wgpu::BindGroupLayout) -> Option<wgpu::ComputePipeline> {
+    pub fn create_raw_demosaic_pipeline(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+    ) -> Option<wgpu::ComputePipeline> {
         // Only create if we have the necessary features
-        if !device.features().contains(wgpu::Features::BUFFER_BINDING_ARRAY) {
+        if !device
+            .features()
+            .contains(wgpu::Features::BUFFER_BINDING_ARRAY)
+        {
             return None;
         }
 
@@ -102,17 +120,21 @@ impl GpuProcessor {
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/raw_demosaic.wgsl").into()),
         });
 
-        Some(device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("raw_demosaic_pipeline"),
-            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("raw_demosaic_pipeline_layout"),
-                bind_group_layouts: &[layout],
-                push_constant_ranges: &[],
-            })),
-            module: &shader,
-            entry_point: "main",
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        }))
+        Some(
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("raw_demosaic_pipeline"),
+                layout: Some(
+                    &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some("raw_demosaic_pipeline_layout"),
+                        bind_group_layouts: &[layout],
+                        push_constant_ranges: &[],
+                    }),
+                ),
+                module: &shader,
+                entry_point: "main",
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            }),
+        )
     }
 }

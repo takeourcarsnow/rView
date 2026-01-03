@@ -37,10 +37,10 @@ impl CatalogDb {
         progress_callback: Option<ProgressCallback>,
     ) -> Result<usize> {
         let folder_path = folder_path.as_ref();
-        
+
         // Collect all image files
         let mut image_files = Vec::new();
-        
+
         let walker = if options.recursive {
             WalkDir::new(folder_path).follow_links(true)
         } else {
@@ -49,10 +49,8 @@ impl CatalogDb {
 
         for entry in walker.into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
-            if path.is_file() {
-                if is_supported_image(path) {
-                    image_files.push(path.to_path_buf());
-                }
+            if path.is_file() && is_supported_image(path) {
+                image_files.push(path.to_path_buf());
             }
         }
 
@@ -87,7 +85,7 @@ impl CatalogDb {
     /// Import a single file into the catalog
     pub fn import_file<P: AsRef<Path>>(&mut self, file_path: P) -> Result<i64> {
         let file_path = file_path.as_ref();
-        
+
         if !file_path.is_file() {
             anyhow::bail!("Not a file: {:?}", file_path);
         }
@@ -106,15 +104,19 @@ impl CatalogDb {
 
         // Get all images in this folder from catalog
         let catalog_images: Vec<(i64, std::path::PathBuf)> = {
-            let mut stmt = self.conn.prepare(
-                "SELECT id, file_path FROM images WHERE folder_path = ?1"
-            )?;
+            let mut stmt = self
+                .conn
+                .prepare("SELECT id, file_path FROM images WHERE folder_path = ?1")?;
 
-            let results: Result<Vec<_>, _> = stmt.query_map(
-                rusqlite::params![&folder_str],
-                |row| Ok((row.get(0)?, std::path::PathBuf::from(row.get::<_, String>(1)?)))
-            )?.collect();
-            
+            let results: Result<Vec<_>, _> = stmt
+                .query_map(rusqlite::params![&folder_str], |row| {
+                    Ok((
+                        row.get(0)?,
+                        std::path::PathBuf::from(row.get::<_, String>(1)?),
+                    ))
+                })?
+                .collect();
+
             results?
         };
 
@@ -133,7 +135,7 @@ impl CatalogDb {
             skip_existing: true,
             extract_exif: false,
         };
-        
+
         let added = self.import_folder(folder_path, options, None)?;
 
         Ok((added, removed))

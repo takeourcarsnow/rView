@@ -6,12 +6,20 @@ use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
     // Legacy buffer-based method for backward compatibility
-    pub fn apply_adjustments(&self, image: &image::DynamicImage, adj: &ImageAdjustments) -> Result<Vec<u8>> {
+    pub fn apply_adjustments(
+        &self,
+        image: &image::DynamicImage,
+        adj: &ImageAdjustments,
+    ) -> Result<Vec<u8>> {
         self.apply_adjustments_legacy(image, adj)
     }
 
     // Keep the legacy implementation for now
-    fn apply_adjustments_legacy(&self, image: &image::DynamicImage, adj: &ImageAdjustments) -> Result<Vec<u8>> {
+    fn apply_adjustments_legacy(
+        &self,
+        image: &image::DynamicImage,
+        adj: &ImageAdjustments,
+    ) -> Result<Vec<u8>> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
         let pixel_count = (width * height) as usize;
@@ -33,17 +41,21 @@ impl GpuProcessor {
         let shader_source = fs::read_to_string("shaders/adjustments.wgsl")
             .map_err(|_| anyhow::anyhow!("Failed to load shader file"))?;
 
-        let shader = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("adjustments_shader"),
-            source: wgpu::ShaderSource::Wgsl(shader_source.into()),
-        });
+        let shader = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("adjustments_shader"),
+                source: wgpu::ShaderSource::Wgsl(shader_source.into()),
+            });
 
         // Create buffers
-        let input_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("input_pixels"),
-            contents: bytemuck::cast_slice(&packed),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let input_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("input_pixels"),
+                contents: bytemuck::cast_slice(&packed),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
 
         let output_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("output_pixels"),
@@ -160,83 +172,93 @@ impl GpuProcessor {
             _padding: 0.0,
         };
 
-        let params_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("params"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let params_buf = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         // Bind group layout
-        let bind_layout = self.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("bind_layout"),
-            entries: &[
-                // input pixels (read-only storage buffer)
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+        let bind_layout = self
+            .device
+            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("bind_layout"),
+                entries: &[
+                    // input pixels (read-only storage buffer)
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // output pixels
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // output pixels
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // params
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // params
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-                // offset
-                wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                    // offset
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                },
-            ],
-        });
+                ],
+            });
 
         // Pipeline
-        let pipeline_layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("pipeline_layout"),
-            bind_group_layouts: &[&bind_layout],
-            push_constant_ranges: &[],
-        });
+        let pipeline_layout = self
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("pipeline_layout"),
+                bind_group_layouts: &[&bind_layout],
+                push_constant_ranges: &[],
+            });
 
-        let compute_pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("compute_pipeline"),
-            layout: Some(&pipeline_layout),
-            module: &shader,
-            entry_point: "main",
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
-        });
+        let compute_pipeline =
+            self.device
+                .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                    label: Some("compute_pipeline"),
+                    layout: Some(&pipeline_layout),
+                    module: &shader,
+                    entry_point: "main",
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    cache: None,
+                });
 
         // Command encoder
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("command_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("command_encoder"),
+            });
 
         const MAX_WORKGROUPS: u32 = 65535;
         let workgroup_size = 256;
@@ -245,13 +267,15 @@ impl GpuProcessor {
             let remaining_pixels = pixel_count as u32 - offset;
             let max_pixels_this_dispatch = MAX_WORKGROUPS * workgroup_size;
             let pixels_this_dispatch = remaining_pixels.min(max_pixels_this_dispatch);
-            let groups = (pixels_this_dispatch + workgroup_size - 1) / workgroup_size;
+            let groups = pixels_this_dispatch.div_ceil(workgroup_size);
 
-            let offset_buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("offset"),
-                contents: bytemuck::bytes_of(&offset),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
+            let offset_buf = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("offset"),
+                    contents: bytemuck::bytes_of(&offset),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
 
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bind_group"),
@@ -277,7 +301,10 @@ impl GpuProcessor {
             });
 
             {
-                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("compute_pass"), timestamp_writes: None });
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("compute_pass"),
+                    timestamp_writes: None,
+                });
                 cpass.set_pipeline(&compute_pipeline);
                 cpass.set_bind_group(0, &bind_group, &[]);
                 cpass.dispatch_workgroups(groups, 1, 1);
@@ -294,7 +321,13 @@ impl GpuProcessor {
             mapped_at_creation: false,
         });
 
-        encoder.copy_buffer_to_buffer(&output_buf, 0, &staging, 0, (packed.len() * std::mem::size_of::<u32>()) as u64);
+        encoder.copy_buffer_to_buffer(
+            &output_buf,
+            0,
+            &staging,
+            0,
+            (packed.len() * std::mem::size_of::<u32>()) as u64,
+        );
 
         // Submit
         self.queue.submit(Some(encoder.finish()));

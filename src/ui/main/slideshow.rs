@@ -8,7 +8,8 @@ impl ImageViewerApp {
             if self.slideshow_timer >= self.settings.slideshow_interval {
                 self.slideshow_timer = 0.0;
 
-                if self.settings.slideshow_loop || self.current_index < self.filtered_list.len() - 1 {
+                if self.settings.slideshow_loop || self.current_index < self.filtered_list.len() - 1
+                {
                     self.next_image();
                 } else {
                     self.slideshow_active = false;

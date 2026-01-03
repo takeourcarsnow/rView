@@ -3,53 +3,53 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilmEmulation {
     pub enabled: bool,
-    pub is_bw: bool,                    // Whether this is a B&W film (converts color to mono)
+    pub is_bw: bool, // Whether this is a B&W film (converts color to mono)
 
     // Tone curve control points (shadows, midtones, highlights) - values 0.0 to 1.0
-    pub tone_curve_shadows: f32,        // Lift/lower shadows (-1.0 to 1.0)
-    pub tone_curve_midtones: f32,       // Adjust midtones (-1.0 to 1.0)
-    pub tone_curve_highlights: f32,     // Compress/expand highlights (-1.0 to 1.0)
+    pub tone_curve_shadows: f32,    // Lift/lower shadows (-1.0 to 1.0)
+    pub tone_curve_midtones: f32,   // Adjust midtones (-1.0 to 1.0)
+    pub tone_curve_highlights: f32, // Compress/expand highlights (-1.0 to 1.0)
 
     // S-curve strength for contrast (film characteristic curve)
-    pub s_curve_strength: f32,          // 0.0 to 1.0
+    pub s_curve_strength: f32, // 0.0 to 1.0
 
     // Film grain simulation
-    pub grain_amount: f32,              // 0.0 to 1.0 (intensity)
-    pub grain_size: f32,                // 0.5 to 2.0 (1.0 = normal)
-    pub grain_roughness: f32,           // 0.0 to 1.0 (organic variation)
+    pub grain_amount: f32,    // 0.0 to 1.0 (intensity)
+    pub grain_size: f32,      // 0.5 to 2.0 (1.0 = normal)
+    pub grain_roughness: f32, // 0.0 to 1.0 (organic variation)
 
     // Halation (light bloom around bright areas, characteristic of film)
-    pub halation_amount: f32,           // 0.0 to 1.0
-    pub halation_radius: f32,           // Spread of the halation effect
-    pub halation_color: [f32; 3],       // RGB tint for halation (usually warm/red)
+    pub halation_amount: f32,     // 0.0 to 1.0
+    pub halation_radius: f32,     // Spread of the halation effect
+    pub halation_color: [f32; 3], // RGB tint for halation (usually warm/red)
 
     // Color channel crossover/crosstalk (film layers interact)
-    pub red_in_green: f32,              // -0.2 to 0.2
-    pub red_in_blue: f32,               // -0.2 to 0.2
-    pub green_in_red: f32,              // -0.2 to 0.2
-    pub green_in_blue: f32,             // -0.2 to 0.2
-    pub blue_in_red: f32,               // -0.2 to 0.2
-    pub blue_in_green: f32,             // -0.2 to 0.2
+    pub red_in_green: f32,  // -0.2 to 0.2
+    pub red_in_blue: f32,   // -0.2 to 0.2
+    pub green_in_red: f32,  // -0.2 to 0.2
+    pub green_in_blue: f32, // -0.2 to 0.2
+    pub blue_in_red: f32,   // -0.2 to 0.2
+    pub blue_in_green: f32, // -0.2 to 0.2
 
     // Color response curves (per-channel gamma/lift)
-    pub red_gamma: f32,                 // 0.8 to 1.2
-    pub green_gamma: f32,               // 0.8 to 1.2
-    pub blue_gamma: f32,                // 0.8 to 1.2
+    pub red_gamma: f32,   // 0.8 to 1.2
+    pub green_gamma: f32, // 0.8 to 1.2
+    pub blue_gamma: f32,  // 0.8 to 1.2
 
     // Black point and white point (film base density and max density)
-    pub black_point: f32,               // 0.0 to 0.1 (raised blacks = faded look)
-    pub white_point: f32,               // 0.9 to 1.0 (compressed highlights)
+    pub black_point: f32, // 0.0 to 0.1 (raised blacks = faded look)
+    pub white_point: f32, // 0.9 to 1.0 (compressed highlights)
 
     // Color cast/tint in shadows and highlights
-    pub shadow_tint: [f32; 3],          // RGB tint for shadows
-    pub highlight_tint: [f32; 3],       // RGB tint for highlights
+    pub shadow_tint: [f32; 3],    // RGB tint for shadows
+    pub highlight_tint: [f32; 3], // RGB tint for highlights
 
     // Vignette (natural lens falloff)
-    pub vignette_amount: f32,           // 0.0 to 1.0
-    pub vignette_softness: f32,         // 0.5 to 2.0
+    pub vignette_amount: f32,   // 0.0 to 1.0
+    pub vignette_softness: f32, // 0.5 to 2.0
 
     // Film latitude (dynamic range compression)
-    pub latitude: f32,                  // 0.0 to 1.0 (higher = more DR recovery)
+    pub latitude: f32, // 0.0 to 1.0 (higher = more DR recovery)
 }
 
 impl Default for FilmEmulation {
@@ -90,21 +90,21 @@ impl Default for FilmEmulation {
 // Apply basic adjustments (non-destructive preview)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImageAdjustments {
-    pub exposure: f32,      // -3.0 to +3.0 (stops)
-    pub contrast: f32,      // 0.5 to 2.0 (multiplier)
-    pub brightness: f32,    // -100 to +100
-    pub saturation: f32,    // 0.0 to 2.0 (multiplier)
-    pub highlights: f32,    // -1.0 to +1.0
-    pub shadows: f32,       // -1.0 to +1.0
-    pub temperature: f32,   // -1.0 to +1.0 (cool to warm)
-    pub tint: f32,          // -1.0 to +1.0 (green to magenta)
-    pub blacks: f32,        // -1.0 to +1.0
-    pub whites: f32,        // -1.0 to +1.0
-    pub sharpening: f32,    // 0.0 to 2.0
+    pub exposure: f32,       // -3.0 to +3.0 (stops)
+    pub contrast: f32,       // 0.5 to 2.0 (multiplier)
+    pub brightness: f32,     // -100 to +100
+    pub saturation: f32,     // 0.0 to 2.0 (multiplier)
+    pub highlights: f32,     // -1.0 to +1.0
+    pub shadows: f32,        // -1.0 to +1.0
+    pub temperature: f32,    // -1.0 to +1.0 (cool to warm)
+    pub tint: f32,           // -1.0 to +1.0 (green to magenta)
+    pub blacks: f32,         // -1.0 to +1.0
+    pub whites: f32,         // -1.0 to +1.0
+    pub sharpening: f32,     // 0.0 to 2.0
     pub film: FilmEmulation, // Film emulation parameters
     pub frame_enabled: bool,
     pub frame_color: [f32; 3], // RGB 0-1
-    pub frame_thickness: f32, // pixels
+    pub frame_thickness: f32,  // pixels
 }
 
 impl Default for ImageAdjustments {
@@ -141,7 +141,7 @@ struct FilmCharacteristics {
     sharpening: f32,
     temperature: f32,
     tint: f32,
-    
+
     // Film-specific parameters
     is_bw: bool,
     tone_curve_shadows: f32,
@@ -270,19 +270,19 @@ impl FilmCharacteristics {
 
 impl ImageAdjustments {
     pub fn is_default(&self) -> bool {
-        self.exposure == 0.0 &&
-        self.contrast == 1.0 &&
-        self.brightness == 0.0 &&
-        self.saturation == 1.0 &&
-        self.highlights == 0.0 &&
-        self.shadows == 0.0 &&
-        self.temperature == 0.0 &&
-        self.tint == 0.0 &&
-        self.blacks == 0.0 &&
-        self.whites == 0.0 &&
-        self.sharpening == 0.0 &&
-        !self.film.enabled &&
-        !self.frame_enabled
+        self.exposure == 0.0
+            && self.contrast == 1.0
+            && self.brightness == 0.0
+            && self.saturation == 1.0
+            && self.highlights == 0.0
+            && self.shadows == 0.0
+            && self.temperature == 0.0
+            && self.tint == 0.0
+            && self.blacks == 0.0
+            && self.whites == 0.0
+            && self.sharpening == 0.0
+            && !self.film.enabled
+            && !self.frame_enabled
     }
 
     pub fn apply_preset(&mut self, preset: FilmPreset) {
@@ -422,7 +422,7 @@ impl FilmPreset {
             FilmPreset::None => FilmCharacteristics::default(),
 
             // ========== KODAK COLOR NEGATIVE ==========
-            
+
             // Portra 160: Fine grain professional film, excellent skin tones
             // Known for: Natural colors, low contrast, superb latitude
             FilmPreset::Portra160 => FilmCharacteristics {
@@ -433,7 +433,7 @@ impl FilmPreset {
                 blacks: 0.03,
                 whites: -0.05,
                 sharpening: 0.15,
-                temperature: 0.05,  // Slightly warm
+                temperature: 0.05, // Slightly warm
                 tint: 0.02,
                 tone_curve_shadows: 0.08,
                 tone_curve_midtones: 0.0,
@@ -447,11 +447,11 @@ impl FilmPreset {
                 halation_color: [1.0, 0.6, 0.4],
                 black_point: 0.015,
                 white_point: 0.99,
-                shadow_tint: [0.02, 0.01, -0.01],  // Warm shadows
+                shadow_tint: [0.02, 0.01, -0.01], // Warm shadows
                 highlight_tint: [0.01, 0.0, -0.02],
                 vignette_amount: 0.03,
                 vignette_softness: 1.5,
-                latitude: 0.9,  // Excellent latitude
+                latitude: 0.9, // Excellent latitude
                 red_in_green: 0.02,
                 green_in_red: 0.01,
                 red_gamma: 1.02,
@@ -470,7 +470,7 @@ impl FilmPreset {
                 blacks: 0.05,
                 whites: -0.08,
                 sharpening: 0.2,
-                temperature: 0.08,  // Warm
+                temperature: 0.08, // Warm
                 tint: 0.0,
                 tone_curve_shadows: 0.1,
                 tone_curve_midtones: 0.02,
@@ -484,7 +484,7 @@ impl FilmPreset {
                 halation_color: [1.0, 0.5, 0.3],
                 black_point: 0.02,
                 white_point: 0.98,
-                shadow_tint: [0.03, 0.01, -0.02],  // Orange shadows
+                shadow_tint: [0.03, 0.01, -0.02], // Orange shadows
                 highlight_tint: [0.02, 0.01, -0.01],
                 vignette_amount: 0.05,
                 vignette_softness: 1.3,
@@ -508,7 +508,7 @@ impl FilmPreset {
                 blacks: 0.06,
                 whites: -0.1,
                 sharpening: 0.18,
-                temperature: 0.12,  // Warmer than 400
+                temperature: 0.12, // Warmer than 400
                 tint: 0.02,
                 tone_curve_shadows: 0.12,
                 tone_curve_midtones: 0.03,
@@ -545,7 +545,7 @@ impl FilmPreset {
                 blacks: 0.02,
                 whites: -0.03,
                 sharpening: 0.25,
-                temperature: -0.02,  // Slightly cool
+                temperature: -0.02, // Slightly cool
                 tint: -0.02,
                 tone_curve_shadows: 0.03,
                 tone_curve_midtones: 0.05,
@@ -559,11 +559,11 @@ impl FilmPreset {
                 halation_color: [1.0, 0.4, 0.2],
                 black_point: 0.01,
                 white_point: 0.995,
-                shadow_tint: [0.0, -0.01, 0.02],  // Slightly blue shadows
+                shadow_tint: [0.0, -0.01, 0.02], // Slightly blue shadows
                 highlight_tint: [0.02, 0.0, -0.02],
                 vignette_amount: 0.04,
                 vignette_softness: 1.4,
-                latitude: 0.6,  // Less latitude than Portra
+                latitude: 0.6, // Less latitude than Portra
                 red_in_blue: 0.02,
                 blue_in_red: 0.01,
                 red_gamma: 1.05,
@@ -582,7 +582,7 @@ impl FilmPreset {
                 blacks: 0.04,
                 whites: -0.06,
                 sharpening: 0.15,
-                temperature: 0.15,  // Warm/golden
+                temperature: 0.15, // Warm/golden
                 tint: 0.03,
                 tone_curve_shadows: 0.06,
                 tone_curve_midtones: 0.02,
@@ -593,10 +593,10 @@ impl FilmPreset {
                 grain_roughness: 0.45,
                 halation_amount: 0.03,
                 halation_radius: 1.0,
-                halation_color: [1.0, 0.6, 0.2],  // Golden halation
+                halation_color: [1.0, 0.6, 0.2], // Golden halation
                 black_point: 0.025,
                 white_point: 0.975,
-                shadow_tint: [0.04, 0.02, -0.03],  // Golden shadows
+                shadow_tint: [0.04, 0.02, -0.03], // Golden shadows
                 highlight_tint: [0.03, 0.02, -0.02],
                 vignette_amount: 0.08,
                 vignette_softness: 1.1,
@@ -621,7 +621,7 @@ impl FilmPreset {
                 blacks: 0.04,
                 whites: -0.1,
                 sharpening: 0.18,
-                temperature: -0.03,  // Slightly cool
+                temperature: -0.03, // Slightly cool
                 tint: 0.02,
                 tone_curve_shadows: 0.12,
                 tone_curve_midtones: -0.02,
@@ -635,11 +635,11 @@ impl FilmPreset {
                 halation_color: [0.9, 0.7, 0.5],
                 black_point: 0.02,
                 white_point: 0.985,
-                shadow_tint: [-0.01, 0.02, 0.02],  // Cool/green shadows
+                shadow_tint: [-0.01, 0.02, 0.02], // Cool/green shadows
                 highlight_tint: [0.01, 0.02, 0.0],
                 vignette_amount: 0.04,
                 vignette_softness: 1.4,
-                latitude: 0.9,  // Excellent overexposure latitude
+                latitude: 0.9, // Excellent overexposure latitude
                 green_in_red: 0.02,
                 green_in_blue: 0.02,
                 red_gamma: 0.98,
@@ -659,7 +659,7 @@ impl FilmPreset {
                 whites: -0.05,
                 sharpening: 0.2,
                 temperature: -0.02,
-                tint: -0.05,  // Green tint
+                tint: -0.05, // Green tint
                 tone_curve_shadows: 0.05,
                 tone_curve_midtones: 0.03,
                 tone_curve_highlights: -0.06,
@@ -672,7 +672,7 @@ impl FilmPreset {
                 halation_color: [0.8, 1.0, 0.6],
                 black_point: 0.02,
                 white_point: 0.98,
-                shadow_tint: [-0.02, 0.04, -0.01],  // Green shadows
+                shadow_tint: [-0.02, 0.04, -0.01], // Green shadows
                 highlight_tint: [0.0, 0.02, 0.0],
                 vignette_amount: 0.06,
                 vignette_softness: 1.2,
@@ -697,7 +697,7 @@ impl FilmPreset {
                 blacks: 0.01,
                 whites: -0.02,
                 sharpening: 0.22,
-                temperature: 0.0,  // Neutral
+                temperature: 0.0, // Neutral
                 tint: 0.0,
                 tone_curve_shadows: 0.02,
                 tone_curve_midtones: 0.02,
@@ -715,7 +715,7 @@ impl FilmPreset {
                 highlight_tint: [0.0, 0.0, 0.0],
                 vignette_amount: 0.02,
                 vignette_softness: 1.5,
-                latitude: 0.5,  // Slide film = less latitude
+                latitude: 0.5, // Slide film = less latitude
                 red_gamma: 1.0,
                 green_gamma: 1.0,
                 blue_gamma: 1.01,
@@ -728,7 +728,7 @@ impl FilmPreset {
                 contrast: 1.25,
                 saturation: 1.35,
                 highlights: -0.03,
-                shadows: -0.05,  // Deeper shadows
+                shadows: -0.05, // Deeper shadows
                 blacks: 0.0,
                 whites: 0.0,
                 sharpening: 0.3,
@@ -746,11 +746,11 @@ impl FilmPreset {
                 halation_color: [1.0, 0.6, 0.3],
                 black_point: 0.005,
                 white_point: 0.998,
-                shadow_tint: [0.0, 0.02, 0.03],  // Blue-green shadows
+                shadow_tint: [0.0, 0.02, 0.03], // Blue-green shadows
                 highlight_tint: [0.02, 0.0, -0.02],
                 vignette_amount: 0.03,
                 vignette_softness: 1.3,
-                latitude: 0.4,  // Very limited latitude
+                latitude: 0.4, // Very limited latitude
                 blue_in_green: 0.02,
                 green_in_blue: 0.02,
                 red_gamma: 1.02,
@@ -824,7 +824,7 @@ impl FilmPreset {
                 highlight_tint: [0.01, 0.005, -0.01],
                 vignette_amount: 0.025,
                 vignette_softness: 1.4,
-                latitude: 0.55,  // Better latitude than Velvia
+                latitude: 0.55, // Better latitude than Velvia
                 red_gamma: 1.01,
                 green_gamma: 1.0,
                 blue_gamma: 0.99,
@@ -1029,7 +1029,7 @@ impl FilmPreset {
                 blacks: 0.04,
                 whites: -0.08,
                 sharpening: 0.18,
-                temperature: -0.15,  // Tungsten = cool
+                temperature: -0.15, // Tungsten = cool
                 tint: -0.02,
                 tone_curve_shadows: 0.1,
                 tone_curve_midtones: 0.02,
@@ -1038,13 +1038,13 @@ impl FilmPreset {
                 grain_amount: 0.15,
                 grain_size: 1.2,
                 grain_roughness: 0.45,
-                halation_amount: 0.15,  // Strong halation!
+                halation_amount: 0.15, // Strong halation!
                 halation_radius: 2.0,
-                halation_color: [1.0, 0.3, 0.1],  // Red/orange halation
+                halation_color: [1.0, 0.3, 0.1], // Red/orange halation
                 black_point: 0.025,
                 white_point: 0.975,
-                shadow_tint: [-0.02, 0.02, 0.05],  // Teal shadows
-                highlight_tint: [0.05, 0.02, -0.03],  // Orange highlights
+                shadow_tint: [-0.02, 0.02, 0.05],    // Teal shadows
+                highlight_tint: [0.05, 0.02, -0.03], // Orange highlights
                 vignette_amount: 0.06,
                 vignette_softness: 1.2,
                 latitude: 0.75,
@@ -1066,7 +1066,7 @@ impl FilmPreset {
                 blacks: 0.02,
                 whites: -0.05,
                 sharpening: 0.25,
-                temperature: 0.0,  // Daylight balanced
+                temperature: 0.0, // Daylight balanced
                 tint: 0.0,
                 tone_curve_shadows: 0.06,
                 tone_curve_midtones: 0.02,
@@ -1075,7 +1075,7 @@ impl FilmPreset {
                 grain_amount: 0.06,
                 grain_size: 0.8,
                 grain_roughness: 0.3,
-                halation_amount: 0.08,  // Moderate halation
+                halation_amount: 0.08, // Moderate halation
                 halation_radius: 1.5,
                 halation_color: [1.0, 0.35, 0.15],
                 black_point: 0.015,

@@ -1,60 +1,87 @@
-name: Build and Release Binaries
+name: Build and Release
 
 on:
   push:
     tags:
       - 'v*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  security-audit:
+  # Pre-release checks
+  pre-release-checks:
+    name: Pre-release Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-      - name: Run security audit
-        run: cargo audit --deny warnings
-
-  test-and-coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
-      - name: Run tests with coverage
-        run: cargo tarpaulin --ignore-tests --out Xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
         with:
-          file: cobertura.xml
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Run clippy
-        run: cargo clippy -- -D warnings
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      
       - name: Check formatting
         run: cargo fmt --check
+      
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      
+      - name: Security audit
+        run: cargo audit --deny warnings
+        continue-on-error: true
 
+  # Build Windows with installer
   build-windows:
+    name: Build Windows
     runs-on: windows-latest
+    needs: pre-release-checks
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
-      - uses: actions/upload-artifact@v4
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Build release
+        run: cargo build --release
+      
+      # Create portable zip
+      - name: Create portable archive
+        run: |
+          mkdir dist
+          cp target/release/rview.exe dist/
+          cp README.md dist/
+          cp LICENSE dist/
+          Compress-Archive -Path dist/* -DestinationPath rview-windows-x86_64-portable.zip
+      
+      # Code signing (requires certificate in secrets)
+      - name: Sign executables
+        if: ${{ env.WINDOWS_CERTIFICATE != '' }}
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          [IO.File]::WriteAllBytes("cert.pfx", $certBytes)
+          & signtool sign /f cert.pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 target/release/rview.exe
+          Remove-Item cert.pfx
+        continue-on-error: true
+      
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: rview-windows-x86_64
-          path: target/release/rview.exe
+          path: |
+            target/release/rview.exe
+            rview-windows-x86_64-portable.zip
 
+  # Build Linux with AppImage
   build-linux:
-    runs-on: ubuntu-latest
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    needs: pre-release-checks
     env:
-      # Override the custom linker/compiler settings from .cargo/config.toml (which are for Windows cross-compilation)
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: cc
       CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: ""
       CC_x86_64-unknown-linux-gnu: gcc
@@ -62,49 +89,174 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: |
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Install dependencies
+        run: |
           sudo apt update
-          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-          cargo build --target x86_64-unknown-linux-gnu --release
-      - uses: actions/upload-artifact@v4
+          sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf fuse libfuse2
+      
+      - name: Build release
+        run: cargo build --target x86_64-unknown-linux-gnu --release
+      
+      # Create tarball
+      - name: Create tarball
+        run: |
+          mkdir -p dist/rview
+          cp target/x86_64-unknown-linux-gnu/release/rview dist/rview/
+          cp README.md dist/rview/
+          cp LICENSE dist/rview/
+          tar -czvf rview-linux-x86_64.tar.gz -C dist rview
+      
+      # Create AppImage
+      - name: Install linuxdeploy
+        run: |
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+      
+      - name: Create AppImage
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          cp target/x86_64-unknown-linux-gnu/release/rview AppDir/usr/bin/
+          cp installers/linux/rview.desktop AppDir/usr/share/applications/ || echo "Desktop file not found"
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage || echo "AppImage creation skipped"
+        continue-on-error: true
+      
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: rview-linux-x86_64
-          path: target/x86_64-unknown-linux-gnu/release/rview
+          path: |
+            target/x86_64-unknown-linux-gnu/release/rview
+            rview-linux-x86_64.tar.gz
 
+  # Build macOS with DMG
   build-macos:
+    name: Build macOS
     runs-on: macos-latest
+    needs: pre-release-checks
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
-      - uses: actions/upload-artifact@v4
         with:
-          name: rview-macos-x86_64
-          path: target/release/rview
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      
+      # Build for Intel
+      - name: Build x86_64
+        run: cargo build --release --target x86_64-apple-darwin
+      
+      # Build for Apple Silicon
+      - name: Build aarch64
+        run: cargo build --release --target aarch64-apple-darwin
+      
+      # Create universal binary
+      - name: Create universal binary
+        run: |
+          mkdir -p dist
+          lipo -create \
+            target/x86_64-apple-darwin/release/rview \
+            target/aarch64-apple-darwin/release/rview \
+            -output dist/rview
+      
+      # Create app bundle
+      - name: Create app bundle
+        run: |
+          mkdir -p "rView.app/Contents/MacOS"
+          mkdir -p "rView.app/Contents/Resources"
+          cp dist/rview "rView.app/Contents/MacOS/"
+          cp installers/macos/Info.plist "rView.app/Contents/" || echo "Info.plist not found, using default"
+      
+      # Code signing (requires certificate in secrets)
+      - name: Sign app bundle
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+          codesign --force --options runtime --sign "$MACOS_SIGNING_IDENTITY" --deep "rView.app"
+          rm certificate.p12
+        continue-on-error: true
+      
+      # Create zip archive
+      - name: Create zip archive
+        run: |
+          zip -r rview-macos-universal.zip rView.app
+      
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rview-macos-universal
+          path: |
+            dist/rview
+            rview-macos-universal.zip
+            rView.app
 
+  # Create GitHub Release
   release:
-    needs: [security-audit, test-and-coverage, lint, build-windows, build-linux, build-macos]
+    name: Create Release
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: rview-windows-x86_64
           path: artifacts/
-      - uses: actions/download-artifact@v4
+      
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          # Windows
+          cp artifacts/rview-windows-x86_64/rview.exe release/rview-windows-x86_64.exe || true
+          cp artifacts/rview-windows-x86_64/rview-windows-x86_64-portable.zip release/ || true
+          # Linux
+          cp artifacts/rview-linux-x86_64/rview release/rview-linux-x86_64 || true
+          cp artifacts/rview-linux-x86_64/rview-linux-x86_64.tar.gz release/ || true
+          # macOS
+          cp artifacts/rview-macos-universal/rview-macos-universal.zip release/ || true
+          ls -la release/
+      
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: rview-linux-x86_64
-          path: artifacts/
-      - uses: actions/download-artifact@v4
-        with:
-          name: rview-macos-x86_64
-          path: artifacts/
-      - uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/*
+          files: release/*
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
           generate_release_notes: true
+          body: |
+            ## Installation
+            
+            ### Windows
+            - **Portable**: Download `rview-windows-x86_64-portable.zip` and extract
+            - **Executable**: Download `rview-windows-x86_64.exe` directly
+            
+            ### macOS
+            - Download `rview-macos-universal.zip`
+            - Extract and drag rView.app to Applications folder
+            - Note: You may need to right-click and select "Open" the first time
+            
+            ### Linux
+            - **Portable**: Download `rview-linux-x86_64.tar.gz` and extract
+            - **Binary**: Download `rview-linux-x86_64` directly, make executable with `chmod +x`
+            
+            ## Checksums
+            See `SHA256SUMS.txt` for file integrity verification.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

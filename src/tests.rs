@@ -1,10 +1,9 @@
 #[cfg(test)]
 mod unit_tests {
-    use std::path::PathBuf;
-    use crate::metadata::{MetadataDb, UndoHistory, FileOperation};
-    use crate::settings::ColorLabel;
     use crate::gpu::types::GpuProcessor;
-
+    use crate::metadata::{FileOperation, MetadataDb, UndoHistory};
+    use crate::settings::ColorLabel;
+    use std::path::PathBuf;
 
     #[test]
     fn test_undo_history() {
@@ -79,7 +78,13 @@ mod unit_tests {
     fn test_cache_stats() {
         use crate::profiler::CacheStats;
 
-        let stats = CacheStats { cache_hit_count: 100, cache_miss_count: 25, cache_memory_usage: 1024 * 1024, thumbnail_memory_usage: 512 * 1024, ..Default::default() };
+        let stats = CacheStats {
+            cache_hit_count: 100,
+            cache_miss_count: 25,
+            cache_memory_usage: 1024 * 1024,
+            thumbnail_memory_usage: 512 * 1024,
+            ..Default::default()
+        };
 
         // Simulate some cache operations
 
@@ -87,7 +92,6 @@ mod unit_tests {
 
         assert_eq!(stats.memory_usage_mb(), 1.5);
     }
-
 
     #[test]
     fn test_corrupted_image_error() {
@@ -125,7 +129,11 @@ mod unit_tests {
     fn test_gpu_processor_basic() {
         // Try to initialize GPU; if not available just skip the test
         if let Ok(proc) = pollster::block_on(GpuProcessor::new()) {
-            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                16,
+                16,
+                image::Rgba([128, 128, 128, 255]),
+            ));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.exposure = 0.5;
             adj.contrast = 1.1;
@@ -140,58 +148,76 @@ mod unit_tests {
             adj.sharpening = 0.0;
             adj.film = crate::image_loader::FilmEmulation::default();
 
-            let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment failed");
+            let out = proc
+                .apply_adjustments(&img, &adj)
+                .expect("GPU adjustment failed");
             assert_eq!(out.len(), (16 * 16 * 4) as usize);
         }
     }
-    
+
     #[test]
     fn test_gpu_processor_with_film_emulation() {
         // Try to initialize GPU; if not available just skip the test
         if let Ok(proc) = pollster::block_on(GpuProcessor::new()) {
-            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 128, 128, 255])));
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                16,
+                16,
+                image::Rgba([128, 128, 128, 255]),
+            ));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.apply_preset(crate::image_loader::FilmPreset::Portra400);
 
-            let out = proc.apply_adjustments(&img, &adj).expect("GPU adjustment with film emulation failed");
+            let out = proc
+                .apply_adjustments(&img, &adj)
+                .expect("GPU adjustment with film emulation failed");
             assert_eq!(out.len(), (16 * 16 * 4) as usize);
         }
     }
-    
+
     #[test]
     fn test_gpu_processor_bw_film() {
         // Try to initialize GPU; if not available just skip the test
         if let Ok(proc) = pollster::block_on(GpuProcessor::new()) {
-            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([200, 100, 50, 255])));
+            let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                16,
+                16,
+                image::Rgba([200, 100, 50, 255]),
+            ));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.apply_preset(crate::image_loader::FilmPreset::TriX400);
 
-            let out = proc.apply_adjustments(&img, &adj).expect("GPU B&W film emulation failed");
+            let out = proc
+                .apply_adjustments(&img, &adj)
+                .expect("GPU B&W film emulation failed");
             assert_eq!(out.len(), (16 * 16 * 4) as usize);
-            
+
             // Verify it's converted to grayscale-ish (R, G, B should be similar)
             // Note: Due to tinting and other effects, they won't be exactly equal
         }
     }
-    
+
     #[test]
     fn test_cpu_film_emulation() {
-        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmPreset};
-        
-        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(32, 32, image::Rgba([128, 100, 80, 255])));
-        
+        use crate::image_loader::{apply_adjustments, FilmPreset, ImageAdjustments};
+
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            32,
+            32,
+            image::Rgba([128, 100, 80, 255]),
+        ));
+
         // Test Portra 400 (color film)
         let mut adj = ImageAdjustments::default();
         adj.apply_preset(FilmPreset::Portra400);
         let result = apply_adjustments(&img, &adj);
         assert_eq!(result.width(), 32);
         assert_eq!(result.height(), 32);
-        
+
         // Test Tri-X 400 (B&W film - should convert to grayscale)
         let mut adj_bw = ImageAdjustments::default();
         adj_bw.apply_preset(FilmPreset::TriX400);
         let result_bw = apply_adjustments(&img, &adj_bw);
-        
+
         // Verify B&W conversion - RGB values should be very close
         let rgba = result_bw.to_rgba8();
         let pixel = rgba.get_pixel(16, 16);
@@ -199,17 +225,27 @@ mod unit_tests {
         let g = pixel[1] as i32;
         let b = pixel[2] as i32;
         // For true B&W, RGB should be very similar (within some tolerance due to grain/tinting)
-        assert!((r - g).abs() < 30, "B&W film should produce similar R and G values");
-        assert!((g - b).abs() < 30, "B&W film should produce similar G and B values");
+        assert!(
+            (r - g).abs() < 30,
+            "B&W film should produce similar R and G values"
+        );
+        assert!(
+            (g - b).abs() < 30,
+            "B&W film should produce similar G and B values"
+        );
     }
-    
+
     #[test]
     fn test_film_emulation_grain() {
-        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmEmulation};
-        
+        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments};
+
         // Create a flat gray image
-        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(64, 64, image::Rgba([128, 128, 128, 255])));
-        
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            64,
+            64,
+            image::Rgba([128, 128, 128, 255]),
+        ));
+
         // Apply grain
         let adj = ImageAdjustments {
             film: FilmEmulation {
@@ -221,10 +257,10 @@ mod unit_tests {
             },
             ..ImageAdjustments::default()
         };
-        
+
         let result = apply_adjustments(&img, &adj);
         let rgba = result.to_rgba8();
-        
+
         // Verify grain adds variation - not all pixels should be identical
         let mut unique_values = std::collections::HashSet::new();
         for y in 0..10 {
@@ -234,17 +270,28 @@ mod unit_tests {
             }
         }
         // With grain, we should have multiple unique values
-        assert!(unique_values.len() > 1, "Grain should add variation to pixels");
+        assert!(
+            unique_values.len() > 1,
+            "Grain should add variation to pixels"
+        );
     }
-    
+
     #[test]
     fn test_film_emulation_s_curve() {
-        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmEmulation};
-        
+        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments};
+
         // Test that S-curve increases contrast (darkens shadows, brightens highlights)
-        let dark_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([64, 64, 64, 255])));
-        let bright_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([192, 192, 192, 255])));
-        
+        let dark_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            16,
+            16,
+            image::Rgba([64, 64, 64, 255]),
+        ));
+        let bright_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            16,
+            16,
+            image::Rgba([192, 192, 192, 255]),
+        ));
+
         let adj = ImageAdjustments {
             film: FilmEmulation {
                 enabled: true,
@@ -253,27 +300,34 @@ mod unit_tests {
             },
             ..ImageAdjustments::default()
         };
-        
+
         let dark_result = apply_adjustments(&dark_img, &adj);
         let bright_result = apply_adjustments(&bright_img, &adj);
-        
+
         let dark_rgba = dark_result.to_rgba8();
         let bright_rgba = bright_result.to_rgba8();
-        
+
         let dark_pixel = dark_rgba.get_pixel(8, 8)[0];
         let bright_pixel = bright_rgba.get_pixel(8, 8)[0];
-        
+
         // S-curve should increase contrast - dark gets darker, bright gets brighter relative to midpoint
         // The contrast increase should be noticeable
-        assert!(bright_pixel > dark_pixel, "S-curve should maintain brightness ordering");
+        assert!(
+            bright_pixel > dark_pixel,
+            "S-curve should maintain brightness ordering"
+        );
     }
-    
+
     #[test]
     fn test_all_film_presets() {
-        use crate::image_loader::{apply_adjustments, ImageAdjustments, FilmPreset};
-        
-        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(16, 16, image::Rgba([128, 100, 80, 255])));
-        
+        use crate::image_loader::{apply_adjustments, FilmPreset, ImageAdjustments};
+
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            16,
+            16,
+            image::Rgba([128, 100, 80, 255]),
+        ));
+
         // Test all presets don't crash
         for preset in FilmPreset::all() {
             let mut adj = ImageAdjustments::default();
@@ -308,11 +362,11 @@ mod unit_tests {
 
 #[cfg(test)]
 mod integration_tests {
+    use image::{DynamicImage, GenericImageView};
     use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
     use tempfile::TempDir;
-    use image::{DynamicImage, GenericImageView};
 
     #[test]
     fn test_image_loading_integration() {
@@ -323,15 +377,14 @@ mod integration_tests {
         // Create a minimal valid JPEG file (this is a very basic test)
         // In a real scenario, you'd use a proper test image
         let jpeg_data = vec![
-            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
-            0x01, 0x01, 0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xC0, 0x00, 0x11,
-            0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01,
-            0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x08, 0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
-            0xDA, 0x00, 0x0C, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F,
-            0x00, 0x00, 0xFF, 0xD9
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01,
+            0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x01, 0x00,
+            0x01, 0x01, 0x01, 0x11, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00,
+            0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x08, 0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+            0xDA, 0x00, 0x0C, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F, 0x00, 0x00,
+            0xFF, 0xD9,
         ];
 
         fs::write(&test_image_path, jpeg_data).unwrap();
@@ -352,8 +405,8 @@ mod integration_tests {
     #[test]
     fn test_cache_performance() {
         use crate::image_cache::ImageCache;
+        use image::{DynamicImage, Rgba, RgbaImage};
         use std::time::{Duration, Instant};
-        use image::{DynamicImage, RgbaImage, Rgba};
 
         let cache = ImageCache::new(10 * 1024 * 1024); // 10MB cache
 
@@ -372,7 +425,11 @@ mod integration_tests {
         let duration = start.elapsed();
 
         // Cache operations should be reasonably fast
-        assert!(duration < Duration::from_secs(1), "Cache operations took too long: {:?}", duration);
+        assert!(
+            duration < Duration::from_secs(1),
+            "Cache operations took too long: {:?}",
+            duration
+        );
 
         // Verify cache stats
         let stats = cache.stats();
@@ -383,14 +440,15 @@ mod integration_tests {
     #[test]
     fn test_cache_eviction_by_memory() {
         use crate::image_cache::ImageCache;
+        use image::{DynamicImage, Rgba, RgbaImage};
         use std::path::PathBuf;
-        use image::{DynamicImage, RgbaImage, Rgba};
 
         // 1 MB cache
         let cache = ImageCache::new(1);
 
         // Each image is ~512x512x4 = 1,048,576 bytes (~1MB)
-        let img = DynamicImage::ImageRgba8(RgbaImage::from_pixel(512, 512, Rgba([10, 20, 30, 255])));
+        let img =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(512, 512, Rgba([10, 20, 30, 255])));
 
         cache.insert(PathBuf::from("img1.jpg"), img.clone());
         cache.insert(PathBuf::from("img2.jpg"), img.clone());
@@ -398,21 +456,26 @@ mod integration_tests {
         let stats = cache.get_stats();
 
         // Ensure total tracked size does not exceed configured cache size
-        assert!(stats.image_size_bytes <= 1 * 1024 * 1024, "Cache exceeded max size: {}", stats.image_size_bytes);
+        assert!(
+            stats.image_size_bytes <= 1 * 1024 * 1024,
+            "Cache exceeded max size: {}",
+            stats.image_size_bytes
+        );
     }
 
     #[test]
     fn test_thumbnail_disk_persistence() {
         use crate::image_cache::ImageCache;
+        use image::{DynamicImage, Rgba, RgbaImage};
         use tempfile::TempDir;
-        use image::{DynamicImage, RgbaImage, Rgba};
 
         let tmp = TempDir::new().unwrap();
         let key_path = tmp.path().join("test_image.jpg");
 
         let cache = ImageCache::new(10);
 
-        let thumb = DynamicImage::ImageRgba8(RgbaImage::from_pixel(16, 16, Rgba([100, 150, 200, 255])));
+        let thumb =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(16, 16, Rgba([100, 150, 200, 255])));
         // Ensure the source file exists so the cache key generation which depends on file metadata works.
         thumb.save(&key_path).unwrap();
         cache.insert_thumbnail(key_path.clone(), thumb.clone());
@@ -430,18 +493,22 @@ mod integration_tests {
     #[test]
     fn test_preload_thumbnails_parallel() {
         use crate::image_cache::ImageCache;
-        use tempfile::TempDir;
+        use image::{DynamicImage, Rgba, RgbaImage};
         use std::path::PathBuf;
         use std::thread;
         use std::time::{Duration, Instant};
-        use image::{DynamicImage, RgbaImage, Rgba};
+        use tempfile::TempDir;
 
         let tmp = TempDir::new().unwrap();
         let mut paths = Vec::new();
 
         for i in 0..4 {
             let p = tmp.path().join(format!("f{}.png", i));
-            let img = DynamicImage::ImageRgba8(RgbaImage::from_pixel(64, 64, Rgba([i as u8 * 10, 100, 120, 255])));
+            let img = DynamicImage::ImageRgba8(RgbaImage::from_pixel(
+                64,
+                64,
+                Rgba([i as u8 * 10, 100, 120, 255]),
+            ));
             img.save(&p).unwrap();
             paths.push(p);
         }
@@ -461,13 +528,19 @@ mod integration_tests {
                     break;
                 }
             }
-            if all_ok { return; }
+            if all_ok {
+                return;
+            }
             thread::sleep(Duration::from_millis(50));
         }
 
         // Final check
         for p in &paths_clone {
-            assert!(cache.get_thumbnail(p).is_some(), "Thumbnail not generated for {:?}", p);
+            assert!(
+                cache.get_thumbnail(p).is_some(),
+                "Thumbnail not generated for {:?}",
+                p
+            );
         }
     }
 
@@ -502,14 +575,19 @@ mod integration_tests {
     #[test]
     fn test_image_loading_pipeline() {
         // Create a simple test image
-        let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(100, 100, image::Rgba([255, 0, 0, 255])));
+        let test_image = DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+            100,
+            100,
+            image::Rgba([255, 0, 0, 255]),
+        ));
 
         // Test that image processing works
         let mut adjustments = crate::image_loader::ImageAdjustments::default();
         adjustments.saturation = 0.0; // This should make it grayscale
 
         // This tests the CPU image processing pipeline
-        let processed = crate::image_loader::adjustments::apply_adjustments(&test_image, &adjustments);
+        let processed =
+            crate::image_loader::adjustments::apply_adjustments(&test_image, &adjustments);
 
         // Verify the image was processed (should be different from original)
         assert_eq!(processed.dimensions(), test_image.dimensions());
@@ -539,7 +617,10 @@ mod integration_tests {
         // In a real integration test, we'd save to a temp file and load back
         // For now, just test the default loading
         let loaded_settings = crate::settings::Settings::load();
-        assert!(loaded_settings.theme == crate::settings::Theme::Dark || loaded_settings.theme == crate::settings::Theme::Light);
+        assert!(
+            loaded_settings.theme == crate::settings::Theme::Dark
+                || loaded_settings.theme == crate::settings::Theme::Light
+        );
     }
 
     #[test]

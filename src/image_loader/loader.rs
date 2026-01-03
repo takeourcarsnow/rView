@@ -1,7 +1,7 @@
 use crate::errors::{Result, ViewerError};
-use image::{DynamicImage, ImageBuffer, RgbImage, GenericImageView};
-use std::path::Path;
+use image::{DynamicImage, GenericImageView, ImageBuffer, RgbImage};
 use rayon::ThreadPoolBuilder;
+use std::path::Path;
 
 lazy_static::lazy_static! {
     static ref RAW_PROCESSING_POOL: rayon::ThreadPool = {
@@ -17,7 +17,9 @@ lazy_static::lazy_static! {
 
 pub fn load_image(path: &Path) -> Result<DynamicImage> {
     if !path.exists() {
-        return Err(ViewerError::FileNotFound { path: path.to_path_buf() });
+        return Err(ViewerError::FileNotFound {
+            path: path.to_path_buf(),
+        });
     }
 
     // Check file size to prevent loading extremely large images that could cause crashes
@@ -27,7 +29,10 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         if file_size > 500 * 1024 * 1024 {
             return Err(ViewerError::ImageLoadError {
                 path: path.to_path_buf(),
-                message: format!("File too large: {}MB (max 500MB)", file_size / (1024 * 1024))
+                message: format!(
+                    "File too large: {}MB (max 500MB)",
+                    file_size / (1024 * 1024)
+                ),
             });
         }
     }
@@ -47,7 +52,7 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
         if megapixels > 100 {
             return Err(ViewerError::ImageLoadError {
                 path: path.to_path_buf(),
-                message: format!("Image too large: {}MP (max 100MP)", megapixels)
+                message: format!("Image too large: {}MP (max 100MP)", megapixels),
             });
         }
     }
@@ -58,27 +63,36 @@ pub fn load_image(path: &Path) -> Result<DynamicImage> {
 fn load_standard_image(path: &Path) -> Result<DynamicImage> {
     // For large files (>50MB), use memory mapping to avoid loading entire file into RAM
     if let Ok(metadata) = std::fs::metadata(path) {
-        if metadata.len() > 50 * 1024 * 1024 { // 50MB threshold
+        if metadata.len() > 50 * 1024 * 1024 {
+            // 50MB threshold
             return load_image_memory_mapped(path);
         }
     }
 
-    image::open(path)
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })
+    image::open(path).map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })
 }
 
 fn load_image_memory_mapped(path: &Path) -> Result<DynamicImage> {
-    use std::fs::File;
     use memmap2::Mmap;
+    use std::fs::File;
 
-    let file = File::open(path)
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })?;
+    let file = File::open(path).map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })?;
 
-    let mmap = unsafe { Mmap::map(&file) }
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: format!("Memory mapping failed: {}", e) })?;
+    let mmap = unsafe { Mmap::map(&file) }.map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: format!("Memory mapping failed: {}", e),
+    })?;
 
-    image::load_from_memory(&mmap)
-        .map_err(|e| ViewerError::ImageLoadError { path: path.to_path_buf(), message: e.to_string() })
+    image::load_from_memory(&mmap).map_err(|e| ViewerError::ImageLoadError {
+        path: path.to_path_buf(),
+        message: e.to_string(),
+    })
 }
 
 pub fn load_raw_image(path: &Path) -> Result<DynamicImage> {

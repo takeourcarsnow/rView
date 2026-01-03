@@ -16,7 +16,7 @@ impl Profiler {
             measurements: HashMap::new(),
             counters: HashMap::new(),
         }
-    } 
+    }
 
     pub fn start_timer(&mut self, name: &str) {
         tracing::trace!(timer = name, "start_timer");
@@ -27,7 +27,8 @@ impl Profiler {
         if let Some(start) = self.timers.remove(name) {
             let duration = start.elapsed();
             tracing::trace!(timer = name, duration_ms = ?duration.as_millis(), "end_timer");
-            self.measurements.entry(name.to_string())
+            self.measurements
+                .entry(name.to_string())
                 .or_default()
                 .push(duration);
         }
@@ -40,7 +41,8 @@ impl Profiler {
 
     #[allow(dead_code)]
     pub fn add_measurement(&mut self, name: &str, duration: Duration) {
-        self.measurements.entry(name.to_string())
+        self.measurements
+            .entry(name.to_string())
             .or_default()
             .push(duration);
     }
@@ -55,13 +57,16 @@ impl Profiler {
                 let min = measurements.iter().min().unwrap();
                 let max = measurements.iter().max().unwrap();
 
-                stats.insert(name.clone(), MeasurementStats {
-                    count: measurements.len(),
-                    total_time: total,
-                    average_time: avg,
-                    min_time: *min,
-                    max_time: *max,
-                });
+                stats.insert(
+                    name.clone(),
+                    MeasurementStats {
+                        count: measurements.len(),
+                        total_time: total,
+                        average_time: avg,
+                        min_time: *min,
+                        max_time: *max,
+                    },
+                );
             }
         }
 
@@ -88,7 +93,7 @@ pub struct MeasurementStats {
     pub min_time: Duration,
     #[allow(dead_code)]
     pub max_time: Duration,
-} 
+}
 
 #[derive(Debug, Clone)]
 pub struct ProfilerStats {
@@ -108,7 +113,7 @@ pub struct CacheStats {
     pub cache_hit_count: u64,
     pub cache_miss_count: u64,
     pub eviction_count: u64,
-} 
+}
 
 impl CacheStats {
     pub fn hit_rate(&self) -> f64 {
@@ -141,7 +146,7 @@ pub struct LoadingDiagnostics {
     pub thumbnails_generated: usize,
     pub errors_encountered: usize,
     pub bottlenecks: Vec<String>,
-} 
+}
 
 impl LoadingDiagnostics {
     #[allow(dead_code)]
@@ -156,7 +161,7 @@ impl LoadingDiagnostics {
             self.total_load_time / self.images_loaded as u32
         }
     }
-} 
+}
 
 use std::cell::RefCell;
 use std::thread_local;

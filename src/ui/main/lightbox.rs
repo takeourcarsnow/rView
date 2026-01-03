@@ -1,11 +1,10 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Vec2, Rounding};
+use egui::{self, Color32, Rounding, Vec2};
 
 impl ImageViewerApp {
     pub(crate) fn render_lightbox(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none()
-                .fill(self.settings.background_color.to_color()))
+            .frame(egui::Frame::none().fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
                 let _available = ui.available_size();
                 let thumb_size = 150.0;
@@ -18,10 +17,14 @@ impl ImageViewerApp {
                             ui.spacing_mut().item_spacing = Vec2::splat(padding);
 
                             // Collect data first to avoid borrow conflicts
-                            let items: Vec<(usize, usize, std::path::PathBuf)> = self.filtered_list.iter()
+                            let items: Vec<(usize, usize, std::path::PathBuf)> = self
+                                .filtered_list
+                                .iter()
                                 .enumerate()
                                 .filter_map(|(display_idx, &real_idx)| {
-                                    self.image_list.get(real_idx).map(|p| (display_idx, real_idx, p.clone()))
+                                    self.image_list
+                                        .get(real_idx)
+                                        .map(|p| (display_idx, real_idx, p.clone()))
                                 })
                                 .collect();
 
@@ -30,11 +33,12 @@ impl ImageViewerApp {
                             let mut double_clicked_index: Option<usize> = None;
 
                             for (display_idx, _real_idx, path) in &items {
-                                let is_selected = self.selected_indices.contains(display_idx) || *display_idx == self.current_index;
+                                let is_selected = self.selected_indices.contains(display_idx)
+                                    || *display_idx == self.current_index;
 
                                 let (response, painter) = ui.allocate_painter(
                                     Vec2::splat(thumb_size),
-                                    egui::Sense::click()
+                                    egui::Sense::click(),
                                 );
 
                                 let rect = response.rect;
@@ -55,13 +59,20 @@ impl ImageViewerApp {
                                     let inner_rect = rect.shrink(4.0);
                                     // Compute texture size and scale to fit while preserving aspect
                                     let tex_size = self.texture_size_from_id(handle.id());
-                                    let scale = (inner_rect.width() / tex_size.x).min(inner_rect.height() / tex_size.y);
+                                    let scale = (inner_rect.width() / tex_size.x)
+                                        .min(inner_rect.height() / tex_size.y);
                                     let display_size = tex_size * scale;
-                                    let image_rect = egui::Rect::from_center_size(inner_rect.center(), display_size);
+                                    let image_rect = egui::Rect::from_center_size(
+                                        inner_rect.center(),
+                                        display_size,
+                                    );
                                     painter.image(
                                         handle.id(),
                                         image_rect,
-                                        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                        egui::Rect::from_min_max(
+                                            egui::pos2(0.0, 0.0),
+                                            egui::pos2(1.0, 1.0),
+                                        ),
                                         Color32::WHITE,
                                     );
                                 } else {

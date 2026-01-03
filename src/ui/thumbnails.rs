@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
-use crate::settings::{ThumbnailPosition, ColorLabel};
-use egui::{self, Color32, Vec2, Rounding, Margin, Rect};
+use crate::settings::{ColorLabel, ThumbnailPosition};
+use egui::{self, Color32, Margin, Rect, Rounding, Vec2};
 use std::path::PathBuf;
 
 impl ImageViewerApp {
@@ -9,7 +9,7 @@ impl ImageViewerApp {
         // Request thumbnails for current index and nearby items
         let start = self.current_index.saturating_sub(10);
         let end = (self.current_index + 20).min(self.filtered_list.len());
-        
+
         for display_idx in start..end {
             if let Some(&real_idx) = self.filtered_list.get(display_idx) {
                 if let Some(path) = self.image_list.get(real_idx).cloned() {
@@ -21,27 +21,29 @@ impl ImageViewerApp {
             }
         }
     }
-    
+
     pub fn render_thumbnail_bar(&mut self, ctx: &egui::Context) {
         if !self.settings.show_thumbnails || self.filtered_list.is_empty() {
             return;
         }
-        
+
         // Pre-request thumbnails for visible items
         self.prefetch_visible_thumbnails(ctx);
-        
+
         let thumb_size = self.settings.thumbnail_size;
         // Add extra space for optional filename / resolution labels
         let bar_size = thumb_size + 34.0;
-        
+
         match self.settings.thumbnail_position {
             ThumbnailPosition::Bottom => {
                 egui::TopBottomPanel::bottom("thumbnails")
                     .resizable(false)
                     .exact_height(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(4.0, 8.0)))
+                    .frame(
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)),
+                    )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, true);
                     });
@@ -50,9 +52,11 @@ impl ImageViewerApp {
                 egui::TopBottomPanel::top("thumbnails_top")
                     .resizable(false)
                     .exact_height(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(4.0, 8.0)))
+                    .frame(
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(4.0, 8.0)),
+                    )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, true);
                     });
@@ -61,9 +65,11 @@ impl ImageViewerApp {
                 egui::SidePanel::left("thumbnails_left")
                     .resizable(false)
                     .exact_width(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(8.0, 4.0)))
+                    .frame(
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)),
+                    )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, false);
                     });
@@ -72,21 +78,36 @@ impl ImageViewerApp {
                 egui::SidePanel::right("thumbnails_right")
                     .resizable(false)
                     .exact_width(bar_size)
-                    .frame(egui::Frame::none()
-                        .fill(Color32::from_rgb(25, 25, 28))
-                        .inner_margin(Margin::symmetric(8.0, 4.0)))
+                    .frame(
+                        egui::Frame::none()
+                            .fill(Color32::from_rgb(25, 25, 28))
+                            .inner_margin(Margin::symmetric(8.0, 4.0)),
+                    )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, false);
                     });
             }
         }
     }
-    
-    fn render_thumbnail_contents(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, horizontal: bool) {
+
+    fn render_thumbnail_contents(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        horizontal: bool,
+    ) {
         let thumb_size = self.settings.thumbnail_size;
-        let spacing = if horizontal { 4.0 } else { 4.0 };
-        let extra_height = if self.settings.show_thumbnail_labels { 18.0 } else { 0.0 };
-        let item_width = if horizontal { thumb_size + spacing } else { thumb_size };
+        let spacing = 4.0; // Same for both orientations
+        let extra_height = if self.settings.show_thumbnail_labels {
+            18.0
+        } else {
+            0.0
+        };
+        let item_width = if horizontal {
+            thumb_size + spacing
+        } else {
+            thumb_size
+        };
         let item_height = thumb_size + extra_height + if horizontal { 0.0 } else { spacing };
 
         let total_items = self.filtered_list.len();
@@ -109,7 +130,16 @@ impl ImageViewerApp {
                             ui.scroll_with_delta(Vec2::new(-scroll_delta.y, 0.0));
                         }
                         ui.allocate_space(content_size);
-                        self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+                        self.render_visible_thumbnails(
+                            ui,
+                            ctx,
+                            thumb_size,
+                            horizontal,
+                            spacing,
+                            extra_height,
+                            item_width,
+                            item_height,
+                        );
                     });
             });
         } else {
@@ -121,17 +151,41 @@ impl ImageViewerApp {
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.allocate_space(content_size);
-                        self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
+                        self.render_visible_thumbnails(
+                            ui,
+                            ctx,
+                            thumb_size,
+                            horizontal,
+                            spacing,
+                            extra_height,
+                            item_width,
+                            item_height,
+                        );
                     });
             });
         }
     }
-    
-    fn render_visible_thumbnails(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, thumb_size: f32, horizontal: bool, spacing: f32, extra_height: f32, _item_width: f32, _item_height: f32) {
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_visible_thumbnails(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        thumb_size: f32,
+        horizontal: bool,
+        spacing: f32,
+        extra_height: f32,
+        _item_width: f32,
+        _item_height: f32,
+    ) {
         let visible_rect = ui.clip_rect();
         let content_rect = ui.min_rect();
 
-        let item_width = if horizontal { thumb_size + spacing } else { thumb_size };
+        let item_width = if horizontal {
+            thumb_size + spacing
+        } else {
+            thumb_size
+        };
         let item_height = thumb_size + extra_height + if horizontal { 0.0 } else { spacing };
 
         let (scroll_offset, visible_size) = if horizontal {
@@ -150,11 +204,15 @@ impl ImageViewerApp {
         for display_idx in start_idx..end_idx {
             if let Some(&real_idx) = self.filtered_list.get(display_idx) {
                 if let Some(path) = self.image_list.get(real_idx).cloned() {
-                    if !self.thumbnail_textures.contains_key(&path) && !self.thumbnail_requests.contains(&path) {
+                    if !self.thumbnail_textures.contains_key(&path)
+                        && !self.thumbnail_requests.contains(&path)
+                    {
                         self.ensure_thumbnail_requested(&path, ctx);
                     }
                     // Request EXIF if not cached and labels are enabled
-                    if self.settings.show_thumbnail_labels && !self.compare_exifs.contains_key(&path) {
+                    if self.settings.show_thumbnail_labels
+                        && !self.compare_exifs.contains_key(&path)
+                    {
                         self.load_exif_data(&path);
                     }
                 }
@@ -166,12 +224,26 @@ impl ImageViewerApp {
             if let Some(&real_idx) = self.filtered_list.get(display_idx) {
                 if let Some(path) = self.image_list.get(real_idx).cloned() {
                     let pos = if horizontal {
-                        egui::pos2(content_rect.left() + display_idx as f32 * item_width, content_rect.top())
+                        egui::pos2(
+                            content_rect.left() + display_idx as f32 * item_width,
+                            content_rect.top(),
+                        )
                     } else {
-                        egui::pos2(content_rect.left(), content_rect.top() + display_idx as f32 * item_height)
+                        egui::pos2(
+                            content_rect.left(),
+                            content_rect.top() + display_idx as f32 * item_height,
+                        )
                     };
 
-                    self.render_single_thumbnail(ui, ctx, thumb_size, extra_height, pos, display_idx, &path);
+                    self.render_single_thumbnail(
+                        ui,
+                        ctx,
+                        thumb_size,
+                        extra_height,
+                        pos,
+                        display_idx,
+                        &path,
+                    );
                 }
             }
         }
@@ -179,7 +251,17 @@ impl ImageViewerApp {
 }
 
 impl ImageViewerApp {
-    fn render_single_thumbnail(&mut self, ui: &mut egui::Ui, _ctx: &egui::Context, thumb_size: f32, extra_height: f32, pos: egui::Pos2, display_idx: usize, path: &std::path::PathBuf) {
+    #[allow(clippy::too_many_arguments)]
+    fn render_single_thumbnail(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        thumb_size: f32,
+        extra_height: f32,
+        pos: egui::Pos2,
+        display_idx: usize,
+        path: &std::path::PathBuf,
+    ) {
         let is_current = display_idx == self.current_index;
         let is_selected = self.selected_indices.contains(&display_idx);
         let tex_id = self.thumbnail_textures.get(path).map(|h| h.id());
@@ -270,7 +352,11 @@ impl ImageViewerApp {
                     info = format!("{} × {}", tex_size.x as i32, tex_size.y as i32);
                 }
 
-                let label = if info.is_empty() { file_name.to_string() } else { format!("{} • {}", file_name, info) };
+                let label = if info.is_empty() {
+                    file_name.to_string()
+                } else {
+                    format!("{} • {}", file_name, info)
+                };
                 let label_pos = egui::pos2(rect.center().x, image_area.bottom() + 2.0);
                 painter.text(
                     label_pos,
@@ -283,7 +369,11 @@ impl ImageViewerApp {
         }
 
         // Handle interactions
-        let response = ui.interact(rect, egui::Id::new(format!("thumb_{}", display_idx)), egui::Sense::click_and_drag());
+        let response = ui.interact(
+            rect,
+            egui::Id::new(format!("thumb_{}", display_idx)),
+            egui::Sense::click_and_drag(),
+        );
 
         // Drag source for drag-and-drop to collections
         response.dnd_set_drag_payload(path.clone());
@@ -329,7 +419,7 @@ impl ImageViewerApp {
                 ui.close_menu();
             }
             ui.separator();
-            
+
             // Add to Collection submenu
             if let Some(ref catalog_db) = self.catalog_db {
                 if let Ok(collections) = catalog_db.get_collections() {
@@ -342,20 +432,31 @@ impl ImageViewerApp {
                                     if !self.selected_indices.is_empty() {
                                         let mut added_count = 0;
                                         // Collect paths first to avoid borrowing issues
-                                        let paths_to_add: Vec<PathBuf> = self.selected_indices.iter()
+                                        let paths_to_add: Vec<PathBuf> = self
+                                            .selected_indices
+                                            .iter()
                                             .filter_map(|&selected_idx| {
-                                                self.filtered_list.get(selected_idx)
-                                                    .and_then(|&real_idx| self.image_list.get(real_idx).cloned())
+                                                self.filtered_list.get(selected_idx).and_then(
+                                                    |&real_idx| {
+                                                        self.image_list.get(real_idx).cloned()
+                                                    },
+                                                )
                                             })
                                             .collect();
-                                        
+
                                         for path in paths_to_add {
-                                            if self.add_path_to_collection(path, collection.id).is_ok() {
+                                            if self
+                                                .add_path_to_collection(path, collection.id)
+                                                .is_ok()
+                                            {
                                                 added_count += 1;
                                             }
                                         }
                                         if added_count > 0 {
-                                            self.set_status_message(format!("Added {} images to collection", added_count));
+                                            self.set_status_message(format!(
+                                                "Added {} images to collection",
+                                                added_count
+                                            ));
                                         }
                                     } else {
                                         self.current_index = display_idx;
@@ -369,10 +470,14 @@ impl ImageViewerApp {
                     }
                 }
             }
-            
+
             ui.menu_button("Rating", |ui| {
                 for r in 0..=5 {
-                    let stars = if r == 0 { "None".to_string() } else { "★".repeat(r) };
+                    let stars = if r == 0 {
+                        "None".to_string()
+                    } else {
+                        "★".repeat(r)
+                    };
                     if ui.button(stars).clicked() {
                         self.current_index = display_idx;
                         self.set_rating(r as u8);

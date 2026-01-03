@@ -1,6 +1,6 @@
 use crate::app::{ImageViewerApp, LoaderMessage};
-use crate::metadata::FileOperation;
 use crate::exif_data::ExifInfo;
+use crate::metadata::FileOperation;
 use egui::ColorImage;
 use image::DynamicImage;
 use std::path::PathBuf;
@@ -25,13 +25,26 @@ impl ImageViewerApp {
     fn handle_loader_message(&mut self, msg: LoaderMessage, ctx: &egui::Context) {
         match msg {
             LoaderMessage::ImageLoaded(path, image) => self.handle_image_loaded(path, image),
-            LoaderMessage::PreviewLoaded(path, preview) => self.handle_preview_loaded(path, preview),
-            LoaderMessage::ProgressiveLoaded(path, progressive) => self.handle_progressive_loaded(path, progressive),
-            LoaderMessage::ThumbnailLoaded(path, thumb) => self.handle_thumbnail_loaded(path, thumb, ctx),
+            LoaderMessage::PreviewLoaded(path, preview) => {
+                self.handle_preview_loaded(path, preview)
+            }
+            LoaderMessage::ProgressiveLoaded(path, progressive) => {
+                self.handle_progressive_loaded(path, progressive)
+            }
+            LoaderMessage::ThumbnailLoaded(path, thumb) => {
+                self.handle_thumbnail_loaded(path, thumb, ctx)
+            }
             LoaderMessage::LoadError(path, error) => self.handle_load_error(path, error),
             LoaderMessage::ExifLoaded(path, exif) => self.handle_exif_loaded(path, exif),
-            LoaderMessage::ThumbnailRequestComplete(path) => self.handle_thumbnail_request_complete(path),
-            LoaderMessage::MoveCompleted { from, dest_folder, success, error } => self.handle_move_completed(from, dest_folder, success, error),
+            LoaderMessage::ThumbnailRequestComplete(path) => {
+                self.handle_thumbnail_request_complete(path)
+            }
+            LoaderMessage::MoveCompleted {
+                from,
+                dest_folder,
+                success,
+                error,
+            } => self.handle_move_completed(from, dest_folder, success, error),
         }
     }
 
@@ -51,7 +64,8 @@ impl ImageViewerApp {
         if self.get_current_path().as_ref() == Some(&path) && self.is_loading {
             self.showing_preview = true;
             self.set_current_image(&path, preview);
-            self.is_loading = !crate::image_loader::is_raw_file(&path) || self.settings.load_raw_full_size;
+            self.is_loading =
+                !crate::image_loader::is_raw_file(&path) || self.settings.load_raw_full_size;
         }
     }
 
@@ -65,7 +79,7 @@ impl ImageViewerApp {
 
     fn handle_thumbnail_loaded(&mut self, path: PathBuf, thumb: DynamicImage, ctx: &egui::Context) {
         crate::profiler::with_profiler(|p| p.increment_counter("thumbnails_loaded"));
-        
+
         // Apply adjustments to thumbnail if any exist for this image
         // Use the thumbnail-specific adjustment function to avoid parallel processing glitches
         let display_thumb = if let Some(adj) = self.metadata_db.get_adjustments(&path) {
@@ -77,8 +91,11 @@ impl ImageViewerApp {
         } else {
             thumb
         };
-        
-        let size = [display_thumb.width() as usize, display_thumb.height() as usize];
+
+        let size = [
+            display_thumb.width() as usize,
+            display_thumb.height() as usize,
+        ];
         let rgba = display_thumb.to_rgba8();
         let pixels = rgba.as_flat_samples();
 
@@ -114,11 +131,20 @@ impl ImageViewerApp {
         self.thumbnail_requests.remove(&path);
     }
 
-    fn handle_move_completed(&mut self, from: PathBuf, dest_folder: PathBuf, success: bool, error: Option<String>) {
+    fn handle_move_completed(
+        &mut self,
+        from: PathBuf,
+        dest_folder: PathBuf,
+        success: bool,
+        error: Option<String>,
+    ) {
         if success {
             let filename = from.file_name().unwrap_or_default();
             let to = dest_folder.join(filename);
-            self.undo_history.push(FileOperation::Move { from: from.clone(), to: to.clone() });
+            self.undo_history.push(FileOperation::Move {
+                from: from.clone(),
+                to: to.clone(),
+            });
 
             if let Some(&idx) = self.filtered_list.get(self.current_index) {
                 self.image_list.remove(idx);
@@ -141,7 +167,10 @@ impl ImageViewerApp {
             self.show_status(&format!("Moved to {}", dest_folder.display()));
             self.settings.add_quick_move_folder(dest_folder);
         } else {
-            self.show_status(&format!("Failed to move image: {}", error.unwrap_or_else(|| "Unknown error".to_string())));
+            self.show_status(&format!(
+                "Failed to move image: {}",
+                error.unwrap_or_else(|| "Unknown error".to_string())
+            ));
         }
     }
 }

@@ -6,7 +6,11 @@ use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
     /// Generate focus peaking overlay using GPU
-    pub async fn generate_focus_peaking_overlay(&self, image: &DynamicImage, threshold: f32) -> Result<DynamicImage> {
+    pub async fn generate_focus_peaking_overlay(
+        &self,
+        image: &DynamicImage,
+        threshold: f32,
+    ) -> Result<DynamicImage> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
 
@@ -66,8 +70,8 @@ impl GpuProcessor {
         #[repr(C)]
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
         struct OverlayParams {
-            mode: u32,        // 0 = focus peaking, 1 = zebra
-            threshold: f32,   // focus peaking threshold
+            mode: u32,           // 0 = focus peaking, 1 = zebra
+            threshold: f32,      // focus peaking threshold
             high_threshold: f32, // zebra high threshold
             low_threshold: f32,  // zebra low threshold
             width: u32,
@@ -83,11 +87,13 @@ impl GpuProcessor {
             height,
         };
 
-        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("focus_peaking_params"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let param_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("focus_peaking_params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -96,11 +102,15 @@ impl GpuProcessor {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &output_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -110,9 +120,11 @@ impl GpuProcessor {
         });
 
         // Execute
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("focus_peaking_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("focus_peaking_encoder"),
+            });
 
         {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -121,11 +133,12 @@ impl GpuProcessor {
             });
             cpass.set_pipeline(&self.overlay_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+            cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
 
         // Download result
-        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("focus_peaking_output_buffer"),
             size: (bytes_per_row * height) as u64,
@@ -170,7 +183,8 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
             let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
             for row in 0..height {
                 let start = (row * bytes_per_row) as usize;
@@ -187,7 +201,12 @@ impl GpuProcessor {
     }
 
     /// Generate zebra overlay using GPU acceleration
-    pub async fn generate_zebra_overlay(&self, image: &DynamicImage, high_threshold: f32, low_threshold: f32) -> Result<DynamicImage> {
+    pub async fn generate_zebra_overlay(
+        &self,
+        image: &DynamicImage,
+        high_threshold: f32,
+        low_threshold: f32,
+    ) -> Result<DynamicImage> {
         let rgba = image.to_rgba8();
         let (width, height) = rgba.dimensions();
 
@@ -247,8 +266,8 @@ impl GpuProcessor {
         #[repr(C)]
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
         struct OverlayParams {
-            mode: u32,        // 0 = focus peaking, 1 = zebra
-            threshold: f32,   // focus peaking threshold
+            mode: u32,           // 0 = focus peaking, 1 = zebra
+            threshold: f32,      // focus peaking threshold
             high_threshold: f32, // zebra high threshold
             low_threshold: f32,  // zebra low threshold
             width: u32,
@@ -264,11 +283,13 @@ impl GpuProcessor {
             height,
         };
 
-        let param_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("zebra_params"),
-            contents: bytemuck::bytes_of(&params),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let param_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("zebra_params"),
+                contents: bytemuck::bytes_of(&params),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
 
         // Create bind group
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -277,11 +298,15 @@ impl GpuProcessor {
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&output_texture.create_view(&wgpu::TextureViewDescriptor::default())),
+                    resource: wgpu::BindingResource::TextureView(
+                        &output_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -291,9 +316,11 @@ impl GpuProcessor {
         });
 
         // Execute
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("zebra_encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("zebra_encoder"),
+            });
 
         {
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -302,11 +329,12 @@ impl GpuProcessor {
             });
             cpass.set_pipeline(&self.overlay_pipeline);
             cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups((width + 15) / 16, (height + 15) / 16, 1);
+            cpass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
 
         // Download result
-        let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("zebra_output_buffer"),
             size: (bytes_per_row * height) as u64,
@@ -351,7 +379,8 @@ impl GpuProcessor {
         // Process the data and drop the view before unmapping
         let result = {
             let data = buffer_slice.get_mapped_range();
-            let bytes_per_row = ((4 * width + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1) / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+            let bytes_per_row = (4 * width).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
+                * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
             let mut valid_data = Vec::with_capacity((width * height * 4) as usize);
             for row in 0..height {
                 let start = (row * bytes_per_row) as usize;

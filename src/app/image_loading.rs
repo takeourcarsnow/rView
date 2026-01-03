@@ -1,5 +1,5 @@
-use crate::image_loader;
 use crate::exif_data::ExifInfo;
+use crate::image_loader;
 use crate::profiler;
 use eframe::egui::{self, Vec2};
 use image::DynamicImage;
@@ -102,14 +102,18 @@ impl ImageViewerApp {
     fn load_standard_image(&mut self, path: &Path) {
         // Load progressive versions for better UX
         let path_clone = path.to_path_buf();
-        self.spawn_loader(move || {
-            match image_loader::load_image(&path_clone) {
-                Ok(full_image) => {
-                    let preview = image_loader::generate_thumbnail(&full_image, 1920);
-                    Some(super::LoaderMessage::ProgressiveLoaded(path_clone.clone(), preview))
-                }
-                Err(e) => Some(super::LoaderMessage::LoadError(path_clone, format!("{}", e))),
+        self.spawn_loader(move || match image_loader::load_image(&path_clone) {
+            Ok(full_image) => {
+                let preview = image_loader::generate_thumbnail(&full_image, 1920);
+                Some(super::LoaderMessage::ProgressiveLoaded(
+                    path_clone.clone(),
+                    preview,
+                ))
             }
+            Err(e) => Some(super::LoaderMessage::LoadError(
+                path_clone,
+                format!("{}", e),
+            )),
         });
 
         // Then load the full resolution
@@ -152,25 +156,40 @@ impl ImageViewerApp {
                 let adjustments_clone = self.adjustments.clone();
 
                 match pollster::block_on(async {
-                    gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                    gpu_clone
+                        .apply_adjustments_texture(&image_clone, &adjustments_clone)
+                        .await
                 }) {
                     Ok(img) => img,
                     Err(e) => {
-                        log::warn!("GPU texture adjustments failed: {}; falling back to buffer method", e);
+                        log::warn!(
+                            "GPU texture adjustments failed: {}; falling back to buffer method",
+                            e
+                        );
                         // Fallback to buffer-based GPU method
                         match gpu.apply_adjustments(&image_clone, &adjustments_clone) {
                             Ok(pixels) => {
                                 let width = image_clone.width();
                                 let height = image_clone.height();
-                                if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
+                                if let Some(buf) =
+                                    image::ImageBuffer::from_raw(width, height, pixels)
+                                {
                                     DynamicImage::ImageRgba8(buf)
                                 } else {
-                                    log::warn!("GPU returned unexpected buffer size; falling back to CPU");
-                                    image_loader::apply_adjustments(&image_clone, &adjustments_clone)
+                                    log::warn!(
+                                        "GPU returned unexpected buffer size; falling back to CPU"
+                                    );
+                                    image_loader::apply_adjustments(
+                                        &image_clone,
+                                        &adjustments_clone,
+                                    )
                                 }
                             }
                             Err(e) => {
-                                log::warn!("GPU buffer adjustments failed: {}; falling back to CPU", e);
+                                log::warn!(
+                                    "GPU buffer adjustments failed: {}; falling back to CPU",
+                                    e
+                                );
                                 image_loader::apply_adjustments(&image_clone, &adjustments_clone)
                             }
                         }
@@ -186,16 +205,20 @@ impl ImageViewerApp {
             image.clone()
         };
 
-        let size = [display_image.width() as usize, display_image.height() as usize];
+        let size = [
+            display_image.width() as usize,
+            display_image.height() as usize,
+        ];
         let rgba = display_image.to_rgba8();
         let pixels = rgba.as_flat_samples();
 
         profiler::with_profiler(|p| p.start_timer("texture_load"));
         // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
-        let texture_name = format!("{}_{}_{}x{}", 
-            path.to_string_lossy(), 
+        let texture_name = format!(
+            "{}_{}_{}x{}",
+            path.to_string_lossy(),
             self.adjustments.frame_enabled as u8,
-            size[0], 
+            size[0],
             size[1]
         );
         let texture = ctx.load_texture(
@@ -215,9 +238,7 @@ impl ImageViewerApp {
 
         // Calculate histogram
         self.histogram_data = if let Some(gpu) = &self.gpu_processor {
-            match pollster::block_on(async {
-                gpu.compute_histogram(&image).await
-            }) {
+            match pollster::block_on(async { gpu.compute_histogram(&image).await }) {
                 Ok(hist) => Some(hist),
                 Err(e) => {
                     log::warn!("GPU histogram failed: {}; falling back to CPU", e);
@@ -263,7 +284,9 @@ impl ImageViewerApp {
                 let adjustments_clone = self.adjustments.clone();
 
                 match pollster::block_on(async {
-                    gpu_clone.apply_adjustments_texture(&image_clone, &adjustments_clone).await
+                    gpu_clone
+                        .apply_adjustments_texture(&image_clone, &adjustments_clone)
+                        .await
                 }) {
                     Ok(img) => img,
                     Err(_) => {
@@ -278,15 +301,19 @@ impl ImageViewerApp {
             image.clone()
         };
 
-        let size = [display_image.width() as usize, display_image.height() as usize];
+        let size = [
+            display_image.width() as usize,
+            display_image.height() as usize,
+        ];
         let rgba = display_image.to_rgba8();
         let pixels = rgba.as_flat_samples();
 
         // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)
-        let texture_name = format!("{}_{}_{}x{}", 
-            path.to_string_lossy(), 
+        let texture_name = format!(
+            "{}_{}_{}x{}",
+            path.to_string_lossy(),
             self.adjustments.frame_enabled as u8,
-            size[0], 
+            size[0],
             size[1]
         );
         let texture = ctx.load_texture(
@@ -309,7 +336,9 @@ impl ImageViewerApp {
             if self.current_index + i < self.filtered_list.len() {
                 if let Some(&idx) = self.filtered_list.get(self.current_index + i) {
                     if let Some(path) = self.image_list.get(idx) {
-                        if crate::image_loader::is_raw_file(path) && !self.settings.load_raw_full_size {
+                        if crate::image_loader::is_raw_file(path)
+                            && !self.settings.load_raw_full_size
+                        {
                             thumb_paths.push(path.clone());
                         } else {
                             full_paths.push(path.clone());
@@ -320,7 +349,9 @@ impl ImageViewerApp {
             if self.current_index >= i {
                 if let Some(&idx) = self.filtered_list.get(self.current_index - i) {
                     if let Some(path) = self.image_list.get(idx) {
-                        if crate::image_loader::is_raw_file(path) && !self.settings.load_raw_full_size {
+                        if crate::image_loader::is_raw_file(path)
+                            && !self.settings.load_raw_full_size
+                        {
                             thumb_paths.push(path.clone());
                         } else {
                             full_paths.push(path.clone());
@@ -335,7 +366,8 @@ impl ImageViewerApp {
         }
         if !thumb_paths.is_empty() {
             // Preload embedded previews for RAW files (size this to a large value to get good-quality previews)
-            self.image_cache.preload_thumbnails_parallel(thumb_paths, 1920);
+            self.image_cache
+                .preload_thumbnails_parallel(thumb_paths, 1920);
         }
     }
 
@@ -353,7 +385,9 @@ impl ImageViewerApp {
 
         // Try a synchronous cache lookup to quickly satisfy from disk cache
         if let Some(img) = self.image_cache.get_thumbnail(path) {
-            let _ = self.loader_tx.send(super::LoaderMessage::ThumbnailLoaded(path.clone(), img));
+            let _ = self
+                .loader_tx
+                .send(super::LoaderMessage::ThumbnailLoaded(path.clone(), img));
             ctx.request_repaint();
             return;
         }
@@ -410,16 +444,17 @@ impl ImageViewerApp {
                         if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
                             let thumb_clone = thumb.clone();
                             cache.insert_thumbnail(p.clone(), thumb_clone);
-                            let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
+                            let _ =
+                                tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
                             ctx.request_repaint();
                         }
                     }
                 }
             } else if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
-                    let thumb_clone = thumb.clone();
-                    cache.insert_thumbnail(p.clone(), thumb_clone);
-                    let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
-                    ctx.request_repaint();
+                let thumb_clone = thumb.clone();
+                cache.insert_thumbnail(p.clone(), thumb_clone);
+                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
+                ctx.request_repaint();
             }
             profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
             // Notify main thread that this thumbnail request has completed (so it can clear in-flight flags)

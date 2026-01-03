@@ -1,6 +1,6 @@
 use crate::app::{ImageViewerApp, ViewMode};
 
-use egui::{self, Color32, RichText, Vec2, Rounding, Margin, FontFamily, FontId};
+use egui::{self, Color32, FontFamily, FontId, Margin, RichText, Rounding, Vec2};
 use iconflow::{try_icon, Pack, Size, Style};
 
 /// Helper to get a Lucide icon character
@@ -32,7 +32,6 @@ impl ImageViewerApp {
         let loupe_enabled = self.settings.loupe_enabled;
         let load_raw_full_size = self.settings.load_raw_full_size;
 
-        
         // Collect actions to perform after UI
         let mut open_folder = false;
         let mut open_file = false;
@@ -54,7 +53,7 @@ impl ImageViewerApp {
         let mut toggle_zebras = false;
         let mut toggle_grid = false;
         let mut toggle_loupe = false;
-    let mut toggle_panels = false;
+        let mut toggle_panels = false;
         let mut toggle_fullscreen = false;
         let mut show_settings = false;
         let mut show_command_palette = false;
@@ -63,7 +62,7 @@ impl ImageViewerApp {
         let mut toggle_before_after = false;
         let mut search_changed = false;
         let mut toggle_search = false;
-        
+
         egui::TopBottomPanel::top("toolbar")
             .frame(egui::Frame::none()
                 .fill(Color32::from_rgb(28, 28, 32))
@@ -72,7 +71,7 @@ impl ImageViewerApp {
                 egui::ScrollArea::horizontal().show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
-                    
+
                     // File operations - using Lucide icons
                     if icon_button(ui, lucide("folder-open"), "Open folder (Ctrl+Shift+O)").clicked() {
                         open_folder = true;
@@ -86,16 +85,16 @@ impl ImageViewerApp {
                     if icon_button(ui, lucide("download"), "Export image (Ctrl+S)").clicked() {
                         export_image = true;
                     }
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // Search button
                     if toggle_button(ui, lucide("search"), "Toggle search (Ctrl+F)", self.search_visible).clicked() {
                         toggle_search = true;
                     }
-                    
+
                     // Search bar (only shown when toggled on)
                     if self.search_visible {
                         ui.horizontal(|ui| {
@@ -113,17 +112,17 @@ impl ImageViewerApp {
                                 search_changed = true;
                             }
                         });
-                        
+
                         ui.add_space(8.0);
                         toolbar_separator(ui);
                         ui.add_space(8.0);
                     }
-                    
+
                     // Navigation (previous / next)
                     if icon_button(ui, lucide("chevron-left"), "Previous image (←)").clicked() {
                         go_prev = true;
                     }
-                    
+
                     // Image counter
                     if filtered_len > 0 {
                         let counter = format!("{}/{}", current_index + 1, filtered_len);
@@ -137,20 +136,20 @@ impl ImageViewerApp {
                             show_go_to = true;
                         }
                     }
-                    
+
                     if icon_button(ui, lucide("chevron-right"), "Next image (→)").clicked() {
                         go_next = true;
                     }
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // Zoom controls
                     if icon_button(ui, lucide("zoom-out"), "Zoom out (-)").clicked() {
                         zoom_out = true;
                     }
-                    
+
                     // Zoom slider
                     let mut zoom_pct = (zoom * 100.0) as i32;
                     let slider = egui::Slider::new(&mut zoom_pct, 10..=800)
@@ -158,22 +157,22 @@ impl ImageViewerApp {
                     if ui.add_sized(Vec2::new(80.0, 20.0), slider).changed() {
                         new_zoom = Some(zoom_pct as f32 / 100.0);
                     }
-                    
+
                     if icon_button(ui, lucide("zoom-in"), "Zoom in (+)").clicked() {
                         zoom_in = true;
                     }
-                    
+
                     // Zoom presets as buttons (Fit / Fill / 100%)
                     ui.horizontal(|ui| {
                         if ui.add(egui::Button::new("Fit").min_size(Vec2::new(48.0, 22.0))).clicked() { fit_window = true; }
                         if ui.add(egui::Button::new("Fill").min_size(Vec2::new(48.0, 22.0))).clicked() { fill_window = true; }
                         if ui.add(egui::Button::new("100%").min_size(Vec2::new(48.0, 22.0))).clicked() { new_zoom = Some(1.0); }
                     });
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // Rotation
                     if icon_button(ui, lucide("rotate-ccw"), "Rotate left (L)").clicked() {
                         rotate_left = true;
@@ -181,11 +180,11 @@ impl ImageViewerApp {
                     if icon_button(ui, lucide("rotate-cw"), "Rotate right (R)").clicked() {
                         rotate_right = true;
                     }
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // View modes
                     if toggle_button(ui, lucide("image"), "Single view", view_mode == ViewMode::Single).clicked() {
                         set_view_single = true;
@@ -194,11 +193,11 @@ impl ImageViewerApp {
                     if toggle_button(ui, lucide("layout-grid"), "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
                         toggle_lightbox = true;
                     }
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // Photography tools
                     if toggle_button(ui, lucide("focus"), "Focus peaking (Ctrl+F)", show_focus_peaking).clicked() {
                         toggle_focus_peaking = true;
@@ -227,65 +226,99 @@ impl ImageViewerApp {
                     if !self.adjustments.is_default() && toggle_button(ui, lucide("arrow-left-right"), "Toggle before/after view (\\)", self.show_original).clicked() {
                         toggle_before_after = true;
                     }
-                    
+
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
-                    
+
                     // Panel toggles
                     if toggle_button(ui, lucide("panel-left"), "Toggle all panels (P)", self.panels_hidden).clicked() {
                         toggle_panels = true;
                     }
-                    
+
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Help button
                         if icon_button(ui, lucide("help-circle"), "Keyboard shortcuts:\n←/→: Navigate\nSpace: Next\nBackspace: Previous\n1/0: 100%/Fit\nH: Toggle panels\nG: Grid view\nCtrl+F: Search\nF11: Fullscreen\nEsc: Close dialogs").clicked() {
                             // Just show tooltip, no action needed
                         }
-                        
+
                         // Settings (toggle)
                         if icon_button(ui, lucide("settings"), "Settings").clicked() {
                             show_settings = true;
                         }
-                        
+
                         if icon_button(ui, lucide("command"), "Command palette (Ctrl+P)").clicked() {
                             show_command_palette = true;
                         }
-                        
+
                         // Fullscreen
                         if toggle_button(ui, lucide("maximize"), "Fullscreen (F11)", is_fullscreen).clicked() {
                             toggle_fullscreen = true;
                         }
-                        
+
                         // (Slideshow removed per user preference)
                         toolbar_separator(ui);
-                        
+
 
                     });
                 });
             });
         });
-        
-        // Apply actions after UI
-        if open_folder { self.open_folder_dialog(); }
-        if open_file { self.open_file_dialog(); }
-        if show_move { self.show_move_dialog = true; }
-        if export_image { self.export_image(); }
-        if go_prev { self.previous_image(); }
-        if go_next { self.next_image(); }
-        if show_go_to { self.show_go_to_dialog = true; }
-        if show_settings { self.show_settings_dialog = !self.show_settings_dialog; }
-        if zoom_out { self.zoom_out(); }
-        if zoom_in { self.zoom_in(); }
-        if let Some(z) = new_zoom { self.zoom_to(z); }
-        if fit_window { self.fit_to_window(); }
-        if fill_window { self.fill_window(); }
-        if rotate_left { self.rotate_left(); }
-        if rotate_right { self.rotate_right(); }
-        if set_view_single { self.view_mode = ViewMode::Single; }
 
-        if toggle_lightbox { self.toggle_lightbox_mode(); }
+        // Apply actions after UI
+        if open_folder {
+            self.open_folder_dialog();
+        }
+        if open_file {
+            self.open_file_dialog();
+        }
+        if show_move {
+            self.show_move_dialog = true;
+        }
+        if export_image {
+            self.export_image();
+        }
+        if go_prev {
+            self.previous_image();
+        }
+        if go_next {
+            self.next_image();
+        }
+        if show_go_to {
+            self.show_go_to_dialog = true;
+        }
+        if show_settings {
+            self.show_settings_dialog = !self.show_settings_dialog;
+        }
+        if zoom_out {
+            self.zoom_out();
+        }
+        if zoom_in {
+            self.zoom_in();
+        }
+        if let Some(z) = new_zoom {
+            self.zoom_to(z);
+        }
+        if fit_window {
+            self.fit_to_window();
+        }
+        if fill_window {
+            self.fill_window();
+        }
+        if rotate_left {
+            self.rotate_left();
+        }
+        if rotate_right {
+            self.rotate_right();
+        }
+        if set_view_single {
+            self.view_mode = ViewMode::Single;
+        }
+
+        if toggle_lightbox {
+            self.toggle_lightbox_mode();
+        }
         if toggle_focus_peaking {
             self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
             if self.settings.show_focus_peaking {
@@ -302,10 +335,16 @@ impl ImageViewerApp {
                 }
             }
         }
-        if toggle_grid { self.settings.show_grid_overlay = !self.settings.show_grid_overlay; }
-        if toggle_loupe { self.settings.loupe_enabled = !self.settings.loupe_enabled; }
-        if toggle_panels { self.toggle_panels(); }
-        if toggle_fullscreen { 
+        if toggle_grid {
+            self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
+        }
+        if toggle_loupe {
+            self.settings.loupe_enabled = !self.settings.loupe_enabled;
+        }
+        if toggle_panels {
+            self.toggle_panels();
+        }
+        if toggle_fullscreen {
             self.is_fullscreen = !self.is_fullscreen;
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.is_fullscreen));
         }
@@ -326,7 +365,9 @@ impl ImageViewerApp {
                         self.spawn_loader(move || {
                             Some(match crate::image_loader::load_image(&path_clone) {
                                 Ok(image) => super::LoaderMessage::ImageLoaded(path_clone, image),
-                                Err(e) => super::LoaderMessage::LoadError(path_clone, format!("{}", e)),
+                                Err(e) => {
+                                    super::LoaderMessage::LoadError(path_clone, format!("{}", e))
+                                }
                             })
                         });
                     }
@@ -334,7 +375,9 @@ impl ImageViewerApp {
             }
         }
 
-        if show_command_palette { self.command_palette_open = true; }
+        if show_command_palette {
+            self.command_palette_open = true;
+        }
 
         if toggle_search {
             self.search_visible = !self.search_visible;
@@ -347,29 +390,36 @@ impl ImageViewerApp {
 
 fn icon_button<T: ToString>(ui: &mut egui::Ui, icon: T, tooltip: &str) -> egui::Response {
     let font_id = FontId::new(16.0, FontFamily::Name(lucide_font().into()));
-    ui.add(egui::Button::new(RichText::new(icon.to_string()).font(font_id))
-        .fill(Color32::TRANSPARENT)
-        .rounding(Rounding::same(4.0))
-        .min_size(Vec2::new(28.0, 28.0)))
-        .on_hover_text(tooltip)
+    ui.add(
+        egui::Button::new(RichText::new(icon.to_string()).font(font_id))
+            .fill(Color32::TRANSPARENT)
+            .rounding(Rounding::same(4.0))
+            .min_size(Vec2::new(28.0, 28.0)),
+    )
+    .on_hover_text(tooltip)
 }
 
-fn toggle_button<T: ToString>(ui: &mut egui::Ui, icon: T, tooltip: &str, active: bool) -> egui::Response {
+fn toggle_button<T: ToString>(
+    ui: &mut egui::Ui,
+    icon: T,
+    tooltip: &str,
+    active: bool,
+) -> egui::Response {
     let bg = if active {
         Color32::from_rgb(70, 130, 255)
     } else {
         Color32::TRANSPARENT
     };
-    
+
     let font_id = FontId::new(16.0, FontFamily::Name(lucide_font().into()));
-    ui.add(egui::Button::new(RichText::new(icon.to_string()).font(font_id))
-        .fill(bg)
-        .rounding(Rounding::same(4.0))
-        .min_size(Vec2::new(28.0, 28.0)))
-        .on_hover_text(tooltip)
+    ui.add(
+        egui::Button::new(RichText::new(icon.to_string()).font(font_id))
+            .fill(bg)
+            .rounding(Rounding::same(4.0))
+            .min_size(Vec2::new(28.0, 28.0)),
+    )
+    .on_hover_text(tooltip)
 }
-
-
 
 fn toolbar_separator(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(1.0, 20.0), egui::Sense::hover());

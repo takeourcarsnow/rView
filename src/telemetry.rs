@@ -15,12 +15,14 @@ pub struct TelemetryData {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Telemetry {
     data: TelemetryData,
     data_path: PathBuf,
     enabled: bool,
 }
 
+#[allow(dead_code)]
 impl Telemetry {
     pub fn new(enabled: bool) -> Self {
         let data_path = dirs::data_dir()

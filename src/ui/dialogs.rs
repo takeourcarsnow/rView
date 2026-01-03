@@ -1,5 +1,4 @@
 use crate::app::ImageViewerApp;
-use egui;
 
 impl ImageViewerApp {
     pub fn render_dialogs(&mut self, ctx: &egui::Context) {

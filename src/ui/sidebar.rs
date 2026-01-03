@@ -2,7 +2,7 @@ use crate::app::ImageViewerApp;
 use egui::{self, Color32, Margin, Stroke};
 
 // Use the modules from the parent ui crate
-use crate::ui::{navigator, histogram, adjustments, metadata, keywording, folders};
+use crate::ui::{adjustments, folders, histogram, keywording, metadata, navigator};
 
 // Lightroom-inspired color scheme
 const LR_BG_DARK: Color32 = Color32::from_rgb(38, 38, 38);
@@ -16,10 +16,12 @@ impl ImageViewerApp {
             .default_width(200.0)
             .min_width(150.0)
             .max_width(300.0)
-            .frame(egui::Frame::none()
-                .fill(LR_BG_DARK)
-                .stroke(Stroke::new(1.0, LR_BORDER))
-                .inner_margin(Margin::same(0.0)))
+            .frame(
+                egui::Frame::none()
+                    .fill(LR_BG_DARK)
+                    .stroke(Stroke::new(1.0, LR_BORDER))
+                    .inner_margin(Margin::same(0.0)),
+            )
             .show(ctx, |ui| {
                 // If catalog is enabled, show catalog panel and folders, otherwise show navigator
                 if self.catalog_enabled && self.catalog_db.is_some() {
@@ -46,10 +48,12 @@ impl ImageViewerApp {
             .default_width(280.0)
             .min_width(220.0)
             .max_width(400.0)
-            .frame(egui::Frame::none()
-                .fill(LR_BG_DARK)
-                .stroke(Stroke::new(1.0, LR_BORDER))
-                .inner_margin(Margin::same(0.0)))
+            .frame(
+                egui::Frame::none()
+                    .fill(LR_BG_DARK)
+                    .stroke(Stroke::new(1.0, LR_BORDER))
+                    .inner_margin(Margin::same(0.0)),
+            )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])

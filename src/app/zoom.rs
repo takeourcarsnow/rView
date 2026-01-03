@@ -1,5 +1,5 @@
-use eframe::egui::Vec2;
 use super::ImageViewerApp;
+use eframe::egui::Vec2;
 
 impl ImageViewerApp {
     pub fn reset_view(&mut self) {
