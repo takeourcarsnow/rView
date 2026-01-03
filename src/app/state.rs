@@ -195,6 +195,9 @@ pub struct ImageViewerApp {
     // Batch processing dialog
     pub batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog,
 
+    // Thumbnail scroll state
+    pub thumbnail_scroll_offset: Vec2,
+
     // Telemetry
     #[allow(dead_code)]
     pub telemetry: Option<crate::telemetry::Telemetry>,
@@ -413,6 +416,7 @@ impl ImageViewerApp {
             batch_rename_state: BatchRenameState::default(),
             batch_processing_dialog:
                 crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
+            thumbnail_scroll_offset: Vec2::ZERO,
             telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
         };
 

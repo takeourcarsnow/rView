@@ -18,13 +18,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         ui.spacing_mut().slider_width = ui.available_width() - 80.0;
 
         // WB: White Balance section
-        ui.horizontal(|ui| {
-            ui.label(RichText::new("WB:").size(11.0).color(LR_TEXT_LABEL));
-            ui.add_space(36.0);
-            // 'As Shot' removed — no preset label shown here
-        });
-
-        ui.add_space(4.0);
+        // 'As Shot' removed — no preset label shown here
 
         // Temperature
         let (changed, dragging) = lr_slider_ex(
@@ -45,10 +39,6 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
         lr_separator(ui);
         ui.add_space(4.0);
 
-        // Tone section header
-        ui.label(RichText::new("Tone").size(11.0).color(LR_TEXT_LABEL));
-        ui.add_space(4.0);
-
         // Exposure
         let (changed, dragging) = lr_slider_ex(
             ui,
@@ -66,10 +56,6 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
         ui.add_space(4.0);
         lr_separator(ui);
-        ui.add_space(4.0);
-
-        // Presence section
-        ui.label(RichText::new("Presence").size(11.0).color(LR_TEXT_LABEL));
         ui.add_space(4.0);
 
         // Saturation (convert from 0-2 to -100 to +100)

@@ -54,40 +54,6 @@ impl GpuProcessor {
                 usage: wgpu::BufferUsages::UNIFORM,
             });
 
-        // Create offset buffer (for chunked processing if needed)
-        let offset = 0u32;
-        let offset_buffer = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("adjustment_offset"),
-                contents: bytemuck::bytes_of(&offset),
-                usage: wgpu::BufferUsages::UNIFORM,
-            });
-
-        // Create bind group with the correct layout
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("adjustment_bind_group"),
-            layout: &self.adjustment_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: input_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: output_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: param_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: offset_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
         // Execute compute pass
         let mut encoder = self
             .device
@@ -95,14 +61,59 @@ impl GpuProcessor {
                 label: Some("adjustment_encoder"),
             });
 
-        {
-            let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("adjustment_pass"),
-                timestamp_writes: None,
+        const MAX_WORKGROUPS: u32 = 65535;
+        let workgroup_size = 256;
+        let mut offset = 0u32;
+        while offset < pixel_count as u32 {
+            let remaining_pixels = pixel_count as u32 - offset;
+            let max_pixels_this_dispatch = MAX_WORKGROUPS * workgroup_size;
+            let pixels_this_dispatch = remaining_pixels.min(max_pixels_this_dispatch);
+            let groups = pixels_this_dispatch.div_ceil(workgroup_size);
+
+            // Create offset buffer
+            let offset_buffer = self
+                .device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("adjustment_offset"),
+                    contents: bytemuck::bytes_of(&offset),
+                    usage: wgpu::BufferUsages::UNIFORM,
+                });
+
+            // Create bind group with the correct layout
+            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("adjustment_bind_group"),
+                layout: &self.adjustment_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: input_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: output_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: param_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: offset_buffer.as_entire_binding(),
+                    },
+                ],
             });
-            cpass.set_pipeline(&self.adjustment_pipeline);
-            cpass.set_bind_group(0, &bind_group, &[]);
-            cpass.dispatch_workgroups(((pixel_count + 255) / 256) as u32, 1, 1);
+
+            {
+                let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("adjustment_pass"),
+                    timestamp_writes: None,
+                });
+                cpass.set_pipeline(&self.adjustment_pipeline);
+                cpass.set_bind_group(0, &bind_group, &[]);
+                cpass.dispatch_workgroups(groups, 1, 1);
+            }
+
+            offset += pixels_this_dispatch;
         }
 
         // Download result

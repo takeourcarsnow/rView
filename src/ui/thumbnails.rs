@@ -119,17 +119,23 @@ impl ImageViewerApp {
             let total_width = total_items as f32 * item_width;
             let content_size = Vec2::new(total_width, item_height);
 
+            // Handle vertical mouse wheel for horizontal scrolling
+            let scroll_delta = ui.input(|i| i.raw_scroll_delta);
+            if scroll_delta.y != 0.0 {
+                let hover_pos = ui.input(|i| i.pointer.hover_pos());
+                if let Some(pos) = hover_pos {
+                    if ui.max_rect().contains(pos) {
+                        self.thumbnail_scroll_offset.x += -scroll_delta.y * 20.0;
+                    }
+                }
+            }
+
             ui.horizontal(|ui| {
-                egui::ScrollArea::horizontal()
+                let output = egui::ScrollArea::horizontal()
                     .auto_shrink([false, false])
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                    .scroll_offset(self.thumbnail_scroll_offset)
                     .show(ui, |ui| {
-                        // Convert vertical mouse wheel to horizontal scroll for the thumbnail strip
-                        // Only when mouse is over the thumbnail area
-                        let scroll_delta = ui.input(|i| i.raw_scroll_delta);
-                        if scroll_delta.y != 0.0 && ui.rect_contains_pointer(ui.max_rect()) {
-                            ui.scroll_with_delta(Vec2::new(-scroll_delta.y, 0.0));
-                        }
                         ui.allocate_space(content_size);
                         self.render_visible_thumbnails(
                             ui,
@@ -142,6 +148,7 @@ impl ImageViewerApp {
                             item_height,
                         );
                     });
+                self.thumbnail_scroll_offset = output.state.offset;
             });
         } else {
             let total_height = total_items as f32 * item_height;
@@ -150,6 +157,7 @@ impl ImageViewerApp {
             ui.vertical(|ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                     .show(ui, |ui| {
                         ui.allocate_space(content_size);
                         self.render_visible_thumbnails(
