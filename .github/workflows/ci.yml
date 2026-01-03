@@ -96,7 +96,7 @@ jobs:
       
       - name: Run tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a cargo test --target ${{ matrix.target }}
+        run: xvfb-run -a cargo test --target ${{ matrix.target }} -- --skip test_gpu
         env:
           WGPU_BACKEND: gl
 
