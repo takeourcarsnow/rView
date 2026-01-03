@@ -275,7 +275,12 @@ impl UndoHistory {
                             degrees
                         )
                     }
-                    FileOperation::Crop { path, width, height, .. } => {
+                    FileOperation::Crop {
+                        path,
+                        width,
+                        height,
+                        ..
+                    } => {
                         format!(
                             "Crop {} to {}x{}",
                             path.file_name().unwrap_or_default().to_string_lossy(),

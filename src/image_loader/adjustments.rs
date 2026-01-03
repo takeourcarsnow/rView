@@ -761,10 +761,26 @@ pub fn crop_image(image: &DynamicImage, x: u32, y: u32, width: u32, height: u32)
     let (img_width, img_height) = image.dimensions();
 
     // Ensure crop rectangle is within image bounds
-    let crop_x = if x < img_width { x } else { img_width.saturating_sub(1) };
-    let crop_y = if y < img_height { y } else { img_height.saturating_sub(1) };
-    let crop_width = if crop_x + width <= img_width { width } else { img_width.saturating_sub(crop_x) };
-    let crop_height = if crop_y + height <= img_height { height } else { img_height.saturating_sub(crop_y) };
+    let crop_x = if x < img_width {
+        x
+    } else {
+        img_width.saturating_sub(1)
+    };
+    let crop_y = if y < img_height {
+        y
+    } else {
+        img_height.saturating_sub(1)
+    };
+    let crop_width = if crop_x + width <= img_width {
+        width
+    } else {
+        img_width.saturating_sub(crop_x)
+    };
+    let crop_height = if crop_y + height <= img_height {
+        height
+    } else {
+        img_height.saturating_sub(crop_y)
+    };
 
     if crop_width == 0 || crop_height == 0 {
         return image.clone();

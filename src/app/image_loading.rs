@@ -223,17 +223,25 @@ impl ImageViewerApp {
         );
 
         // Check if texture is already cached
-        let cached_texture = if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
-            Some(cached_texture.clone())
-        } else {
-            None
-        };
+        let cached_texture =
+            if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
+                Some(cached_texture.clone())
+            } else {
+                None
+            };
 
         if let Some(texture) = cached_texture {
             // Update access time for LRU
-            self.texture_cache.insert(texture_name.clone(), (texture.clone(), std::time::Instant::now()));
+            self.texture_cache.insert(
+                texture_name.clone(),
+                (texture.clone(), std::time::Instant::now()),
+            );
             // Move to front of access order
-            if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name) {
+            if let Some(pos) = self
+                .texture_access_order
+                .iter()
+                .position(|x| x == &texture_name)
+            {
                 self.texture_access_order.remove(pos);
             }
             self.texture_access_order.push_front(texture_name);
@@ -363,17 +371,25 @@ impl ImageViewerApp {
         );
 
         // Check if texture is already cached
-        let cached_texture = if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
-            Some(cached_texture.clone())
-        } else {
-            None
-        };
+        let cached_texture =
+            if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
+                Some(cached_texture.clone())
+            } else {
+                None
+            };
 
         if let Some(texture) = cached_texture {
             // Update access time for LRU
-            self.texture_cache.insert(texture_name.clone(), (texture.clone(), std::time::Instant::now()));
+            self.texture_cache.insert(
+                texture_name.clone(),
+                (texture.clone(), std::time::Instant::now()),
+            );
             // Move to front of access order
-            if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name) {
+            if let Some(pos) = self
+                .texture_access_order
+                .iter()
+                .position(|x| x == &texture_name)
+            {
                 self.texture_access_order.remove(pos);
             }
             self.texture_access_order.push_front(texture_name);

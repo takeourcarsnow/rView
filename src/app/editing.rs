@@ -47,7 +47,11 @@ impl ImageViewerApp {
             self.crop_rect = None;
             self.crop_start_pos = None;
         }
-        self.show_status(if self.crop_mode { "Crop mode enabled" } else { "Crop mode disabled" });
+        self.show_status(if self.crop_mode {
+            "Crop mode enabled"
+        } else {
+            "Crop mode disabled"
+        });
     }
 
     pub fn apply_crop(&mut self) {
@@ -69,7 +73,13 @@ impl ImageViewerApp {
                         let previous_dimensions = image.dimensions();
 
                         // Apply crop to the image
-                        let cropped_image = image_loader::crop_image(image, crop_x, crop_y, crop_width, crop_height);
+                        let cropped_image = image_loader::crop_image(
+                            image,
+                            crop_x,
+                            crop_y,
+                            crop_width,
+                            crop_height,
+                        );
 
                         // Update the current image and texture
                         self.set_current_image(&path, cropped_image);

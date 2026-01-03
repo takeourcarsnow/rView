@@ -99,8 +99,8 @@ pub struct ImageViewerApp {
     pub available_view_size: Vec2, // Available space for image display
 
     // Crop state
-    pub crop_mode: bool, // Whether crop tool is active
-    pub crop_rect: Option<egui::Rect>, // Current crop rectangle in image coordinates
+    pub crop_mode: bool,                    // Whether crop tool is active
+    pub crop_rect: Option<egui::Rect>,      // Current crop rectangle in image coordinates
     pub crop_start_pos: Option<egui::Pos2>, // Starting position for crop drag
 
     // Adjustments
@@ -254,7 +254,7 @@ impl ImageViewerApp {
                         self.texture_cache
                             .keys()
                             .filter(|k| k.starts_with(&path_prefix))
-                            .cloned()
+                            .cloned(),
                     );
                 }
             }
@@ -264,7 +264,8 @@ impl ImageViewerApp {
         self.texture_cache
             .retain(|name, _| used_texture_names.contains(name));
         // Update access order to match
-        self.texture_access_order.retain(|name| used_texture_names.contains(name));
+        self.texture_access_order
+            .retain(|name| used_texture_names.contains(name));
     }
 
     pub fn refresh_adjustments_if_dirty(&mut self) {
@@ -403,7 +404,8 @@ impl ImageViewerApp {
             panels_hidden: false,
             gpu_initialization_attempted: false,
             batch_rename_state: BatchRenameState::default(),
-            batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
+            batch_processing_dialog:
+                crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
             update_checker: Some(crate::updates::UpdateChecker::new(
                 env!("CARGO_PKG_VERSION").to_string(),
             )),

@@ -10,10 +10,18 @@ pub struct BatchOperation {
 
 #[derive(Debug, Clone)]
 pub enum BatchOperationType {
-    Resize { width: u32, height: u32, maintain_aspect: bool },
-    ConvertFormat { format: String },
+    Resize {
+        width: u32,
+        height: u32,
+        maintain_aspect: bool,
+    },
+    ConvertFormat {
+        format: String,
+    },
     ApplyAdjustments,
-    Rename { pattern: String },
+    Rename {
+        pattern: String,
+    },
 }
 
 pub struct BatchProcessingDialog {
@@ -80,16 +88,22 @@ impl ImageViewerApp {
                 // File selection
                 ui.group(|ui| {
                     ui.label(RichText::new("Selected Files").strong());
-                    ui.label(format!("{} files selected", self.batch_processing_dialog.selected_files.len()));
+                    ui.label(format!(
+                        "{} files selected",
+                        self.batch_processing_dialog.selected_files.len()
+                    ));
 
                     ui.horizontal(|ui| {
                         if ui.button("Select Current Folder").clicked() {
                             if let Some(_folder) = &self.current_folder {
-                                self.batch_processing_dialog.selected_files = self.image_list.clone();
+                                self.batch_processing_dialog.selected_files =
+                                    self.image_list.clone();
                             }
                         }
                         if ui.button("Select All Filtered").clicked() {
-                            self.batch_processing_dialog.selected_files = self.filtered_list.iter()
+                            self.batch_processing_dialog.selected_files = self
+                                .filtered_list
+                                .iter()
                                 .filter_map(|&idx| self.image_list.get(idx))
                                 .cloned()
                                 .collect();
@@ -134,7 +148,11 @@ impl ImageViewerApp {
                                 ui.checkbox(&mut operation.enabled, "");
 
                                 match &mut operation.operation_type {
-                                    BatchOperationType::Resize { width, height, maintain_aspect } => {
+                                    BatchOperationType::Resize {
+                                        width,
+                                        height,
+                                        maintain_aspect,
+                                    } => {
                                         ui.label("Resize:");
                                         ui.add(egui::DragValue::new(width).range(1..=10000));
                                         ui.label("x");
@@ -146,10 +164,26 @@ impl ImageViewerApp {
                                         egui::ComboBox::from_label("")
                                             .selected_text(format.clone())
                                             .show_ui(ui, |ui| {
-                                                ui.selectable_value(format, "jpg".to_string(), "JPEG");
-                                                ui.selectable_value(format, "png".to_string(), "PNG");
-                                                ui.selectable_value(format, "webp".to_string(), "WebP");
-                                                ui.selectable_value(format, "tiff".to_string(), "TIFF");
+                                                ui.selectable_value(
+                                                    format,
+                                                    "jpg".to_string(),
+                                                    "JPEG",
+                                                );
+                                                ui.selectable_value(
+                                                    format,
+                                                    "png".to_string(),
+                                                    "PNG",
+                                                );
+                                                ui.selectable_value(
+                                                    format,
+                                                    "webp".to_string(),
+                                                    "WebP",
+                                                );
+                                                ui.selectable_value(
+                                                    format,
+                                                    "tiff".to_string(),
+                                                    "TIFF",
+                                                );
                                             });
                                     }
                                     BatchOperationType::ApplyAdjustments => {
@@ -172,7 +206,10 @@ impl ImageViewerApp {
                 if self.batch_processing_dialog.processing {
                     ui.group(|ui| {
                         ui.label(RichText::new("Processing...").strong());
-                        ui.add(egui::ProgressBar::new(self.batch_processing_dialog.progress).show_percentage());
+                        ui.add(
+                            egui::ProgressBar::new(self.batch_processing_dialog.progress)
+                                .show_percentage(),
+                        );
 
                         if let Some(file) = &self.batch_processing_dialog.current_file {
                             ui.label(format!("Current: {}", file));
