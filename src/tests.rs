@@ -136,16 +136,8 @@ mod unit_tests {
             ));
             let mut adj = crate::image_loader::ImageAdjustments::default();
             adj.exposure = 0.5;
-            adj.contrast = 1.1;
-            adj.brightness = 10.0;
             adj.saturation = 1.0;
-            adj.highlights = 0.0;
-            adj.shadows = 0.0;
             adj.temperature = 0.0;
-            adj.tint = 0.0;
-            adj.blacks = 0.0;
-            adj.whites = 0.0;
-            adj.sharpening = 0.0;
             adj.film = crate::image_loader::FilmEmulation::default();
 
             let out = proc
@@ -242,7 +234,6 @@ mod unit_tests {
         };
 
         let mut adj = ImageAdjustments::default();
-        adj.sharpening = 0.5;
         adj.film = FilmEmulation {
             enabled: true,
             grain: FilmGrain {
@@ -269,8 +260,7 @@ mod unit_tests {
         };
 
         let preview = adj.preview();
-        // Preview should disable sharpening and heavy film features
-        assert_eq!(preview.sharpening, 0.0);
+        // Preview should disable heavy film features
         assert_eq!(preview.film.enabled, false);
         assert_eq!(preview.film.grain.amount, 0.0);
         assert_eq!(preview.film.halation.amount, 0.0);
