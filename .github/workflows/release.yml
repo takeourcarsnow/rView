@@ -52,7 +52,7 @@ jobs:
       - name: Create portable archive
         run: |
           mkdir dist
-          cp target/release/rview.exe dist/
+          cp target/x86_64-pc-windows-msvc/release/rview.exe dist/
           cp README.md dist/
           cp LICENSE dist/
           Compress-Archive -Path dist/* -DestinationPath rview-windows-x86_64-portable.zip
@@ -66,7 +66,7 @@ jobs:
         run: |
           $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
           [IO.File]::WriteAllBytes("cert.pfx", $certBytes)
-          & signtool sign /f cert.pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 target/release/rview.exe
+          & signtool sign /f cert.pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 target/x86_64-pc-windows-msvc/release/rview.exe
           Remove-Item cert.pfx
         continue-on-error: true
       
@@ -75,7 +75,7 @@ jobs:
         with:
           name: rview-windows-x86_64
           path: |
-            target/release/rview.exe
+            target/x86_64-pc-windows-msvc/release/rview.exe
             rview-windows-x86_64-portable.zip
 
   # Build Linux with AppImage

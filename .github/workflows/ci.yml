@@ -174,7 +174,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rview-${{ matrix.os }}
-          path: target/release/rview.exe
+          path: target/${{ matrix.target }}/release/rview.exe
           retention-days: 7
       
       - name: Upload artifact (Unix)
@@ -182,7 +182,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: rview-${{ matrix.os }}
-          path: target/release/rview
+          path: target/${{ matrix.target }}/release/rview
           retention-days: 7
 
   # Coverage report (optional, runs on PRs to main)
