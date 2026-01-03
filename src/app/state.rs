@@ -425,6 +425,9 @@ impl ImageViewerApp {
             telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
         };
 
+        // Start background update check
+        app.check_for_updates();
+
         // Restore session
         if app.settings.restore_session {
             if let Some(ref folder) = app.settings.last_folder.clone() {
