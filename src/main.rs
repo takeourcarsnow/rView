@@ -14,7 +14,6 @@ mod settings;
 mod telemetry;
 mod tests;
 mod ui;
-mod updates;
 
 use app::ImageViewerApp;
 use eframe::egui::{self, FontData, FontDefinitions, FontFamily};
