@@ -177,19 +177,30 @@ impl ImageViewerApp {
         }
     }
 
-    fn handle_texture_created(&mut self, texture_name: PathBuf, texture: egui::TextureHandle, image: DynamicImage) {
+    fn handle_texture_created(
+        &mut self,
+        texture_name: PathBuf,
+        texture: egui::TextureHandle,
+        image: DynamicImage,
+    ) {
         // Cache the texture for future use with access time
         let texture_name_str = texture_name.to_string_lossy().to_string();
         let now = std::time::Instant::now();
 
         // Remove from access order if already exists
-        if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name_str) {
+        if let Some(pos) = self
+            .texture_access_order
+            .iter()
+            .position(|x| x == &texture_name_str)
+        {
             self.texture_access_order.remove(pos);
         }
 
         // Add to front of access order
-        self.texture_access_order.push_front(texture_name_str.clone());
-        self.texture_cache.insert(texture_name_str.clone(), (texture.clone(), now));
+        self.texture_access_order
+            .push_front(texture_name_str.clone());
+        self.texture_cache
+            .insert(texture_name_str.clone(), (texture.clone(), now));
 
         // Implement LRU eviction - keep only last 200 textures to prevent memory leaks
         const MAX_TEXTURE_CACHE_SIZE: usize = 200;
