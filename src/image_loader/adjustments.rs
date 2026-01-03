@@ -259,9 +259,15 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
                         let orig_r = r;
                         let orig_g = g;
                         let orig_b = b;
-                        r = orig_r + orig_g * film.color_crossover.green_in_red + orig_b * film.color_crossover.blue_in_red;
-                        g = orig_g + orig_r * film.color_crossover.red_in_green + orig_b * film.color_crossover.blue_in_green;
-                        b = orig_b + orig_r * film.color_crossover.red_in_blue + orig_g * film.color_crossover.green_in_blue;
+                        r = orig_r
+                            + orig_g * film.color_crossover.green_in_red
+                            + orig_b * film.color_crossover.blue_in_red;
+                        g = orig_g
+                            + orig_r * film.color_crossover.red_in_green
+                            + orig_b * film.color_crossover.blue_in_green;
+                        b = orig_b
+                            + orig_r * film.color_crossover.red_in_blue
+                            + orig_g * film.color_crossover.green_in_blue;
                     }
 
                     // Per-channel gamma (color response curves)

@@ -37,9 +37,9 @@ pub struct FilmEmulation {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FilmTone {
-    pub shadows: f32,    // Lift/lower shadows (-1.0 to 1.0)
-    pub midtones: f32,   // Adjust midtones (-1.0 to 1.0)
-    pub highlights: f32, // Compress/expand highlights (-1.0 to 1.0)
+    pub shadows: f32,          // Lift/lower shadows (-1.0 to 1.0)
+    pub midtones: f32,         // Adjust midtones (-1.0 to 1.0)
+    pub highlights: f32,       // Compress/expand highlights (-1.0 to 1.0)
     pub s_curve_strength: f32, // 0.0 to 1.0
 }
 

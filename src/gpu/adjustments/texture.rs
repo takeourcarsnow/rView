@@ -28,11 +28,13 @@ impl GpuProcessor {
         }
 
         // Create input and output buffers
-        let input_buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("adjustment_input_buffer"),
-            contents: bytemuck::cast_slice(&input_pixels),
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-        });
+        let input_buffer = self
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("adjustment_input_buffer"),
+                contents: bytemuck::cast_slice(&input_pixels),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            });
 
         let output_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("adjustment_output_buffer"),

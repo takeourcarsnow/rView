@@ -325,7 +325,12 @@ impl ImageViewerApp {
     }
 
     /// Internal version with histogram computation control
-    pub fn set_current_image_fast_internal(&mut self, path: &std::path::Path, image: DynamicImage, compute_histogram: bool) {
+    pub fn set_current_image_fast_internal(
+        &mut self,
+        path: &std::path::Path,
+        image: DynamicImage,
+        compute_histogram: bool,
+    ) {
         // Silence unused variable warning; spawn_loader will check ctx again as needed
         let _ctx = match &self.ctx {
             Some(c) => c.clone(),
@@ -354,7 +359,11 @@ impl ImageViewerApp {
                     image::imageops::FilterType::Triangle,
                 ));
                 self.showing_preview = true;
-                log::debug!("Using low-res preview {}x{} for fast adjustment rendering", new_w, new_h);
+                log::debug!(
+                    "Using low-res preview {}x{} for fast adjustment rendering",
+                    new_w,
+                    new_h
+                );
             }
         }
 
@@ -372,11 +381,12 @@ impl ImageViewerApp {
         );
 
         // Check if texture is already cached (fast path)
-        let cached_texture = if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
-            Some(cached_texture.clone())
-        } else {
-            None
-        };
+        let cached_texture =
+            if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
+                Some(cached_texture.clone())
+            } else {
+                None
+            };
 
         if let Some(texture) = cached_texture {
             // Update access time for LRU
@@ -420,11 +430,15 @@ impl ImageViewerApp {
                 display_input_clone.clone()
             };
             let elapsed = start.elapsed().as_millis();
-            log::debug!("apply_adjustments_fast worker took {} ms for preview", elapsed);
+            log::debug!(
+                "apply_adjustments_fast worker took {} ms for preview",
+                elapsed
+            );
 
             if compute_histogram_clone {
                 let hist = if let Some(gpu) = &gpu_clone {
-                    match pollster::block_on(async { gpu.compute_histogram(&display_image).await }) {
+                    match pollster::block_on(async { gpu.compute_histogram(&display_image).await })
+                    {
                         Ok(h) => h,
                         Err(e) => {
                             log::warn!("GPU histogram failed: {}; falling back to CPU", e);
@@ -440,10 +454,21 @@ impl ImageViewerApp {
             if let Some(ctx) = ctx_clone {
                 let rgba = display_image.to_rgba8();
                 let pixels = rgba.as_flat_samples();
-                let size = [display_image.width() as usize, display_image.height() as usize];
+                let size = [
+                    display_image.width() as usize,
+                    display_image.height() as usize,
+                ];
                 let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
-                let texture = ctx.load_texture(texture_name_clone.clone(), color_image, egui::TextureOptions::LINEAR);
-                Some(super::LoaderMessage::TextureCreated(PathBuf::from(texture_name_clone), texture, display_image))
+                let texture = ctx.load_texture(
+                    texture_name_clone.clone(),
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                Some(super::LoaderMessage::TextureCreated(
+                    PathBuf::from(texture_name_clone),
+                    texture,
+                    display_image,
+                ))
             } else {
                 None
             }

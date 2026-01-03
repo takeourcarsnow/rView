@@ -1,7 +1,9 @@
 use super::types::GpuProcessor;
 
 impl GpuProcessor {
-    pub fn create_adjustment_pipeline(device: &wgpu::Device) -> (wgpu::BindGroupLayout, wgpu::ComputePipeline) {
+    pub fn create_adjustment_pipeline(
+        device: &wgpu::Device,
+    ) -> (wgpu::BindGroupLayout, wgpu::ComputePipeline) {
         let shader_source = std::fs::read_to_string("shaders/adjustments.wgsl")
             .expect("Failed to read adjustments shader");
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

@@ -334,10 +334,18 @@ pub fn render_film_emulation_panel(
             ui.add_space(4.0);
 
             // Color Science (Advanced)
-            ui.label(RichText::new("Color Science").size(11.0).color(LR_TEXT_LABEL));
+            ui.label(
+                RichText::new("Color Science")
+                    .size(11.0)
+                    .color(LR_TEXT_LABEL),
+            );
 
             // Color Crossover
-            ui.label(RichText::new("Crossover").size(10.0).color(LR_TEXT_SECONDARY));
+            ui.label(
+                RichText::new("Crossover")
+                    .size(10.0)
+                    .color(LR_TEXT_SECONDARY),
+            );
             ui.add_space(2.0);
 
             let mut rig = app.adjustments.film.color_crossover.red_in_green * 100.0;
@@ -413,7 +421,11 @@ pub fn render_film_emulation_panel(
             ui.add_space(4.0);
 
             // Tone & Dynamic Range
-            ui.label(RichText::new("Tone & Dynamic Range").size(11.0).color(LR_TEXT_LABEL));
+            ui.label(
+                RichText::new("Tone & Dynamic Range")
+                    .size(11.0)
+                    .color(LR_TEXT_LABEL),
+            );
 
             let mut bp_display = app.adjustments.film.black_point * 1000.0;
             if lr_slider(ui, "Black Point", &mut bp_display, 0.0..=100.0, "", 0.0) {
@@ -441,10 +453,18 @@ pub fn render_film_emulation_panel(
             ui.add_space(4.0);
 
             // Color Grading
-            ui.label(RichText::new("Color Grading").size(11.0).color(LR_TEXT_LABEL));
+            ui.label(
+                RichText::new("Color Grading")
+                    .size(11.0)
+                    .color(LR_TEXT_LABEL),
+            );
 
             // Shadow Tint
-            ui.label(RichText::new("Shadow Tint").size(10.0).color(LR_TEXT_SECONDARY));
+            ui.label(
+                RichText::new("Shadow Tint")
+                    .size(10.0)
+                    .color(LR_TEXT_SECONDARY),
+            );
             ui.add_space(2.0);
 
             let mut shadow_r = app.adjustments.film.shadow_tint[0] * 100.0;
@@ -470,7 +490,11 @@ pub fn render_film_emulation_panel(
 
             // Highlight Tint
             ui.add_space(4.0);
-            ui.label(RichText::new("Highlight Tint").size(10.0).color(LR_TEXT_SECONDARY));
+            ui.label(
+                RichText::new("Highlight Tint")
+                    .size(10.0)
+                    .color(LR_TEXT_SECONDARY),
+            );
             ui.add_space(2.0);
 
             let mut highlight_r = app.adjustments.film.highlight_tint[0] * 100.0;
@@ -512,9 +536,16 @@ pub fn render_film_emulation_panel(
             });
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Enable Frame").size(10.0).color(LR_TEXT_LABEL));
+                ui.label(
+                    RichText::new("Enable Frame")
+                        .size(10.0)
+                        .color(LR_TEXT_LABEL),
+                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.checkbox(&mut app.adjustments.frame_enabled, "").changed() {
+                    if ui
+                        .checkbox(&mut app.adjustments.frame_enabled, "")
+                        .changed()
+                    {
                         *adjustments_changed = true;
                         app.mark_adjustments_dirty();
                     }
@@ -524,14 +555,25 @@ pub fn render_film_emulation_panel(
             if app.adjustments.frame_enabled {
                 // Frame Thickness
                 let mut thickness_display = app.adjustments.frame_thickness;
-                if lr_slider(ui, "Frame Thickness", &mut thickness_display, 0.0..=200.0, "", 80.0) {
+                if lr_slider(
+                    ui,
+                    "Frame Thickness",
+                    &mut thickness_display,
+                    0.0..=200.0,
+                    "",
+                    80.0,
+                ) {
                     app.adjustments.frame_thickness = thickness_display;
                     *adjustments_changed = true;
                     app.mark_adjustments_dirty();
                 }
 
                 // Frame Color (RGB sliders)
-                ui.label(RichText::new("Frame Color").size(10.0).color(LR_TEXT_SECONDARY));
+                ui.label(
+                    RichText::new("Frame Color")
+                        .size(10.0)
+                        .color(LR_TEXT_SECONDARY),
+                );
                 ui.add_space(2.0);
 
                 let mut r = (app.adjustments.frame_color[0] * 255.0) as u8;
@@ -540,19 +582,28 @@ pub fn render_film_emulation_panel(
 
                 ui.horizontal(|ui| {
                     ui.label(RichText::new("R").size(10.0).color(LR_TEXT_LABEL));
-                    if ui.add(egui::Slider::new(&mut r, 0..=255).show_value(false)).changed() {
+                    if ui
+                        .add(egui::Slider::new(&mut r, 0..=255).show_value(false))
+                        .changed()
+                    {
                         app.adjustments.frame_color[0] = r as f32 / 255.0;
                         *adjustments_changed = true;
                         app.mark_adjustments_dirty();
                     }
                     ui.label(RichText::new("G").size(10.0).color(LR_TEXT_LABEL));
-                    if ui.add(egui::Slider::new(&mut g, 0..=255).show_value(false)).changed() {
+                    if ui
+                        .add(egui::Slider::new(&mut g, 0..=255).show_value(false))
+                        .changed()
+                    {
                         app.adjustments.frame_color[1] = g as f32 / 255.0;
                         *adjustments_changed = true;
                         app.mark_adjustments_dirty();
                     }
                     ui.label(RichText::new("B").size(10.0).color(LR_TEXT_LABEL));
-                    if ui.add(egui::Slider::new(&mut b, 0..=255).show_value(false)).changed() {
+                    if ui
+                        .add(egui::Slider::new(&mut b, 0..=255).show_value(false))
+                        .changed()
+                    {
                         app.adjustments.frame_color[2] = b as f32 / 255.0;
                         *adjustments_changed = true;
                         app.mark_adjustments_dirty();

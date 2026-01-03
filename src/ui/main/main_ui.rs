@@ -50,7 +50,6 @@ impl eframe::App for ImageViewerApp {
 
         // Menu bar removed per user request
 
-
         // Handle dropped files
         self.handle_dropped_files(ctx);
 

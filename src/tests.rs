@@ -237,7 +237,9 @@ mod unit_tests {
 
     #[test]
     fn test_preview_adjustments_lightweight() {
-        use crate::image_loader::{ImageAdjustments, FilmEmulation, FilmGrain, FilmHalation, FilmTone, FilmVignette};
+        use crate::image_loader::{
+            FilmEmulation, FilmGrain, FilmHalation, FilmTone, FilmVignette, ImageAdjustments,
+        };
 
         let mut adj = ImageAdjustments::default();
         adj.sharpening = 0.5;
@@ -278,7 +280,7 @@ mod unit_tests {
 
     #[test]
     fn test_film_emulation_grain() {
-        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments, FilmGrain};
+        use crate::image_loader::{apply_adjustments, FilmEmulation, FilmGrain, ImageAdjustments};
 
         // Create a flat gray image
         let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
@@ -321,7 +323,7 @@ mod unit_tests {
 
     #[test]
     fn test_film_emulation_s_curve() {
-        use crate::image_loader::{apply_adjustments, FilmEmulation, ImageAdjustments, FilmTone};
+        use crate::image_loader::{apply_adjustments, FilmEmulation, FilmTone, ImageAdjustments};
 
         // Test that S-curve increases contrast (darkens shadows, brightens highlights)
         let dark_img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
