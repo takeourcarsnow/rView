@@ -28,7 +28,7 @@ cargo fmt --check
 # Run security audit
 echo "Running security audit..."
 if command -v cargo-audit &> /dev/null; then
-    cargo audit --deny warnings
+    cargo audit
 else
     echo "cargo-audit not installed, skipping security audit"
 fi

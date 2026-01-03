@@ -133,7 +133,9 @@ impl ImageViewerApp {
             ui.horizontal(|ui| {
                 let output = egui::ScrollArea::horizontal()
                     .auto_shrink([false, false])
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                    .scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                    )
                     .scroll_offset(self.thumbnail_scroll_offset)
                     .show(ui, |ui| {
                         ui.allocate_space(content_size);
@@ -157,7 +159,9 @@ impl ImageViewerApp {
             ui.vertical(|ui| {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                    .scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                    )
                     .show(ui, |ui| {
                         ui.allocate_space(content_size);
                         self.render_visible_thumbnails(
