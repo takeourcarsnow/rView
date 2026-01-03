@@ -13,3 +13,5 @@ todo
 [DONE] undo / redo doesnt work or not implemented (fixed: Ctrl+Z=undo, Ctrl+Shift+Z/Ctrl+Y=redo, Alt+Z=zebras)
 
 [DONE] doubleclick on slider to reset sliders to default value (improved double-click detection)
+
+fix emails
