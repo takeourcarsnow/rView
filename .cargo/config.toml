@@ -59,8 +59,5 @@ rustflags = ["-C", "target-feature=+crt-static"]
 linker = "zig cc -target x86_64-macos"
 
 [env]
-CC_x86_64-unknown-linux-gnu = "zig cc"
-CFLAGS_x86_64-unknown-linux-gnu = "--target=x86_64-linux"
-CC_x86_64-apple-darwin = "zig cc -target x86_64-macos"
 # Reduce SQLite compile time
 SQLITE_MAX_VARIABLE_NUMBER = "250000"
