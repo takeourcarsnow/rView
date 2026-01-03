@@ -20,7 +20,7 @@ impl GpuProcessor {
                 }),
             ),
             module: &shader,
-            entry_point: "main",
+            entry_point: Some("main"),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             cache: None,
         })
@@ -70,7 +70,7 @@ impl GpuProcessor {
             label: Some("histogram_pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
-            entry_point: "main",
+            entry_point: Some("main"),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             cache: None,
         });
@@ -97,7 +97,7 @@ impl GpuProcessor {
                 }),
             ),
             module: &shader,
-            entry_point: "main",
+            entry_point: Some("main"),
             compilation_options: wgpu::PipelineCompilationOptions::default(),
             cache: None,
         })
@@ -131,7 +131,7 @@ impl GpuProcessor {
                     }),
                 ),
                 module: &shader,
-                entry_point: "main",
+                entry_point: Some("main"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             }),

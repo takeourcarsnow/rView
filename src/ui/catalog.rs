@@ -63,7 +63,7 @@ impl ImageViewerApp {
                         // Make collection droppable for drag-and-drop from thumbnails
                         let (drop_response, dropped_payload) = ui
                             .dnd_drop_zone::<std::path::PathBuf, _>(
-                                egui::Frame::none(),
+                                egui::Frame::NONE,
                                 |ui: &mut egui::Ui| ui.selectable_label(is_selected, &label),
                             );
 

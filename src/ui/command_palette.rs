@@ -1,5 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Margin, Rounding, Vec2};
+use egui::{self, Color32, CornerRadius, Margin, Vec2};
 
 impl ImageViewerApp {
     pub fn render_command_palette(&mut self, ctx: &egui::Context) {
@@ -20,10 +20,10 @@ impl ImageViewerApp {
             .fixed_size(Vec2::new(500.0, 400.0))
             .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, 100.0))
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(Color32::from_rgb(35, 35, 40))
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(Margin::same(12.0)),
+                    .corner_radius(CornerRadius::same(8))
+                    .inner_margin(Margin::same(12)),
             )
             .show(ctx, |ui| {
                 // Search input

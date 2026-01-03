@@ -1,11 +1,11 @@
 use crate::app::ImageViewerApp;
 use crate::settings::BackgroundColor;
-use egui::{self, Color32, Rect, Rounding, Vec2};
+use egui::{self, Color32, CornerRadius, Rect, Vec2};
 
 impl ImageViewerApp {
     pub fn render_main_view(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(self.settings.background_color.to_color()))
+            .frame(egui::Frame::NONE.fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
                 match self.view_mode {
                     crate::app::ViewMode::Single => self.render_single_view(ui, ctx),
@@ -61,7 +61,7 @@ impl ImageViewerApp {
                 );
                 ui.painter().rect_filled(
                     indicator_rect,
-                    Rounding::same(6.0),
+                    CornerRadius::same(6),
                     Color32::from_rgba_unmultiplied(0, 0, 0, 200),
                 );
                 ui.painter().text(
@@ -89,7 +89,7 @@ impl ImageViewerApp {
             let bg_rect = Rect::from_center_size(rect.center(), Vec2::new(300.0, 80.0));
             ui.painter().rect_filled(
                 bg_rect,
-                Rounding::same(12.0),
+                CornerRadius::same(12),
                 Color32::from_rgba_unmultiplied(20, 20, 25, 220),
             );
 
@@ -112,7 +112,7 @@ impl ImageViewerApp {
             // Background
             ui.painter().rect_filled(
                 progress_rect,
-                Rounding::same(2.0),
+                CornerRadius::same(2),
                 Color32::from_rgb(60, 60, 65),
             );
 
@@ -125,7 +125,7 @@ impl ImageViewerApp {
             );
             ui.painter().rect_filled(
                 fill_rect,
-                Rounding::same(2.0),
+                CornerRadius::same(2),
                 Color32::from_rgb(100, 150, 255),
             );
 
@@ -176,7 +176,7 @@ impl ImageViewerApp {
 
         ui.painter().rect_filled(
             overlay_rect,
-            Rounding::same(6.0),
+            CornerRadius::same(6),
             Color32::from_rgba_unmultiplied(0, 0, 0, 180),
         );
 

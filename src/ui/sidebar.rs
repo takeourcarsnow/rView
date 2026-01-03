@@ -17,10 +17,10 @@ impl ImageViewerApp {
             .min_width(150.0)
             .max_width(300.0)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(LR_BG_DARK)
                     .stroke(Stroke::new(1.0, LR_BORDER))
-                    .inner_margin(Margin::same(0.0)),
+                    .inner_margin(Margin::same(0)),
             )
             .show(ctx, |ui| {
                 // If catalog is enabled, show catalog panel and folders, otherwise show navigator
@@ -49,10 +49,10 @@ impl ImageViewerApp {
             .min_width(220.0)
             .max_width(400.0)
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(LR_BG_DARK)
                     .stroke(Stroke::new(1.0, LR_BORDER))
-                    .inner_margin(Margin::same(0.0)),
+                    .inner_margin(Margin::same(0)),
             )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()

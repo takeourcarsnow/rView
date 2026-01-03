@@ -9,12 +9,12 @@ repository = "https://github.com/rview-app/rview"
 
 [dependencies]
 # GUI Framework
-eframe = { version = "0.30", features = ["persistence"] }
-egui = "0.30"
-egui_extras = { version = "0.30", features = ["image"] }
+eframe = { version = "0.31", features = ["persistence"] }
+egui = "0.31"
+egui_extras = { version = "0.31", features = ["image"] }
 
 # Image processing
-image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp", "ico", "pnm", "dds", "tga", "hdr", "exr", "qoi"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "tiff", "webp", "ico", "pnm", "dds", "tga", "hdr", "exr", "qoi"] }
 rawloader = "0.37"
 imagepipe = "0.5"
 imageproc = "0.25"
@@ -22,7 +22,7 @@ imageproc = "0.25"
 # The improved algorithms (ACES, OKLab, AHD demosaic) are implemented directly in our code instead
 
 # Async runtime - only include what's needed (reduces compile time significantly)
-tokio = { version = "1.40", features = ["rt-multi-thread", "sync", "fs", "io-util", "time", "macros"] }
+tokio = { version = "1.42", features = ["rt-multi-thread", "sync", "fs", "io-util", "time", "macros"] }
 
 # File dialogs
 rfd = "0.15"
@@ -50,7 +50,7 @@ walkdir = "2"
 natord = "1.0"
 
 # Clipboard
-arboard = "3"
+arboard = "3.4"
 
 # EXIF data
 kamadak-exif = "0.5"
@@ -90,9 +90,9 @@ rayon = "1.10"
 lazy_static = "1.4"
 
 # GPU acceleration
-wgpu = "22.0"
+wgpu = "23.0"
 pollster = "0.4"
-bytemuck = "1.16"
+bytemuck = "1.18"
 futures-intrusive = "0.5"
 
 # Random number generation

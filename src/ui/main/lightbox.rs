@@ -1,10 +1,10 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Rounding, Vec2};
+use egui::{self, Color32, CornerRadius, Vec2};
 
 impl ImageViewerApp {
     pub(crate) fn render_lightbox(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(self.settings.background_color.to_color()))
+            .frame(egui::Frame::NONE.fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
                 let _available = ui.available_size();
                 let thumb_size = 150.0;
@@ -52,7 +52,7 @@ impl ImageViewerApp {
                                     Color32::from_rgb(35, 35, 40)
                                 };
 
-                                painter.rect_filled(rect, Rounding::same(6.0), bg_color);
+                                painter.rect_filled(rect, CornerRadius::same(6), bg_color);
 
                                 // Thumbnail (preserve aspect ratio)
                                 if let Some(handle) = self.thumbnail_textures.get(path) {

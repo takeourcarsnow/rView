@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::GridType;
-use egui::{self, Color32, Rect, Rounding, Stroke, Vec2};
+use egui::{self, Color32, CornerRadius, Rect, Stroke, StrokeKind, Vec2};
 
 impl ImageViewerApp {
     pub(crate) fn draw_overlays(&self, ui: &mut egui::Ui, image_rect: Rect) {
@@ -142,7 +142,7 @@ impl ImageViewerApp {
                 .intersect(rect);
 
                 ui.painter()
-                    .rect_filled(checker_rect, Rounding::ZERO, color);
+                    .rect_filled(checker_rect, CornerRadius::ZERO, color);
             }
         }
     }
@@ -227,7 +227,7 @@ impl ImageViewerApp {
 
             ui.painter().rect_filled(
                 info_rect,
-                Rounding::same(4.0),
+                CornerRadius::same(4),
                 Color32::from_rgba_unmultiplied(0, 0, 0, 200),
             );
 
@@ -237,7 +237,7 @@ impl ImageViewerApp {
                 Vec2::splat(30.0),
             );
             ui.painter()
-                .rect_filled(swatch_rect, Rounding::same(2.0), Color32::from_rgb(r, g, b));
+                .rect_filled(swatch_rect, CornerRadius::same(2), Color32::from_rgb(r, g, b));
 
             // RGB values
             ui.painter().text(
@@ -272,7 +272,7 @@ impl ImageViewerApp {
                     egui::pos2(image_rect.min.x, image_rect.min.y),
                     egui::pos2(image_rect.max.x, crop_rect.min.y),
                 );
-                painter.rect_filled(top_rect, Rounding::ZERO, overlay_color);
+                painter.rect_filled(top_rect, CornerRadius::ZERO, overlay_color);
             }
 
             // Bottom area
@@ -281,7 +281,7 @@ impl ImageViewerApp {
                     egui::pos2(image_rect.min.x, crop_rect.max.y),
                     egui::pos2(image_rect.max.x, image_rect.max.y),
                 );
-                painter.rect_filled(bottom_rect, Rounding::ZERO, overlay_color);
+                painter.rect_filled(bottom_rect, CornerRadius::ZERO, overlay_color);
             }
 
             // Left area
@@ -290,7 +290,7 @@ impl ImageViewerApp {
                     egui::pos2(image_rect.min.x, crop_rect.min.y),
                     egui::pos2(crop_rect.min.x, crop_rect.max.y),
                 );
-                painter.rect_filled(left_rect, Rounding::ZERO, overlay_color);
+                painter.rect_filled(left_rect, CornerRadius::ZERO, overlay_color);
             }
 
             // Right area
@@ -299,12 +299,12 @@ impl ImageViewerApp {
                     egui::pos2(crop_rect.max.x, crop_rect.min.y),
                     egui::pos2(image_rect.max.x, crop_rect.max.y),
                 );
-                painter.rect_filled(right_rect, Rounding::ZERO, overlay_color);
+                painter.rect_filled(right_rect, CornerRadius::ZERO, overlay_color);
             }
 
             // Draw crop rectangle border
             let border_stroke = Stroke::new(2.0, Color32::from_rgb(255, 255, 255));
-            painter.rect_stroke(crop_rect, Rounding::ZERO, border_stroke);
+            painter.rect_stroke(crop_rect, CornerRadius::ZERO, border_stroke, StrokeKind::Inside);
 
             // Draw corner handles
             let handle_size = 8.0;
@@ -321,8 +321,8 @@ impl ImageViewerApp {
 
             for corner in corners {
                 let handle_rect = Rect::from_center_size(corner, Vec2::splat(handle_size));
-                painter.rect_filled(handle_rect, Rounding::ZERO, handle_color);
-                painter.rect_stroke(handle_rect, Rounding::ZERO, handle_stroke);
+                painter.rect_filled(handle_rect, CornerRadius::ZERO, handle_color);
+                painter.rect_stroke(handle_rect, CornerRadius::ZERO, handle_stroke, StrokeKind::Inside);
             }
         }
     }

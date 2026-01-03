@@ -5,9 +5,9 @@ impl ImageViewerApp {
     pub(crate) fn render_statusbar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::bottom("statusbar")
             .frame(
-                egui::Frame::none()
+                egui::Frame::NONE
                     .fill(Color32::from_rgb(25, 25, 28))
-                    .inner_margin(Margin::symmetric(12.0, 4.0)),
+                    .inner_margin(Margin::symmetric(12, 4)),
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {

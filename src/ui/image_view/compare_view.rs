@@ -1,5 +1,5 @@
 use crate::app::{ImageViewerApp, LoaderMessage, ViewMode};
-use egui::{self, Color32, Rect, Rounding};
+use egui::{self, Color32, CornerRadius, Rect};
 
 impl ImageViewerApp {
     pub(crate) fn render_compare_view_public(&mut self, ctx: &egui::Context) {
@@ -8,7 +8,7 @@ impl ImageViewerApp {
 
     pub(crate) fn render_compare_view(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(self.settings.background_color.to_color()))
+            .frame(egui::Frame::NONE.fill(self.settings.background_color.to_color()))
             .show(ctx, |ui| {
                 let available = ui.available_size();
 
@@ -53,7 +53,7 @@ impl ImageViewerApp {
                             let rect = left_resp.rect;
                             left_painter.rect_filled(
                                 rect,
-                                Rounding::same(2.0),
+                                CornerRadius::same(2),
                                 Color32::from_rgb(20, 20, 22),
                             );
 
@@ -156,7 +156,7 @@ impl ImageViewerApp {
                                         );
                                         left_painter.rect_filled(
                                             overlay_rect,
-                                            Rounding::same(6.0),
+                                            CornerRadius::same(6),
                                             Color32::from_rgba_unmultiplied(0, 0, 0, 160),
                                         );
                                         let camera = exif
@@ -333,7 +333,7 @@ impl ImageViewerApp {
                             let rect = right_resp.rect;
                             right_painter.rect_filled(
                                 rect,
-                                Rounding::same(2.0),
+                                CornerRadius::same(2),
                                 Color32::from_rgb(20, 20, 22),
                             );
 
@@ -427,7 +427,7 @@ impl ImageViewerApp {
                                     );
                                     right_painter.rect_filled(
                                         overlay_rect,
-                                        Rounding::same(6.0),
+                                        CornerRadius::same(6),
                                         Color32::from_rgba_unmultiplied(0, 0, 0, 160),
                                     );
                                     right_painter.text(

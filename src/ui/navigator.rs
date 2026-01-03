@@ -1,5 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Rect, RichText, Vec2};
+use egui::{self, Color32, Rect, RichText, StrokeKind, Vec2};
 const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
 const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
 const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);
@@ -11,7 +11,7 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
     let header_rect = Rect::from_min_size(header_rect.min, Vec2::new(ui.available_width(), 24.0));
 
     ui.painter()
-        .rect_filled(header_rect, egui::Rounding::ZERO, LR_HEADER_BG);
+        .rect_filled(header_rect, egui::CornerRadius::ZERO, LR_HEADER_BG);
     ui.painter().hline(
         header_rect.x_range(),
         header_rect.bottom(),
@@ -29,9 +29,9 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
 
     // Contents
     ui.add_space(4.0);
-    egui::Frame::none()
+    egui::Frame::NONE
         .fill(LR_BG_PANEL)
-        .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+        .inner_margin(egui::Margin::symmetric(8, 6))
         .show(ui, |ui| {
             let available_width = ui.available_width();
             let nav_height = 140.0;
@@ -118,7 +118,7 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
             // Background
             painter.rect_filled(
                 nav_rect,
-                egui::Rounding::ZERO,
+                egui::CornerRadius::ZERO,
                 Color32::from_rgb(34, 34, 34),
             );
 
@@ -177,8 +177,9 @@ pub fn render_navigator_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                     // Draw viewport rectangle
                     painter.rect_stroke(
                         vp_rect,
-                        egui::Rounding::ZERO,
+                        egui::CornerRadius::ZERO,
                         egui::Stroke::new(2.0, Color32::from_rgb(255, 255, 255)),
+                        StrokeKind::Inside,
                     );
 
                     // Handle click-to-pan: clicking anywhere in the navigator centers the view there

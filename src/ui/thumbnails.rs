@@ -1,6 +1,6 @@
 use crate::app::ImageViewerApp;
 use crate::settings::{ColorLabel, ThumbnailPosition};
-use egui::{self, Color32, Margin, Rect, Rounding, Vec2};
+use egui::{self, Color32, CornerRadius, Margin, Rect, Vec2};
 use std::path::PathBuf;
 
 impl ImageViewerApp {
@@ -40,9 +40,9 @@ impl ImageViewerApp {
                     .resizable(false)
                     .exact_height(bar_size)
                     .frame(
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(Color32::from_rgb(25, 25, 28))
-                            .inner_margin(Margin::symmetric(4.0, 8.0)),
+                            .inner_margin(Margin::symmetric(4, 8)),
                     )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, true);
@@ -53,9 +53,9 @@ impl ImageViewerApp {
                     .resizable(false)
                     .exact_height(bar_size)
                     .frame(
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(Color32::from_rgb(25, 25, 28))
-                            .inner_margin(Margin::symmetric(4.0, 8.0)),
+                            .inner_margin(Margin::symmetric(4, 8)),
                     )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, true);
@@ -66,9 +66,9 @@ impl ImageViewerApp {
                     .resizable(false)
                     .exact_width(bar_size)
                     .frame(
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(Color32::from_rgb(25, 25, 28))
-                            .inner_margin(Margin::symmetric(8.0, 4.0)),
+                            .inner_margin(Margin::symmetric(8, 4)),
                     )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, false);
@@ -79,9 +79,9 @@ impl ImageViewerApp {
                     .resizable(false)
                     .exact_width(bar_size)
                     .frame(
-                        egui::Frame::none()
+                        egui::Frame::NONE
                             .fill(Color32::from_rgb(25, 25, 28))
-                            .inner_margin(Margin::symmetric(8.0, 4.0)),
+                            .inner_margin(Margin::symmetric(8, 4)),
                     )
                     .show(ctx, |ui| {
                         self.render_thumbnail_contents(ui, ctx, false);
@@ -344,7 +344,7 @@ impl ImageViewerApp {
             Color32::from_rgb(35, 35, 40)
         };
 
-        painter.rect_filled(image_area, Rounding::same(4.0), bg_color);
+        painter.rect_filled(image_area, CornerRadius::same(4), bg_color);
 
         // Thumbnail image (preserve original aspect ratio) inside the reserved image area
         if let Some(tex_id) = tex_id {

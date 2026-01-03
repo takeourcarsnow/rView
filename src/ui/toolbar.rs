@@ -1,6 +1,6 @@
 use crate::app::{ImageViewerApp, ViewMode};
 
-use egui::{self, Color32, FontFamily, FontId, Margin, RichText, Rounding, Vec2};
+use egui::{self, Color32, CornerRadius, FontFamily, FontId, Margin, RichText, Vec2};
 use iconflow::{try_icon, Pack, Size, Style};
 
 /// Helper to get a Lucide icon character
@@ -67,9 +67,9 @@ impl ImageViewerApp {
         let mut toggle_search = false;
 
         egui::TopBottomPanel::top("toolbar")
-            .frame(egui::Frame::none()
+            .frame(egui::Frame::NONE
                 .fill(Color32::from_rgb(28, 28, 32))
-                .inner_margin(Margin::symmetric(8.0, 6.0)))
+                .inner_margin(Margin::symmetric(8, 6)))
             .show(ctx, |ui| {
                 egui::ScrollArea::horizontal().show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -135,7 +135,7 @@ impl ImageViewerApp {
                         if ui.add(egui::Button::new(
                             RichText::new(&counter).size(12.0).color(Color32::from_rgb(180, 180, 180))
                         ).fill(Color32::from_rgb(40, 40, 45))
-                         .rounding(Rounding::same(4.0))
+                         .corner_radius(CornerRadius::same(4))
                          .min_size(Vec2::new(60.0, 24.0)))
                          .on_hover_text("Go to image (Ctrl+G)")
                          .clicked() {
@@ -416,7 +416,7 @@ fn icon_button<T: ToString>(ui: &mut egui::Ui, icon: T, tooltip: &str) -> egui::
     ui.add(
         egui::Button::new(RichText::new(icon.to_string()).font(font_id))
             .fill(Color32::TRANSPARENT)
-            .rounding(Rounding::same(4.0))
+            .corner_radius(CornerRadius::same(4))
             .min_size(Vec2::new(28.0, 28.0)),
     )
     .on_hover_text(tooltip)
@@ -438,7 +438,7 @@ fn toggle_button<T: ToString>(
     ui.add(
         egui::Button::new(RichText::new(icon.to_string()).font(font_id))
             .fill(bg)
-            .rounding(Rounding::same(4.0))
+            .corner_radius(CornerRadius::same(4))
             .min_size(Vec2::new(28.0, 28.0)),
     )
     .on_hover_text(tooltip)

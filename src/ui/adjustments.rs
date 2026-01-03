@@ -1,7 +1,7 @@
 use crate::app::ImageViewerApp;
 use crate::image_loader::{FilmPreset, ImageAdjustments};
 use crate::metadata::FileOperation;
-use egui::{self, Color32, Rect, RichText, Rounding, Stroke, Vec2};
+use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, Vec2};
 
 // Lightroom-inspired color scheme
 const LR_BG_INPUT: Color32 = Color32::from_rgb(34, 34, 34);
@@ -237,7 +237,7 @@ pub fn render_basic_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
                     egui::Button::new(RichText::new("Reset").size(10.0).color(LR_TEXT_SECONDARY))
                         .fill(LR_BG_INPUT)
                         .stroke(Stroke::new(1.0, LR_BORDER))
-                        .rounding(Rounding::same(2.0)),
+                        .corner_radius(CornerRadius::same(2)),
                 )
                 .clicked()
             {
@@ -471,7 +471,7 @@ fn lr_collapsible_panel<R>(
     let header_rect = Rect::from_min_size(header_rect.min, Vec2::new(ui.available_width(), 24.0));
 
     ui.painter()
-        .rect_filled(header_rect, Rounding::ZERO, Color32::from_rgb(45, 45, 45));
+        .rect_filled(header_rect, CornerRadius::ZERO, Color32::from_rgb(45, 45, 45));
     ui.painter().hline(
         header_rect.x_range(),
         header_rect.bottom(),
@@ -487,9 +487,9 @@ fn lr_collapsible_panel<R>(
     .default_open(default_open)
     .show(ui, |ui| {
         ui.add_space(4.0);
-        egui::Frame::none()
+        egui::Frame::NONE
             .fill(LR_BG_PANEL)
-            .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+            .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| add_contents(ui))
             .inner
     });
