@@ -2,7 +2,7 @@
 
 **rView** — A modern, blazing-fast image viewer built with **Rust**. RAW support, GPU-accelerated previews, and a clean interface.
 
-![Rust](https://img.shields.io/badge/Rust-1.70+-B7410E?logo=rust) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-2.0.0-B7410E)
+![Rust](https://img.shields.io/badge/Rust-1.70+-B7410E?logo=rust) ![Platform](https://img.shields.io/badge/Platform-Windows%20|%20macOS%20|%20Linux-blue) ![License](https://img.shields.io/badge/License-MIT-green) ![Version](https://img.shields.io/badge/Version-0.2.0-B7410E)
 
 <p align="center">
   <img src="assets/rview-logo.svg" alt="rView Logo" width="128">
@@ -35,9 +35,6 @@
    cargo run --release
    ```
 
-
-Test images are available in `testfiles/` for quick checks.
-
 ## 📷 Supported Formats
 - **Common:** JPEG, PNG, GIF, BMP, TIFF, WebP, ICO, PNM
 - **RAW:** Canon, Nikon, Sony, Olympus, Panasonic, Adobe DNG, Fuji, Pentax, and more
@@ -49,6 +46,10 @@ Test images are available in `testfiles/` for quick checks.
 | `1` | 100% zoom |
 | `0` | Fit to window |
 | `H` | Toggle UI panels |
+| `F2` | Batch rename images |
+| `Ctrl+Z` | Undo |
+| `Ctrl+Y` / `Ctrl+Shift+Z` | Redo |
+| `Alt+Z` | Toggle zebra stripes |
 | `M` | Move to 'selected' folder (undoable) |
 | `Del` | Delete (to trash) |
 
