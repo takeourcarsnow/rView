@@ -320,16 +320,7 @@ fn process_single_pixel(
     // Apply film post-processing
     if adj.film.enabled {
         apply_film_post_processing(
-            &mut r,
-            &mut g,
-            &mut b,
-            px,
-            py,
-            &adj.film,
-            grain_seed,
-            center_x,
-            center_y,
-            max_dist,
+            &mut r, &mut g, &mut b, px, py, &adj.film, grain_seed, center_x, center_y, max_dist,
         );
     }
 
@@ -340,7 +331,12 @@ fn process_single_pixel(
     pixel[3] = a as u8; // Alpha unchanged
 }
 
-fn apply_film_emulation(r: &mut f32, g: &mut f32, b: &mut f32, film: &super::film_emulation::FilmEmulation) {
+fn apply_film_emulation(
+    r: &mut f32,
+    g: &mut f32,
+    b: &mut f32,
+    film: &super::film_emulation::FilmEmulation,
+) {
     // B&W conversion
     if film.is_bw {
         let luminance = 0.30 * *r + 0.59 * *g + 0.11 * *b;
@@ -391,9 +387,24 @@ fn apply_film_emulation(r: &mut f32, g: &mut f32, b: &mut f32, film: &super::fil
     }
 
     // Tone curve control points
-    *r = apply_tone_curve(*r, film.tone.shadows, film.tone.midtones, film.tone.highlights);
-    *g = apply_tone_curve(*g, film.tone.shadows, film.tone.midtones, film.tone.highlights);
-    *b = apply_tone_curve(*b, film.tone.shadows, film.tone.midtones, film.tone.highlights);
+    *r = apply_tone_curve(
+        *r,
+        film.tone.shadows,
+        film.tone.midtones,
+        film.tone.highlights,
+    );
+    *g = apply_tone_curve(
+        *g,
+        film.tone.shadows,
+        film.tone.midtones,
+        film.tone.highlights,
+    );
+    *b = apply_tone_curve(
+        *b,
+        film.tone.shadows,
+        film.tone.midtones,
+        film.tone.highlights,
+    );
 
     // Black point and white point
     let bp = film.black_point;
@@ -495,7 +506,13 @@ fn apply_film_post_processing(
 
     // Film grain
     if film.grain.amount > 0.0 {
-        let grain = generate_film_grain(px as u32, py as u32, grain_seed, film.grain.size, film.grain.roughness);
+        let grain = generate_film_grain(
+            px as u32,
+            py as u32,
+            grain_seed,
+            film.grain.size,
+            film.grain.roughness,
+        );
         let lum = (0.299 * *r + 0.587 * *g + 0.114 * *b) / 255.0;
         let grain_mask = 4.0 * lum * (1.0 - lum);
         let grain_strength = film.grain.amount * 255.0 * 0.15 * grain_mask;
@@ -516,7 +533,10 @@ fn apply_film_post_processing(
     }
 }
 
-fn apply_frame_if_needed(img: ImageBuffer<Rgba<u8>, Vec<u8>>, adj: &ImageAdjustments) -> DynamicImage {
+fn apply_frame_if_needed(
+    img: ImageBuffer<Rgba<u8>, Vec<u8>>,
+    adj: &ImageAdjustments,
+) -> DynamicImage {
     if adj.frame_enabled && adj.frame_thickness > 0.0 {
         let (width, height) = img.dimensions();
         let thickness = adj.frame_thickness as u32;

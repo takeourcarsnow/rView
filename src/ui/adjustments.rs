@@ -572,12 +572,18 @@ pub fn render_film_emulation_panel(
                     egui::ComboBox::from_id_salt("frame_color_preset")
                         .selected_text(current_preset)
                         .show_ui(ui, |ui| {
-                            if ui.selectable_label(current_preset == "Black", "Black").clicked() {
+                            if ui
+                                .selectable_label(current_preset == "Black", "Black")
+                                .clicked()
+                            {
                                 app.adjustments.frame_color = [0.0, 0.0, 0.0];
                                 *adjustments_changed = true;
                                 app.mark_adjustments_dirty();
                             }
-                            if ui.selectable_label(current_preset == "White", "White").clicked() {
+                            if ui
+                                .selectable_label(current_preset == "White", "White")
+                                .clicked()
+                            {
                                 app.adjustments.frame_color = [1.0, 1.0, 1.0];
                                 *adjustments_changed = true;
                                 app.mark_adjustments_dirty();

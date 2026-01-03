@@ -3,7 +3,7 @@ use crate::gpu::types::GpuProcessor;
 use crate::image_loader;
 use crate::profiler;
 use eframe::egui::{self, TextureHandle, Vec2};
-use image::{DynamicImage, ImageBuffer, Rgba, imageops};
+use image::{imageops, DynamicImage, ImageBuffer, Rgba};
 use pollster;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -201,16 +201,11 @@ impl ImageViewerApp {
                     if let Some(buf) = image::ImageBuffer::from_raw(width, height, pixels) {
                         return DynamicImage::ImageRgba8(buf);
                     } else {
-                        log::warn!(
-                            "GPU returned unexpected buffer size; falling back to CPU"
-                        );
+                        log::warn!("GPU returned unexpected buffer size; falling back to CPU");
                     }
                 }
                 Err(e) => {
-                    log::warn!(
-                        "GPU buffer adjustments failed: {}; falling back to CPU",
-                        e
-                    );
+                    log::warn!("GPU buffer adjustments failed: {}; falling back to CPU", e);
                 }
             }
         }
@@ -219,8 +214,18 @@ impl ImageViewerApp {
         image_loader::apply_adjustments(&image, &self.adjustments)
     }
 
-    fn create_texture_and_setup(&mut self, path: &std::path::Path, display_image: &DynamicImage, ctx: &egui::Context, adjusted_image: &DynamicImage, original_image: &DynamicImage) {
-        let size = [display_image.width() as usize, display_image.height() as usize];
+    fn create_texture_and_setup(
+        &mut self,
+        path: &std::path::Path,
+        display_image: &DynamicImage,
+        ctx: &egui::Context,
+        adjusted_image: &DynamicImage,
+        original_image: &DynamicImage,
+    ) {
+        let size = [
+            display_image.width() as usize,
+            display_image.height() as usize,
+        ];
         let rgba = display_image.to_rgba8();
         let _pixels = rgba.as_flat_samples();
 
@@ -251,7 +256,8 @@ impl ImageViewerApp {
         self.generate_overlays_if_needed(adjusted_image, ctx);
 
         // Cache the image
-        self.image_cache.insert(path.to_path_buf(), original_image.clone());
+        self.image_cache
+            .insert(path.to_path_buf(), original_image.clone());
     }
 
     fn generate_texture_name(&self, path: &std::path::Path, width: usize, height: usize) -> String {
@@ -288,10 +294,17 @@ impl ImageViewerApp {
         {
             self.texture_access_order.remove(pos);
         }
-        self.texture_access_order.push_front(texture_name.to_string());
+        self.texture_access_order
+            .push_front(texture_name.to_string());
     }
 
-    fn create_texture_async(&self, _path: &std::path::Path, display_image: &DynamicImage, _ctx: &egui::Context, texture_name: String) {
+    fn create_texture_async(
+        &self,
+        _path: &std::path::Path,
+        display_image: &DynamicImage,
+        _ctx: &egui::Context,
+        texture_name: String,
+    ) {
         let ctx_clone = self.ctx.clone();
         let texture_name_clone = texture_name.clone();
         let display_image_clone = display_image.clone();
@@ -366,7 +379,10 @@ impl ImageViewerApp {
         self.current_image = Some(image.clone());
 
         let display_input = self.prepare_display_image(&image);
-        let size = [display_input.width() as usize, display_input.height() as usize];
+        let size = [
+            display_input.width() as usize,
+            display_input.height() as usize,
+        ];
         let texture_name = self.generate_texture_name(path, size[0], size[1]);
 
         // Check if texture is already cached (fast path)
@@ -439,29 +455,30 @@ impl ImageViewerApp {
             } else {
                 display_input_clone.clone()
             };
-            let display_image = if adjustments_clone.frame_enabled && adjustments_clone.frame_thickness > 0.0 {
-                let img = adjusted_image.to_rgba8();
-                let (width, height) = img.dimensions();
-                let thickness = adjustments_clone.frame_thickness as u32;
-                let new_width = width + 2 * thickness;
-                let new_height = height + 2 * thickness;
+            let display_image =
+                if adjustments_clone.frame_enabled && adjustments_clone.frame_thickness > 0.0 {
+                    let img = adjusted_image.to_rgba8();
+                    let (width, height) = img.dimensions();
+                    let thickness = adjustments_clone.frame_thickness as u32;
+                    let new_width = width + 2 * thickness;
+                    let new_height = height + 2 * thickness;
 
-                let mut framed = ImageBuffer::new(new_width, new_height);
+                    let mut framed = ImageBuffer::new(new_width, new_height);
 
-                let frame_r = (adjustments_clone.frame_color[0] * 255.0) as u8;
-                let frame_g = (adjustments_clone.frame_color[1] * 255.0) as u8;
-                let frame_b = (adjustments_clone.frame_color[2] * 255.0) as u8;
+                    let frame_r = (adjustments_clone.frame_color[0] * 255.0) as u8;
+                    let frame_g = (adjustments_clone.frame_color[1] * 255.0) as u8;
+                    let frame_b = (adjustments_clone.frame_color[2] * 255.0) as u8;
 
-                for pixel in framed.pixels_mut() {
-                    *pixel = Rgba([frame_r, frame_g, frame_b, 255]);
-                }
+                    for pixel in framed.pixels_mut() {
+                        *pixel = Rgba([frame_r, frame_g, frame_b, 255]);
+                    }
 
-                imageops::overlay(&mut framed, &img, thickness as i64, thickness as i64);
+                    imageops::overlay(&mut framed, &img, thickness as i64, thickness as i64);
 
-                DynamicImage::ImageRgba8(framed)
-            } else {
-                adjusted_image.clone()
-            };
+                    DynamicImage::ImageRgba8(framed)
+                } else {
+                    adjusted_image.clone()
+                };
             let elapsed = start.elapsed().as_millis();
             log::debug!(
                 "apply_adjustments_fast worker took {} ms for preview",
@@ -477,7 +494,10 @@ impl ImageViewerApp {
         });
     }
 
-    fn compute_histogram_static(display_image: &DynamicImage, gpu: &Option<Arc<GpuProcessor>>) -> Vec<Vec<u32>> {
+    fn compute_histogram_static(
+        display_image: &DynamicImage,
+        gpu: &Option<Arc<GpuProcessor>>,
+    ) -> Vec<Vec<u32>> {
         if let Some(gpu) = gpu {
             match pollster::block_on(async { gpu.compute_histogram(display_image).await }) {
                 Ok(h) => h,
