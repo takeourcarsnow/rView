@@ -196,6 +196,7 @@ pub struct ImageViewerApp {
     pub batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog,
 
     // Update checker
+    #[allow(dead_code)]
     pub update_checker: Option<crate::updates::UpdateChecker>,
     #[allow(dead_code)]
     pub update_available: Option<crate::updates::ReleaseInfo>,
@@ -463,6 +464,7 @@ impl ImageViewerApp {
     }
 
     /// Check for application updates in the background
+    #[allow(dead_code)]
     pub fn check_for_updates(&mut self) {
         if let Some(checker) = &mut self.update_checker {
             let mut checker_clone = checker.clone();
