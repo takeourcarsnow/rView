@@ -101,7 +101,13 @@ impl ImageViewerApp {
             ui.horizontal(|ui| {
                 egui::ScrollArea::horizontal()
                     .auto_shrink([false, false])
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                     .show(ui, |ui| {
+                        // Convert vertical mouse wheel to horizontal scroll for the thumbnail strip
+                        let scroll_delta = ui.input(|i| i.raw_scroll_delta);
+                        if scroll_delta.y != 0.0 {
+                            ui.scroll_with_delta(Vec2::new(-scroll_delta.y, 0.0));
+                        }
                         ui.allocate_space(content_size);
                         self.render_visible_thumbnails(ui, ctx, thumb_size, horizontal, spacing, extra_height, item_width, item_height);
                     });
