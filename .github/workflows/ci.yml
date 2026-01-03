@@ -87,6 +87,9 @@ jobs:
           sudo apt update
           sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
       
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
+      
       - name: Run tests
         run: cargo test --target ${{ matrix.target }}
 
@@ -151,6 +154,9 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      
+      - name: Add target
+        run: rustup target add ${{ matrix.target }}
       
       - name: Build release
         run: cargo build --target ${{ matrix.target }} --release
