@@ -27,6 +27,7 @@ pub struct UpdateChecker {
     current_version: String,
 }
 
+#[allow(dead_code)]
 impl UpdateChecker {
     pub fn new(current_version: String) -> Self {
         Self {
