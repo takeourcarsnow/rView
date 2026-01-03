@@ -7,7 +7,7 @@ use wgpu::util::DeviceExt;
 
 impl GpuProcessor {
     /// Apply adjustments using buffer-based processing for compatibility
-    #[allow(clippy::manual-div-ceil)]
+    #[allow(clippy::manual_div_ceil)]
     pub async fn apply_adjustments_texture(
         &self,
         image: &DynamicImage,
