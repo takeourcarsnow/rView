@@ -234,11 +234,7 @@ impl ImageViewerApp {
                 // If the texture matches the original image size, clear preview flag (full-res).
                 // Otherwise keep showing_preview=true while a full-res texture may still be generated.
                 if let Some(orig) = &self.current_image {
-                    if image.width() == orig.width() && image.height() == orig.height() {
-                        self.showing_preview = false;
-                    } else {
-                        self.showing_preview = true;
-                    }
+                    self.showing_preview = !(image.width() == orig.width() && image.height() == orig.height());
                 } else {
                     self.showing_preview = false;
                 }

@@ -10,6 +10,7 @@ pub struct ReleaseInfo {
     pub html_url: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitHubRelease {
     pub tag_name: String,
@@ -19,6 +20,7 @@ pub struct GitHubRelease {
     pub html_url: String,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct UpdateChecker {
     last_check: Option<SystemTime>,
@@ -34,6 +36,7 @@ impl UpdateChecker {
     }
 
     /// Check for updates if it's been more than 24 hours since last check
+    #[allow(dead_code)]
     pub async fn check_for_updates(
         &mut self,
     ) -> Result<Option<ReleaseInfo>, Box<dyn std::error::Error + Send + Sync>> {
@@ -81,6 +84,7 @@ impl UpdateChecker {
     }
 
     /// Simple version comparison (assumes semver format vX.Y.Z)
+    #[allow(dead_code)]
     fn is_newer_version(&self, remote: &str, local: &str) -> bool {
         // Remove 'v' prefix if present
         let remote_clean = remote.strip_prefix('v').unwrap_or(remote);
