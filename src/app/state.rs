@@ -9,14 +9,13 @@ use crate::ui::BatchRenameState;
 
 use eframe::egui::{self, TextureHandle, Vec2};
 use image::DynamicImage;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
 use crate::gpu::types::GpuProcessor;
 
-#[derive(Debug)]
 pub enum LoaderMessage {
     ImageLoaded(PathBuf, DynamicImage),
     PreviewLoaded(PathBuf, DynamicImage),
@@ -25,6 +24,7 @@ pub enum LoaderMessage {
     ThumbnailRequestComplete(PathBuf),
     LoadError(PathBuf, String),
     ExifLoaded(PathBuf, Box<ExifInfo>),
+    TextureCreated(PathBuf, egui::TextureHandle, DynamicImage),
     MoveCompleted {
         from: PathBuf,
         dest_folder: PathBuf,
@@ -98,6 +98,11 @@ pub struct ImageViewerApp {
     pub rotation: f32,
     pub available_view_size: Vec2, // Available space for image display
 
+    // Crop state
+    pub crop_mode: bool, // Whether crop tool is active
+    pub crop_rect: Option<egui::Rect>, // Current crop rectangle in image coordinates
+    pub crop_start_pos: Option<egui::Pos2>, // Starting position for crop drag
+
     // Adjustments
     pub adjustments: ImageAdjustments,
     pub current_film_preset: crate::image_loader::FilmPreset,
@@ -109,6 +114,8 @@ pub struct ImageViewerApp {
 
     // Cached data
     pub image_cache: Arc<ImageCache>,
+    pub texture_cache: HashMap<String, (egui::TextureHandle, std::time::Instant)>, // Cache for created textures with access time
+    pub texture_access_order: VecDeque<String>, // LRU order tracking
     pub thumbnail_textures: HashMap<PathBuf, egui::TextureHandle>,
     pub thumbnail_requests: HashSet<PathBuf>,
     pub compare_large_preview_requests: HashSet<PathBuf>,
@@ -183,6 +190,9 @@ pub struct ImageViewerApp {
     // Batch rename state
     pub batch_rename_state: BatchRenameState,
 
+    // Batch processing dialog
+    pub batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog,
+
     // Update checker
     pub update_checker: Option<crate::updates::UpdateChecker>,
     #[allow(dead_code)]
@@ -206,9 +216,58 @@ impl ImageViewerApp {
         }
     }
 
-    /// Process any pending adjustments if dirty flag is set
-    /// Call this from the update loop with proper timing
-    pub fn process_pending_adjustments(&mut self) {
+    /// Get the path of the currently displayed image
+    pub fn get_current_image_path(&self) -> Option<&PathBuf> {
+        self.filtered_list
+            .get(self.current_index)
+            .and_then(|&idx| self.image_list.get(idx))
+    }
+
+    /// Clean up unused textures to free GPU memory
+    pub fn cleanup_unused_textures(&mut self) {
+        // Keep only textures for current image and recent images
+        let mut used_texture_names = HashSet::new();
+
+        // Keep current image texture
+        if let Some(current_path) = self.get_current_image_path() {
+            if let Some(current_image) = &self.current_image {
+                let texture_name = format!(
+                    "{}_{}_{}x{}",
+                    current_path.to_string_lossy(),
+                    self.adjustments.frame_enabled as u8,
+                    current_image.width(),
+                    current_image.height()
+                );
+                used_texture_names.insert(texture_name);
+            }
+        }
+
+        // Keep textures for adjacent images (preload)
+        for offset in -2..=2 {
+            let idx = (self.current_index as isize + offset) as usize;
+            if let Some(&real_idx) = self.filtered_list.get(idx) {
+                if let Some(path) = self.image_list.get(real_idx) {
+                    // We don't know the exact dimensions, so we'll be conservative
+                    // and keep any texture that starts with this path
+                    let path_prefix = path.to_string_lossy().to_string();
+                    used_texture_names.extend(
+                        self.texture_cache
+                            .keys()
+                            .filter(|k| k.starts_with(&path_prefix))
+                            .cloned()
+                    );
+                }
+            }
+        }
+
+        // Remove unused textures
+        self.texture_cache
+            .retain(|name, _| used_texture_names.contains(name));
+        // Update access order to match
+        self.texture_access_order.retain(|name| used_texture_names.contains(name));
+    }
+
+    pub fn refresh_adjustments_if_dirty(&mut self) {
         if !self.adjustments_dirty {
             return;
         }
@@ -217,7 +276,7 @@ impl ImageViewerApp {
         let elapsed = now.duration_since(self.last_adjustment_time);
 
         // Use longer debounce while dragging for smoother feel, shorter on release
-        let debounce_ms = if self.slider_dragging { 100 } else { 16 };
+        let debounce_ms = if self.slider_dragging { 200 } else { 16 };
 
         if elapsed.as_millis() >= debounce_ms {
             self.adjustments_dirty = false;
@@ -293,6 +352,9 @@ impl ImageViewerApp {
             target_pan: Vec2::ZERO,
             rotation: 0.0,
             available_view_size: Vec2::new(800.0, 600.0), // Default fallback
+            crop_mode: false,
+            crop_rect: None,
+            crop_start_pos: None,
             adjustments: ImageAdjustments::default(),
             current_film_preset: crate::image_loader::FilmPreset::None,
             show_original: false,
@@ -301,6 +363,8 @@ impl ImageViewerApp {
             slider_dragging: false,
             pre_drag_adjustments: None,
             image_cache: Arc::new(ImageCache::new(1024)),
+            texture_cache: HashMap::new(),
+            texture_access_order: VecDeque::new(),
             thumbnail_textures: HashMap::new(),
             thumbnail_requests: HashSet::new(),
             expanded_dirs: HashSet::new(),
@@ -339,6 +403,7 @@ impl ImageViewerApp {
             panels_hidden: false,
             gpu_initialization_attempted: false,
             batch_rename_state: BatchRenameState::default(),
+            batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
             update_checker: Some(crate::updates::UpdateChecker::new(
                 env!("CARGO_PKG_VERSION").to_string(),
             )),

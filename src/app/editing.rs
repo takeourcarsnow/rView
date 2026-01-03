@@ -1,6 +1,7 @@
 use crate::image_loader;
 use crate::metadata::FileOperation;
 use crate::settings::ColorLabel;
+use image::GenericImageView;
 use std::path::PathBuf;
 
 use super::ImageViewerApp;
@@ -37,6 +38,60 @@ impl ImageViewerApp {
                 self.show_status(&format!("Rotated {}°", degrees as i32));
             }
         }
+    }
+
+    // Cropping
+    pub fn toggle_crop_mode(&mut self) {
+        self.crop_mode = !self.crop_mode;
+        if !self.crop_mode {
+            self.crop_rect = None;
+            self.crop_start_pos = None;
+        }
+        self.show_status(if self.crop_mode { "Crop mode enabled" } else { "Crop mode disabled" });
+    }
+
+    pub fn apply_crop(&mut self) {
+        if let Some(crop_rect) = self.crop_rect {
+            if let Some(path) = self.get_current_path() {
+                if let Some(image) = &self.current_image {
+                    let (img_width, img_height) = image.dimensions();
+
+                    // Convert screen coordinates to image coordinates
+                    let scale_x = img_width as f32 / self.available_view_size.x;
+                    let scale_y = img_height as f32 / self.available_view_size.y;
+
+                    let crop_x = (crop_rect.min.x * scale_x) as u32;
+                    let crop_y = (crop_rect.min.y * scale_y) as u32;
+                    let crop_width = ((crop_rect.max.x - crop_rect.min.x) * scale_x) as u32;
+                    let crop_height = ((crop_rect.max.y - crop_rect.min.y) * scale_y) as u32;
+
+                    if crop_width > 0 && crop_height > 0 {
+                        let previous_dimensions = image.dimensions();
+
+                        // Apply crop to the image
+                        let cropped_image = image_loader::crop_image(image, crop_x, crop_y, crop_width, crop_height);
+
+                        // Update the current image and texture
+                        self.set_current_image(&path, cropped_image);
+
+                        self.undo_history.push(FileOperation::Crop {
+                            path: path.clone(),
+                            x: crop_x,
+                            y: crop_y,
+                            width: crop_width,
+                            height: crop_height,
+                            previous_dimensions,
+                        });
+
+                        self.show_status(&format!("Cropped to {}x{}", crop_width, crop_height));
+                    }
+                }
+            }
+        }
+        // Exit crop mode after applying
+        self.crop_mode = false;
+        self.crop_rect = None;
+        self.crop_start_pos = None;
     }
 
     // Slideshow
@@ -299,6 +354,11 @@ impl ImageViewerApp {
                     self.metadata_db.save();
                     self.show_status("Undo: Label reverted");
                 }
+                FileOperation::Crop { .. } => {
+                    // For now, just show that crop undo is not implemented
+                    // In a full implementation, we'd need to store the original image
+                    self.show_status("Undo: Crop cannot be reverted (original image not stored)");
+                }
             }
         }
     }
@@ -388,6 +448,10 @@ impl ImageViewerApp {
                     self.metadata_db.set_color_label(path.clone(), color_label);
                     self.metadata_db.save();
                     self.show_status("Redo: Label reapplied");
+                }
+                FileOperation::Crop { .. } => {
+                    // For now, just show that crop redo is not implemented
+                    self.show_status("Redo: Crop cannot be reapplied (operation not reversible)");
                 }
             }
         }

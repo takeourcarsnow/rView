@@ -39,6 +39,9 @@ impl ImageViewerApp {
             LoaderMessage::ThumbnailRequestComplete(path) => {
                 self.handle_thumbnail_request_complete(path)
             }
+            LoaderMessage::TextureCreated(texture_name, texture, image) => {
+                self.handle_texture_created(texture_name, texture, image)
+            }
             LoaderMessage::MoveCompleted {
                 from,
                 dest_folder,
@@ -171,6 +174,47 @@ impl ImageViewerApp {
                 "Failed to move image: {}",
                 error.unwrap_or_else(|| "Unknown error".to_string())
             ));
+        }
+    }
+
+    fn handle_texture_created(&mut self, texture_name: PathBuf, texture: egui::TextureHandle, image: DynamicImage) {
+        // Cache the texture for future use with access time
+        let texture_name_str = texture_name.to_string_lossy().to_string();
+        let now = std::time::Instant::now();
+
+        // Remove from access order if already exists
+        if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name_str) {
+            self.texture_access_order.remove(pos);
+        }
+
+        // Add to front of access order
+        self.texture_access_order.push_front(texture_name_str.clone());
+        self.texture_cache.insert(texture_name_str.clone(), (texture.clone(), now));
+
+        // Implement LRU eviction - keep only last 200 textures to prevent memory leaks
+        const MAX_TEXTURE_CACHE_SIZE: usize = 200;
+        while self.texture_cache.len() > MAX_TEXTURE_CACHE_SIZE {
+            if let Some(oldest_key) = self.texture_access_order.pop_back() {
+                self.texture_cache.remove(&oldest_key);
+            }
+        }
+
+        // If this is for the current image, set it
+        if let Some(current_path) = self.get_current_image_path() {
+            let expected_texture_name = format!(
+                "{}_{}_{}x{}",
+                current_path.to_string_lossy(),
+                self.adjustments.frame_enabled as u8,
+                image.width(),
+                image.height()
+            );
+
+            if texture_name_str == expected_texture_name {
+                self.current_texture = Some(texture);
+                self.current_image = Some(image);
+                self.is_loading = false;
+                self.showing_preview = false;
+            }
         }
     }
 }

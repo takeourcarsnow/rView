@@ -66,7 +66,8 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([1400.0, 900.0])
             .with_min_inner_size([800.0, 600.0])
             .with_icon(load_icon())
-            .with_drag_and_drop(true),
+            .with_drag_and_drop(true)
+            .with_maximized(true),
         vsync: true,
         multisampling: 0,
         ..Default::default()

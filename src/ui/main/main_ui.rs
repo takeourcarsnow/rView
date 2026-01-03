@@ -27,6 +27,15 @@ impl eframe::App for ImageViewerApp {
         // Process async messages
         self.process_loader_messages(ctx);
 
+        // Periodic cleanup of unused textures (every 100 frames)
+        static mut FRAME_COUNTER: u32 = 0;
+        unsafe {
+            FRAME_COUNTER += 1;
+            if FRAME_COUNTER % 100 == 0 {
+                self.cleanup_unused_textures();
+            }
+        }
+
         // Handle keyboard input
         self.handle_keyboard(ctx);
 
@@ -175,7 +184,7 @@ impl eframe::App for ImageViewerApp {
         self.pending_fit_to_window = false;
 
         // Process any pending adjustment changes (deferred for smoother UI)
-        self.process_pending_adjustments();
+        self.refresh_adjustments_if_dirty();
 
         crate::profiler::with_profiler(|p| {
             p.end_timer("ui_update");

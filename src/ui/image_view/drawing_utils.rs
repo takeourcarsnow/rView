@@ -28,6 +28,11 @@ impl ImageViewerApp {
             }
         }
 
+        // Crop overlay
+        if self.crop_mode {
+            self.draw_crop_overlay(ui, image_rect);
+        }
+
         // Grid overlay
         if self.settings.show_grid_overlay {
             self.draw_grid_overlay(ui, image_rect);
@@ -251,6 +256,74 @@ impl ImageViewerApp {
                 egui::FontId::monospace(11.0),
                 Color32::WHITE,
             );
+        }
+    }
+
+    pub(crate) fn draw_crop_overlay(&self, ui: &mut egui::Ui, image_rect: Rect) {
+        let painter = ui.painter();
+
+        // Draw semi-transparent overlay outside crop area
+        if let Some(crop_rect) = self.crop_rect {
+            let overlay_color = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
+
+            // Top area
+            if crop_rect.min.y > image_rect.min.y {
+                let top_rect = Rect::from_min_max(
+                    egui::pos2(image_rect.min.x, image_rect.min.y),
+                    egui::pos2(image_rect.max.x, crop_rect.min.y),
+                );
+                painter.rect_filled(top_rect, Rounding::ZERO, overlay_color);
+            }
+
+            // Bottom area
+            if crop_rect.max.y < image_rect.max.y {
+                let bottom_rect = Rect::from_min_max(
+                    egui::pos2(image_rect.min.x, crop_rect.max.y),
+                    egui::pos2(image_rect.max.x, image_rect.max.y),
+                );
+                painter.rect_filled(bottom_rect, Rounding::ZERO, overlay_color);
+            }
+
+            // Left area
+            if crop_rect.min.x > image_rect.min.x {
+                let left_rect = Rect::from_min_max(
+                    egui::pos2(image_rect.min.x, crop_rect.min.y),
+                    egui::pos2(crop_rect.min.x, crop_rect.max.y),
+                );
+                painter.rect_filled(left_rect, Rounding::ZERO, overlay_color);
+            }
+
+            // Right area
+            if crop_rect.max.x < image_rect.max.x {
+                let right_rect = Rect::from_min_max(
+                    egui::pos2(crop_rect.max.x, crop_rect.min.y),
+                    egui::pos2(image_rect.max.x, crop_rect.max.y),
+                );
+                painter.rect_filled(right_rect, Rounding::ZERO, overlay_color);
+            }
+
+            // Draw crop rectangle border
+            let border_stroke = Stroke::new(2.0, Color32::from_rgb(255, 255, 255));
+            painter.rect_stroke(crop_rect, Rounding::ZERO, border_stroke);
+
+            // Draw corner handles
+            let handle_size = 8.0;
+            let handle_color = Color32::from_rgb(255, 255, 255);
+            let handle_stroke = Stroke::new(1.0, Color32::from_rgb(0, 0, 0));
+
+            // Corner positions
+            let corners = [
+                crop_rect.min, // top-left
+                egui::pos2(crop_rect.max.x, crop_rect.min.y), // top-right
+                crop_rect.max, // bottom-right
+                egui::pos2(crop_rect.min.x, crop_rect.max.y), // bottom-left
+            ];
+
+            for corner in corners {
+                let handle_rect = Rect::from_center_size(corner, Vec2::splat(handle_size));
+                painter.rect_filled(handle_rect, Rounding::ZERO, handle_color);
+                painter.rect_stroke(handle_rect, Rounding::ZERO, handle_stroke);
+            }
         }
     }
 }

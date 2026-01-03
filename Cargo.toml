@@ -1,6 +1,6 @@
 [package]
 name = "rview"
-version = "0.3.0"
+version = "0.5.0"
 edition = "2021"
 authors = ["rView Team"]
 description = "rView - A modern, blazing-fast image viewer built with Rust"

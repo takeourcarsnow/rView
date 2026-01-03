@@ -125,8 +125,9 @@ impl ImageViewerApp {
                     .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
                     .show(ui, |ui| {
                         // Convert vertical mouse wheel to horizontal scroll for the thumbnail strip
+                        // Only when mouse is over the thumbnail area
                         let scroll_delta = ui.input(|i| i.raw_scroll_delta);
-                        if scroll_delta.y != 0.0 {
+                        if scroll_delta.y != 0.0 && ui.rect_contains_pointer(ui.max_rect()) {
                             ui.scroll_with_delta(Vec2::new(-scroll_delta.y, 0.0));
                         }
                         ui.allocate_space(content_size);
@@ -200,14 +201,24 @@ impl ImageViewerApp {
         let end_idx = ((scroll_offset + visible_size) / step).ceil() as usize;
         let end_idx = end_idx.min(self.filtered_list.len());
 
-        // Request thumbnails and EXIF for visible items
+        // Request thumbnails with priority levels
+        let mut priority_requests = Vec::new(); // Current image
+        let mut high_priority_requests = Vec::new(); // Adjacent images (±2)
+        let mut medium_priority_requests = Vec::new(); // Visible but not adjacent
+        let mut low_priority_requests = Vec::new(); // Not currently visible
+
         for display_idx in start_idx..end_idx {
             if let Some(&real_idx) = self.filtered_list.get(display_idx) {
                 if let Some(path) = self.image_list.get(real_idx).cloned() {
                     if !self.thumbnail_textures.contains_key(&path)
                         && !self.thumbnail_requests.contains(&path)
                     {
-                        self.ensure_thumbnail_requested(&path, ctx);
+                        let distance = (display_idx as isize - self.current_index as isize).abs();
+                        match distance {
+                            0 => priority_requests.push(path.clone()), // Current image - highest priority
+                            1..=2 => high_priority_requests.push(path.clone()), // Adjacent images
+                            _ => medium_priority_requests.push(path.clone()), // Visible but not adjacent
+                        }
                     }
                     // Request EXIF if not cached and labels are enabled
                     if self.settings.show_thumbnail_labels
@@ -217,6 +228,51 @@ impl ImageViewerApp {
                     }
                 }
             }
+        }
+
+        // Also request thumbnails for a few images outside the visible area (background loading)
+        let preload_count = 10;
+        for offset in 1..=preload_count {
+            // Before visible area
+            if let Some(display_idx) = start_idx.checked_sub(offset) {
+                if let Some(&real_idx) = self.filtered_list.get(display_idx) {
+                    if let Some(path) = self.image_list.get(real_idx).cloned() {
+                        if !self.thumbnail_textures.contains_key(&path)
+                            && !self.thumbnail_requests.contains(&path)
+                        {
+                            low_priority_requests.push(path);
+                        }
+                    }
+                }
+            }
+            // After visible area
+            let display_idx = end_idx + offset - 1;
+            if display_idx < self.filtered_list.len() {
+                if let Some(&real_idx) = self.filtered_list.get(display_idx) {
+                    if let Some(path) = self.image_list.get(real_idx).cloned() {
+                        if !self.thumbnail_textures.contains_key(&path)
+                            && !self.thumbnail_requests.contains(&path)
+                        {
+                            low_priority_requests.push(path);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Process requests in priority order
+        for path in priority_requests {
+            self.ensure_thumbnail_requested(&path, ctx);
+        }
+        for path in high_priority_requests {
+            self.ensure_thumbnail_requested(&path, ctx);
+        }
+        for path in medium_priority_requests {
+            self.ensure_thumbnail_requested(&path, ctx);
+        }
+        // Limit low priority requests to prevent overwhelming the loader
+        for path in low_priority_requests.into_iter().take(5) {
+            self.ensure_thumbnail_requested(&path, ctx);
         }
 
         // Render visible thumbnails

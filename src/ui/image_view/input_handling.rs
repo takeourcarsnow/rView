@@ -7,8 +7,8 @@ impl ImageViewerApp {
         // Handle touch gestures
         self.handle_touch_gestures(response, ui);
 
-        // Pan with drag
-        if response.dragged() {
+        // Pan with drag (only when not in crop mode)
+        if !self.crop_mode && response.dragged() {
             let delta = response.drag_delta();
             self.pan_offset += delta;
             self.target_pan = self.pan_offset;
@@ -44,6 +44,11 @@ impl ImageViewerApp {
             } else {
                 self.zoom_to(1.0);
             }
+        }
+
+        // Handle crop input
+        if self.crop_mode {
+            self.handle_crop_input(response);
         }
 
         // Right-click context menu
@@ -157,6 +162,37 @@ impl ImageViewerApp {
             if img_x < img.width() && img_y < img.height() {
                 let pixel = img.get_pixel(img_x, img_y);
                 self.picked_color = Some((pixel[0], pixel[1], pixel[2]));
+            }
+        }
+    }
+
+    pub(crate) fn handle_crop_input(&mut self, response: &egui::Response) {
+        if let Some(pos) = response.interact_pointer_pos() {
+            if response.clicked() {
+                // Start new crop rectangle
+                self.crop_start_pos = Some(pos);
+                self.crop_rect = Some(Rect::from_min_max(pos, pos));
+            } else if response.dragged() && self.crop_start_pos.is_some() {
+                // Update crop rectangle
+                if let Some(start_pos) = self.crop_start_pos {
+                    let min_x = start_pos.x.min(pos.x);
+                    let max_x = start_pos.x.max(pos.x);
+                    let min_y = start_pos.y.min(pos.y);
+                    let max_y = start_pos.y.max(pos.y);
+                    self.crop_rect = Some(Rect::from_min_max(
+                        egui::pos2(min_x, min_y),
+                        egui::pos2(max_x, max_y),
+                    ));
+                }
+            }
+        }
+
+        // Handle escape key to cancel crop
+        if response.hovered() {
+            if response.ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.crop_mode = false;
+                self.crop_rect = None;
+                self.crop_start_pos = None;
             }
         }
     }

@@ -154,6 +154,14 @@ pub enum FileOperation {
         degrees: i32,
         previous_rotation: f32,
     },
+    Crop {
+        path: PathBuf,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        previous_dimensions: (u32, u32), // (width, height) before crop
+    },
     #[allow(dead_code)]
     Adjust {
         path: PathBuf,
@@ -264,6 +272,14 @@ impl UndoHistory {
                             "Rotate {} by {}°",
                             path.file_name().unwrap_or_default().to_string_lossy(),
                             degrees
+                        )
+                    }
+                    FileOperation::Crop { path, width, height, .. } => {
+                        format!(
+                            "Crop {} to {}x{}",
+                            path.file_name().unwrap_or_default().to_string_lossy(),
+                            width,
+                            height
                         )
                     }
                     FileOperation::Adjust { path, .. } => {

@@ -1,6 +1,7 @@
 use crate::app::LoaderMessage;
 
 mod adjustments;
+pub mod batch_processing_dialog;
 mod batch_rename_dialog;
 mod catalog;
 mod command_palette;

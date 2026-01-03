@@ -221,15 +221,60 @@ impl ImageViewerApp {
             size[0],
             size[1]
         );
-        let texture = ctx.load_texture(
-            texture_name,
-            egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
-            egui::TextureOptions::LINEAR,
-        );
-        profiler::with_profiler(|p| p.end_timer("texture_load"));
 
-        self.current_texture = Some(texture);
-        self.is_loading = false;
+        // Check if texture is already cached
+        let cached_texture = if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
+            Some(cached_texture.clone())
+        } else {
+            None
+        };
+
+        if let Some(texture) = cached_texture {
+            // Update access time for LRU
+            self.texture_cache.insert(texture_name.clone(), (texture.clone(), std::time::Instant::now()));
+            // Move to front of access order
+            if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name) {
+                self.texture_access_order.remove(pos);
+            }
+            self.texture_access_order.push_front(texture_name);
+
+            self.current_texture = Some(texture);
+            self.is_loading = false;
+            profiler::with_profiler(|p| p.end_timer("texture_load"));
+            return;
+        }
+
+        // Create texture asynchronously to avoid blocking UI
+        let ctx_clone = self.ctx.clone();
+        let texture_name_clone = texture_name.clone();
+        let display_image_clone = display_image.clone();
+        let _tx_clone = self.loader_tx.clone();
+
+        self.spawn_loader(move || {
+            if let Some(ctx) = ctx_clone {
+                let rgba = display_image_clone.to_rgba8();
+                let pixels = rgba.as_flat_samples();
+                let size = [
+                    display_image_clone.width() as usize,
+                    display_image_clone.height() as usize,
+                ];
+                let color_image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                let texture = ctx.load_texture(
+                    texture_name_clone.clone(),
+                    color_image,
+                    egui::TextureOptions::LINEAR,
+                );
+                Some(super::LoaderMessage::TextureCreated(
+                    PathBuf::from(texture_name_clone),
+                    texture,
+                    display_image_clone,
+                ))
+            } else {
+                None
+            }
+        });
+
+        profiler::with_profiler(|p| p.end_timer("texture_load"));
 
         if !self.settings.maintain_pan_on_navigate {
             self.pan_offset = Vec2::ZERO;
@@ -316,6 +361,28 @@ impl ImageViewerApp {
             size[0],
             size[1]
         );
+
+        // Check if texture is already cached
+        let cached_texture = if let Some((cached_texture, _)) = self.texture_cache.get(&texture_name) {
+            Some(cached_texture.clone())
+        } else {
+            None
+        };
+
+        if let Some(texture) = cached_texture {
+            // Update access time for LRU
+            self.texture_cache.insert(texture_name.clone(), (texture.clone(), std::time::Instant::now()));
+            // Move to front of access order
+            if let Some(pos) = self.texture_access_order.iter().position(|x| x == &texture_name) {
+                self.texture_access_order.remove(pos);
+            }
+            self.texture_access_order.push_front(texture_name);
+
+            self.current_texture = Some(texture);
+            self.is_loading = false;
+            return;
+        }
+
         let texture = ctx.load_texture(
             texture_name,
             egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),

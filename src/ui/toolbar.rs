@@ -37,6 +37,7 @@ impl ImageViewerApp {
         let mut open_file = false;
         let mut show_move = false;
         let mut export_image = false;
+        let mut show_batch_processing = false;
         let mut go_prev = false;
         let mut go_next = false;
         let mut show_go_to = false;
@@ -47,6 +48,8 @@ impl ImageViewerApp {
         let mut fill_window = false;
         let mut rotate_left = false;
         let mut rotate_right = false;
+        let mut toggle_crop_mode = false;
+        let mut apply_crop = false;
         let mut set_view_single = false;
         let mut toggle_lightbox = false;
         let mut toggle_focus_peaking = false;
@@ -84,6 +87,9 @@ impl ImageViewerApp {
                     }
                     if icon_button(ui, lucide("download"), "Export image (Ctrl+S)").clicked() {
                         export_image = true;
+                    }
+                    if icon_button(ui, lucide("layers"), "Batch processing (Ctrl+B)").clicked() {
+                        show_batch_processing = true;
                     }
 
                     ui.add_space(8.0);
@@ -179,6 +185,14 @@ impl ImageViewerApp {
                     }
                     if icon_button(ui, lucide("rotate-cw"), "Rotate right (R)").clicked() {
                         rotate_right = true;
+                    }
+
+                    // Cropping
+                    if toggle_button(ui, lucide("crop"), "Toggle crop mode (C)", self.crop_mode).clicked() {
+                        toggle_crop_mode = true;
+                    }
+                    if self.crop_mode && icon_button(ui, lucide("check"), "Apply crop").clicked() {
+                        apply_crop = true;
                     }
 
                     ui.add_space(8.0);
@@ -279,6 +293,9 @@ impl ImageViewerApp {
         if export_image {
             self.export_image();
         }
+        if show_batch_processing {
+            self.batch_processing_dialog.open = true;
+        }
         if go_prev {
             self.previous_image();
         }
@@ -311,6 +328,12 @@ impl ImageViewerApp {
         }
         if rotate_right {
             self.rotate_right();
+        }
+        if toggle_crop_mode {
+            self.toggle_crop_mode();
+        }
+        if apply_crop {
+            self.apply_crop();
         }
         if set_view_single {
             self.view_mode = ViewMode::Single;
