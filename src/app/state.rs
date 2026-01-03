@@ -451,8 +451,6 @@ impl ImageViewerApp {
 
         app
     }
-
-
 }
 
 fn configure_style(ctx: &egui::Context) {
