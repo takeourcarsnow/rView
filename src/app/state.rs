@@ -195,12 +195,6 @@ pub struct ImageViewerApp {
     // Batch processing dialog
     pub batch_processing_dialog: crate::ui::batch_processing_dialog::BatchProcessingDialog,
 
-    // Update checker
-    #[allow(dead_code)]
-    pub update_checker: Option<crate::updates::UpdateChecker>,
-    #[allow(dead_code)]
-    pub update_available: Option<crate::updates::ReleaseInfo>,
-
     // Telemetry
     #[allow(dead_code)]
     pub telemetry: Option<crate::telemetry::Telemetry>,
@@ -419,15 +413,10 @@ impl ImageViewerApp {
             batch_rename_state: BatchRenameState::default(),
             batch_processing_dialog:
                 crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
-            update_checker: Some(crate::updates::UpdateChecker::new(
-                env!("CARGO_PKG_VERSION").to_string(),
-            )),
-            update_available: None,
             telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
         };
 
-        // Start background update check
-        app.check_for_updates();
+        // (Update checking removed)
 
         // Restore session
         if app.settings.restore_session {
@@ -463,35 +452,7 @@ impl ImageViewerApp {
         app
     }
 
-    /// Check for application updates in the background
-    #[allow(dead_code)]
-    pub fn check_for_updates(&mut self) {
-        if let Some(checker) = &mut self.update_checker {
-            let mut checker_clone = checker.clone();
-            let _ctx = self.ctx.clone();
 
-            // Spawn async task to check for updates
-            tokio::spawn(async move {
-                match checker_clone.check_for_updates().await {
-                    Ok(Some(release)) => {
-                        // In a real implementation, you'd update the app state
-                        log::info!(
-                            "New version available: {} - {}",
-                            release.tag_name,
-                            release.html_url
-                        );
-                        // For now, just log it. In production, you'd show a dialog
-                    }
-                    Ok(None) => {
-                        log::info!("No updates available");
-                    }
-                    Err(e) => {
-                        log::warn!("Failed to check for updates: {}", e);
-                    }
-                }
-            });
-        }
-    }
 }
 
 fn configure_style(ctx: &egui::Context) {
