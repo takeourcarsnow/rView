@@ -188,7 +188,9 @@ impl ImageViewerApp {
                             self.batch_processing_dialog.progress = 0.0;
                             self.batch_processing_dialog.current_file = None;
                         }
-                    } else if ui.button("Start Processing").clicked() && !self.batch_processing_dialog.selected_files.is_empty() {
+                    } else if ui.button("Start Processing").clicked()
+                        && !self.batch_processing_dialog.selected_files.is_empty()
+                    {
                         self.start_batch_processing();
                     }
 
@@ -204,7 +206,10 @@ impl ImageViewerApp {
         self.batch_processing_dialog.processing = true;
         self.batch_processing_dialog.progress = 0.0;
 
-        let operations: Vec<BatchOperation> = self.batch_processing_dialog.operations.iter()
+        let operations: Vec<BatchOperation> = self
+            .batch_processing_dialog
+            .operations
+            .iter()
             .filter(|op| op.enabled)
             .cloned()
             .collect();
@@ -213,7 +218,10 @@ impl ImageViewerApp {
 
         // In a real implementation, this would spawn a background task
         // For now, just show a message
-        self.show_status(&format!("Batch processing {} files with {} operations",
-            files, operations.len()));
+        self.show_status(&format!(
+            "Batch processing {} files with {} operations",
+            files,
+            operations.len()
+        ));
     }
 }

@@ -313,9 +313,9 @@ impl ImageViewerApp {
 
             // Corner positions
             let corners = [
-                crop_rect.min, // top-left
+                crop_rect.min,                                // top-left
                 egui::pos2(crop_rect.max.x, crop_rect.min.y), // top-right
-                crop_rect.max, // bottom-right
+                crop_rect.max,                                // bottom-right
                 egui::pos2(crop_rect.min.x, crop_rect.max.y), // bottom-left
             ];
 
