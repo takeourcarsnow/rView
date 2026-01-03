@@ -56,7 +56,7 @@ opt-level = 3
 rustflags = ["-C", "target-feature=+crt-static"]
 
 [target.x86_64-apple-darwin]
-linker = "zig cc -target x86_64-macos"
+# linker = "zig cc -target x86_64-macos"
 
 [env]
 # Reduce SQLite compile time
