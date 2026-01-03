@@ -244,6 +244,11 @@ impl ImageCache {
         }
     }
 
+    pub fn invalidate_path(&self, path: &Path) {
+        self.cache.lock().unwrap().remove(path);
+        self.thumbnail_cache.lock().unwrap().remove(path);
+    }
+
     pub fn preload(&self, paths: Vec<PathBuf>) {
         let cache = Arc::clone(&self.cache);
 

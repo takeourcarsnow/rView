@@ -286,17 +286,23 @@ impl ImageAdjustments {
     }
 
     pub fn apply_preset(&mut self, preset: FilmPreset) {
+        // Preserve frame settings across preset changes
+        let frame_enabled = self.frame_enabled;
+        let frame_color = self.frame_color;
+        let frame_thickness = self.frame_thickness;
+
         if preset == FilmPreset::None {
-            self.film.enabled = false;
+            // Reset all adjustments to default when None is selected
+            *self = ImageAdjustments::default();
         } else {
-            let frame_enabled = self.frame_enabled;
-            let frame_color = self.frame_color;
-            let frame_thickness = self.frame_thickness;
+            // Replace all adjustments with preset values
             *self = preset.characteristics().to_adjustments();
-            self.frame_enabled = frame_enabled;
-            self.frame_color = frame_color;
-            self.frame_thickness = frame_thickness;
         }
+
+        // Restore frame settings
+        self.frame_enabled = frame_enabled;
+        self.frame_color = frame_color;
+        self.frame_thickness = frame_thickness;
     }
 }
 

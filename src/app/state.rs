@@ -8,6 +8,7 @@ use crate::settings::Settings;
 use crate::ui::BatchRenameState;
 
 use eframe::egui::{self, TextureHandle, Vec2};
+use std::path::Path;
 use image::DynamicImage;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
@@ -214,6 +215,12 @@ impl ImageViewerApp {
         if let Some(ctx) = &self.ctx {
             ctx.request_repaint();
         }
+    }
+
+    pub fn invalidate_texture_cache_for_path(&mut self, path: &Path) {
+        let prefix = format!("{}_", path.to_string_lossy());
+        self.texture_cache.retain(|k, _| !k.starts_with(&prefix));
+        self.texture_access_order.retain(|k| !k.starts_with(&prefix));
     }
 
     /// Get the path of the currently displayed image

@@ -28,6 +28,8 @@ impl ImageViewerApp {
 
                 // Update the current image and texture
                 self.set_current_image(&path, rotated_image);
+                self.invalidate_texture_cache_for_path(&path);
+                self.image_cache.invalidate_path(&path);
 
                 self.undo_history.push(FileOperation::Rotate {
                     path: path.clone(),
@@ -83,6 +85,8 @@ impl ImageViewerApp {
 
                         // Update the current image and texture
                         self.set_current_image(&path, cropped_image);
+                        self.invalidate_texture_cache_for_path(&path);
+                        self.image_cache.invalidate_path(&path);
 
                         self.undo_history.push(FileOperation::Crop {
                             path: path.clone(),
@@ -380,6 +384,9 @@ impl ImageViewerApp {
     /// Internal refresh with option to skip expensive operations during slider drag
     pub fn refresh_adjustments_internal(&mut self, full_refresh: bool) {
         if let (Some(image), Some(path)) = (&self.current_image, self.get_current_path()) {
+            let image = image.clone();
+            let path = path.clone();
+            self.invalidate_texture_cache_for_path(&path);
             if full_refresh {
                 self.set_current_image(&path, image.clone());
             } else {

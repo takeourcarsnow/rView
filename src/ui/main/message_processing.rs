@@ -210,7 +210,10 @@ impl ImageViewerApp {
             }
         }
 
-        // If this is for the current image, set it
+        // If this is for the current image, set the texture (but not current_image!)
+        // current_image should remain as the original unadjusted image, which is already
+        // set in set_current_image(). The `image` parameter here is the display image
+        // with adjustments applied, which should NOT be stored as current_image.
         if let Some(current_path) = self.get_current_image_path() {
             let expected_texture_name = format!(
                 "{}_{}_{}x{}",
@@ -222,7 +225,8 @@ impl ImageViewerApp {
 
             if texture_name_str == expected_texture_name {
                 self.current_texture = Some(texture);
-                self.current_image = Some(image);
+                // Do NOT update current_image here - it's the adjusted/display image
+                // current_image should stay as the original for re-applying adjustments
                 self.is_loading = false;
                 self.showing_preview = false;
             }
