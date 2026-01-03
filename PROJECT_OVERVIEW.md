@@ -51,13 +51,21 @@ A comprehensive guide to the technologies, features, and learnings from building
 - File watching (`notify`) for live updates
 - Metadata database management
 
-### **8. Advanced Features**
+### **10. Advanced Features**
 - Fuzzy search (`fuzzy-matcher`)
 - Natural filename sorting (`natord`)
 - Trash/undo operations (`trash`)
 - Clipboard integration (`arboard`)
 - System notifications (`notify-rust`)
 - File dialog integration (`rfd`)
+- Batch processing (resize, convert, rename)
+- Catalog/collections system with SQLite
+- Image ratings and color labels
+- Command palette and go-to dialogs
+- Loupe tool and grid overlays
+- Lightbox mode and slideshow
+- Memory-mapped I/O (`memmap2`)
+- Icon fonts (`iconflow` with Lucide icons)
 
 ### **9. Performance Optimization**
 - Custom build profiles (dev-fast, quick-check)
@@ -88,7 +96,11 @@ A comprehensive guide to the technologies, features, and learnings from building
 - RAW image format support for multiple camera brands
 - EXIF metadata parsing and display
 - Focus peaking and zebra pattern overlays
-- Film emulation presets
+- Film emulation presets with custom tone curves
+- Batch processing pipeline
+- Catalog system with collections and database storage
+- Image ratings and color labeling system
+- Advanced adjustment tools (45+ parameters)
 
 ### Cross-Platform Distribution
 - Automated builds for Windows, macOS, and Linux
@@ -105,16 +117,21 @@ A comprehensive guide to the technologies, features, and learnings from building
 | Category | Crates |
 |----------|--------|
 | GUI | `eframe`, `egui`, `egui_extras` |
-| Image | `image`, `rawloader`, `imagepipe`, `imageproc` |
-| GPU | `wgpu`, `pollster`, `bytemuck` |
-| Async | `tokio`, `rayon` |
+| GPU/WebGPU | `wgpu`, `pollster`, `bytemuck`, `futures-intrusive` |
+| Image Processing | `image`, `rawloader`, `imagepipe`, `imageproc` |
+| Async Runtime | `tokio`, `rayon` |
 | Database | `rusqlite` |
-| Utilities | `anyhow`, `thiserror`, `serde`, `chrono` |
+| File System | `walkdir`, `notify`, `trash`, `memmap2` |
+| Utilities | `anyhow`, `thiserror`, `serde`, `chrono`, `uuid` |
+| Search & Sort | `fuzzy-matcher`, `natord` |
+| System Integration | `arboard`, `notify-rust`, `rfd`, `open`, `directories` |
+| Performance | `lazy_static`, `num_cpus`, `criterion` |
+| Additional | `regex`, `palette`, `printpdf`, `jpeg-encoder`, `iconflow` |
 
 ## 🚀 **Release Process**
 
-1. Update version in `Cargo.toml`
-2. Create and push a git tag: `git tag v0.1.0 && git push origin v0.1.0`
+1. Update version in `Cargo.toml` (current: 0.5.0)
+2. Create and push a git tag: `git tag v0.5.0 && git push origin v0.5.0`
 3. GitHub Actions automatically:
    - Builds for Windows, macOS, Linux
    - Creates GitHub release
@@ -123,14 +140,18 @@ A comprehensive guide to the technologies, features, and learnings from building
 
 ## 💡 **What Makes This Special**
 
-This is an excellent first Rust project that goes beyond typical beginner projects by incorporating:
+This is an excellent Rust project that demonstrates advanced systems programming techniques:
 
-- **Modern GPU programming** with compute shaders
-- **Professional-grade async patterns** with tokio
+- **Modern GPU programming** with compute shaders and WebGPU
+- **Professional-grade async patterns** with tokio runtime
 - **Cross-platform GUI** with immediate mode rendering
-- **Real-world usefulness** for photographers and visual artists
-- **Production-ready CI/CD** with automated releases
-- **Performance optimization** at multiple levels
+- **Real-world production features** for photographers and visual artists
+- **Database integration** with SQLite for catalog management
+- **Batch processing pipeline** for image operations
+- **Comprehensive keyboard shortcuts** and power-user features
+- **Automated CI/CD** with multi-platform releases
+- **Performance optimization** at multiple levels (GPU, CPU, memory)
+- **Clean architecture** separating GPU, UI, image processing, and app logic
 
 ---
 
