@@ -129,7 +129,7 @@ impl ImageViewerApp {
                     ui.label(RichText::new("Operations").strong());
 
                     egui::ScrollArea::vertical().show(ui, |ui| {
-                        for (_i, operation) in self.batch_processing_dialog.operations.iter_mut().enumerate() {
+                        for operation in self.batch_processing_dialog.operations.iter_mut() {
                             ui.horizontal(|ui| {
                                 ui.checkbox(&mut operation.enabled, "");
 
@@ -188,10 +188,8 @@ impl ImageViewerApp {
                             self.batch_processing_dialog.progress = 0.0;
                             self.batch_processing_dialog.current_file = None;
                         }
-                    } else {
-                        if ui.button("Start Processing").clicked() && !self.batch_processing_dialog.selected_files.is_empty() {
-                            self.start_batch_processing();
-                        }
+                    } else if ui.button("Start Processing").clicked() && !self.batch_processing_dialog.selected_files.is_empty() {
+                        self.start_batch_processing();
                     }
 
                     if ui.button("Close").clicked() {

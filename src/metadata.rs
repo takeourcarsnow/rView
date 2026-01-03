@@ -154,6 +154,7 @@ pub enum FileOperation {
         degrees: i32,
         previous_rotation: f32,
     },
+    #[allow(dead_code)]
     Crop {
         path: PathBuf,
         x: u32,

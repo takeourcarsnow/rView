@@ -210,7 +210,7 @@ impl ImageViewerApp {
             display_image.height() as usize,
         ];
         let rgba = display_image.to_rgba8();
-        let pixels = rgba.as_flat_samples();
+        let _pixels = rgba.as_flat_samples();
 
         profiler::with_profiler(|p| p.start_timer("texture_load"));
         // Generate unique texture name to avoid cache conflicts when dimensions change (e.g., with frame)

@@ -188,12 +188,11 @@ impl ImageViewerApp {
         }
 
         // Handle escape key to cancel crop
-        if response.hovered() {
-            if response.ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-                self.crop_mode = false;
-                self.crop_rect = None;
-                self.crop_start_pos = None;
-            }
+        if response.hovered()
+            && response.ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.crop_mode = false;
+            self.crop_rect = None;
+            self.crop_start_pos = None;
         }
     }
 }

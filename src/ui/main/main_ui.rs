@@ -31,7 +31,7 @@ impl eframe::App for ImageViewerApp {
         static mut FRAME_COUNTER: u32 = 0;
         unsafe {
             FRAME_COUNTER += 1;
-            if FRAME_COUNTER % 100 == 0 {
+            if FRAME_COUNTER.is_multiple_of(100) {
                 self.cleanup_unused_textures();
             }
         }
