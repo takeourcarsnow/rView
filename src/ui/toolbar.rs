@@ -241,15 +241,6 @@ impl ImageViewerApp {
                         toggle_before_after = true;
                     }
 
-                    ui.add_space(8.0);
-                    toolbar_separator(ui);
-                    ui.add_space(8.0);
-
-                    // Panel toggles
-                    if toggle_button(ui, lucide("panel-left"), "Toggle all panels (P)", self.panels_hidden).clicked() {
-                        toggle_panels = true;
-                    }
-
                     // Right side
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Settings (toggle)
@@ -264,6 +255,11 @@ impl ImageViewerApp {
                         // Fullscreen
                         if toggle_button(ui, lucide("maximize"), "Fullscreen (F11)", is_fullscreen).clicked() {
                             toggle_fullscreen = true;
+                        }
+
+                        // Toggle panels
+                        if toggle_button(ui, lucide("panel-left"), "Toggle all panels (P)", self.panels_hidden).clicked() {
+                            toggle_panels = true;
                         }
 
                         // (Slideshow removed per user preference)

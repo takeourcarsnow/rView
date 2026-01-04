@@ -1,7 +1,9 @@
-use eframe::egui::{self, Ui};
+use eframe::egui::{self, Ui, Color32, RichText, Stroke, Vec2};
 
 use crate::app::ImageViewerApp;
 use crate::catalog::CollectionType;
+
+const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);
 
 impl ImageViewerApp {
     /// Render the catalog panel (sidebar)
@@ -37,11 +39,14 @@ impl ImageViewerApp {
         // Collapsible triangle toggle below the New Collection button — symbol only, no text or frame
         ui.horizontal(|ui| {
             let symbol = if self.catalog_collections_open {
-                "▾"
+                "v"
             } else {
-                "▸"
+                ">"
             };
-            let triangle = egui::Button::new(symbol).small().frame(false);
+            let triangle = egui::Button::new(RichText::new(symbol).size(8.0).color(LR_TEXT_SECONDARY))
+                .fill(Color32::TRANSPARENT)
+                .stroke(Stroke::NONE)
+                .min_size(Vec2::new(14.0, 14.0));
             if ui.add(triangle).clicked() {
                 self.catalog_collections_open = !self.catalog_collections_open;
             }
