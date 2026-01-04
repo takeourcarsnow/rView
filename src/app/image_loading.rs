@@ -148,7 +148,7 @@ impl ImageViewerApp {
         let adjusted_image = self.apply_adjustments_with_fallbacks(&image);
         let display_image = self.apply_frame_to_image(&adjusted_image);
 
-        self.create_texture_and_setup(&path, &display_image, &ctx, &adjusted_image, &image);
+        self.create_texture_and_setup(path, &display_image, &ctx, &adjusted_image, &image);
     }
 
     fn apply_frame_to_image(&self, image: &DynamicImage) -> DynamicImage {
@@ -181,7 +181,7 @@ impl ImageViewerApp {
         // Try GPU texture-based path first (async)
         if let Some(gpu) = &self.gpu_processor {
             match pollster::block_on(async {
-                gpu.apply_adjustments_texture(&image, &self.adjustments)
+                gpu.apply_adjustments_texture(image, &self.adjustments)
                     .await
             }) {
                 Ok(img) => return img,
@@ -194,7 +194,7 @@ impl ImageViewerApp {
             }
 
             // Fallback to buffer-based GPU method
-            match gpu.apply_adjustments(&image, &self.adjustments) {
+            match gpu.apply_adjustments(image, &self.adjustments) {
                 Ok(pixels) => {
                     let width = image.width();
                     let height = image.height();
@@ -211,7 +211,7 @@ impl ImageViewerApp {
         }
 
         // Final fallback to CPU
-        image_loader::apply_adjustments(&image, &self.adjustments)
+        image_loader::apply_adjustments(image, &self.adjustments)
     }
 
     fn create_texture_and_setup(

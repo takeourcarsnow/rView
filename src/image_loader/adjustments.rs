@@ -222,6 +222,7 @@ pub fn apply_adjustments(image: &DynamicImage, adj: &ImageAdjustments) -> Dynami
     apply_frame_if_needed(img, adj)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_pixels_parallel(
     img: &mut ImageBuffer<Rgba<u8>, Vec<u8>>,
     adj: &ImageAdjustments,
@@ -276,6 +277,7 @@ fn process_pixels_parallel(
         });
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_single_pixel(
     pixel: &mut [u8],
     px: f32,
@@ -426,6 +428,7 @@ fn apply_film_emulation(
     *b += film.shadow_tint[2] * shadow_amount + film.highlight_tint[2] * highlight_amount;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_standard_adjustments(
     r: &mut f32,
     g: &mut f32,
@@ -480,6 +483,7 @@ fn apply_saturation(r: &mut f32, g: &mut f32, b: &mut f32, sat_factor: f32) {
     *b = b_sat * 255.0;
 }
 
+#[allow(clippy::too_many_arguments)]
 fn apply_film_post_processing(
     r: &mut f32,
     g: &mut f32,
