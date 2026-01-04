@@ -27,6 +27,9 @@ impl eframe::App for ImageViewerApp {
         // Process async messages
         self.process_loader_messages(ctx);
 
+        // Process task scheduler results
+        self.process_task_results(ctx);
+
         // Periodic cleanup of unused textures (every 100 frames)
         static mut FRAME_COUNTER: u32 = 0;
         unsafe {

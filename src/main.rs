@@ -11,6 +11,7 @@ mod logging;
 mod metadata;
 mod profiler;
 mod settings;
+mod task_scheduler;
 mod telemetry;
 mod tests;
 mod ui;

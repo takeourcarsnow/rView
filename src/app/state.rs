@@ -5,6 +5,7 @@ use crate::image_loader::ImageAdjustments;
 use crate::metadata::{MetadataDb, UndoHistory};
 use crate::profiler::{CacheStats, LoadingDiagnostics};
 use crate::settings::Settings;
+use crate::task_scheduler::{MemoryPool, TaskScheduler};
 use crate::ui::BatchRenameState;
 
 use eframe::egui::{self, TextureHandle, Vec2};
@@ -201,6 +202,10 @@ pub struct ImageViewerApp {
     // Telemetry
     #[allow(dead_code)]
     pub telemetry: Option<crate::telemetry::Telemetry>,
+
+    // Performance optimizations
+    pub task_scheduler: TaskScheduler,
+    pub memory_pool: MemoryPool,
 }
 
 impl ImageViewerApp {
@@ -418,6 +423,8 @@ impl ImageViewerApp {
                 crate::ui::batch_processing_dialog::BatchProcessingDialog::default(),
             thumbnail_scroll_offset: Vec2::ZERO,
             telemetry: Some(crate::telemetry::Telemetry::new(telemetry_enabled)),
+            task_scheduler: TaskScheduler::default(),
+            memory_pool: MemoryPool::default(),
         };
 
         // (Update checking removed)

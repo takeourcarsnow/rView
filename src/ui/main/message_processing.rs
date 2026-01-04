@@ -242,4 +242,25 @@ impl ImageViewerApp {
             }
         }
     }
+
+    pub fn process_task_results(&mut self, ctx: &egui::Context) {
+        // Limit the number of results processed per frame to prevent UI blocking
+        let max_results_per_frame = 10;
+        let mut results_processed = 0;
+
+        while results_processed < max_results_per_frame {
+            match self.task_scheduler.try_recv_result() {
+                Some(result) => {
+                    self.handle_task_result(result, ctx);
+                    results_processed += 1;
+                }
+                None => break, // No more results
+            }
+        }
+    }
+
+    fn handle_task_result(&mut self, result: crate::task_scheduler::TaskResult, ctx: &egui::Context) {
+        // Delegate to the main handler in image_loading.rs
+        self.handle_task_result_main(result, ctx);
+    }
 }

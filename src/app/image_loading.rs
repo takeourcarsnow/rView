@@ -50,13 +50,18 @@ impl ImageViewerApp {
                 return;
             }
 
-            if image_loader::is_raw_file(&path) {
-                self.load_raw_image(&path);
-            } else {
-                self.load_standard_image(&path);
-            }
+            // Use new task scheduler for prioritized loading
+            self.task_scheduler.submit_task(crate::task_scheduler::ImageTask::LoadImage {
+                path: path.clone(),
+                priority: crate::task_scheduler::TaskPriority::Critical,
+            });
 
-            self.load_exif_data(&path);
+            // Load EXIF with high priority
+            self.task_scheduler.submit_task(crate::task_scheduler::ImageTask::LoadExif {
+                path: path.clone(),
+                priority: crate::task_scheduler::TaskPriority::High,
+            });
+
             self.preload_adjacent();
         }
     }
@@ -343,12 +348,21 @@ impl ImageViewerApp {
                 Ok(hist) => hist,
                 Err(e) => {
                     log::warn!("GPU histogram failed: {}; falling back to CPU", e);
-                    image_loader::calculate_histogram(display_image)
+                    self.compute_histogram_cpu(display_image)
                 }
             }
         } else {
-            image_loader::calculate_histogram(display_image)
+            self.compute_histogram_cpu(display_image)
         }
+    }
+
+    fn compute_histogram_cpu(&self, display_image: &DynamicImage) -> Vec<Vec<u32>> {
+        // Use concurrent histogram computation for better performance
+        let tile_count = crate::task_scheduler::concurrent_histogram::optimal_tile_count(
+            display_image.width(),
+            display_image.height(),
+        );
+        crate::task_scheduler::concurrent_histogram::compute_parallel(display_image, tile_count)
     }
 
     fn generate_overlays_if_needed(&mut self, image: &DynamicImage, ctx: &egui::Context) {
@@ -574,18 +588,25 @@ impl ImageViewerApp {
             }
         }
 
-        if !full_paths.is_empty() {
-            self.image_cache.preload(full_paths);
+        // Submit preload tasks with appropriate priorities
+        for path in full_paths {
+            self.task_scheduler.submit_task(crate::task_scheduler::ImageTask::LoadImage {
+                path,
+                priority: crate::task_scheduler::TaskPriority::Medium,
+            });
         }
-        if !thumb_paths.is_empty() {
-            // Preload embedded previews for RAW files (size this to a large value to get good-quality previews)
-            self.image_cache
-                .preload_thumbnails_parallel(thumb_paths, 1920);
+
+        for path in thumb_paths {
+            self.task_scheduler.submit_task(crate::task_scheduler::ImageTask::LoadThumbnail {
+                path,
+                size: 1920,
+                priority: crate::task_scheduler::TaskPriority::Low,
+            });
         }
     }
 
     /// Ensure a thumbnail is requested: short-circuit on in-memory cache or already-requested, otherwise spawn background work
-    pub fn ensure_thumbnail_requested(&mut self, path: &PathBuf, ctx: &egui::Context) {
+    pub fn ensure_thumbnail_requested(&mut self, path: &PathBuf, _ctx: &egui::Context) {
         // If texture already present, nothing to do
         if self.thumbnail_textures.contains_key(path) {
             return;
@@ -598,18 +619,21 @@ impl ImageViewerApp {
 
         // Try a synchronous cache lookup to quickly satisfy from disk cache
         if let Some(img) = self.image_cache.get_thumbnail(path) {
-            let _ = self
-                .loader_tx
-                .send(super::LoaderMessage::ThumbnailLoaded(path.clone(), img));
-            ctx.request_repaint();
+            // Send result through task scheduler for consistency
+            let result = crate::task_scheduler::TaskResult::ThumbnailLoaded {
+                path: path.clone(),
+                image: img,
+            };
+            // Since we're on the main thread, we need to handle this directly
+            self.handle_task_result_main(result, _ctx);
             return;
         }
 
-        // Otherwise spawn the background request
-        self.request_thumbnail(path.clone(), ctx.clone());
+        // Otherwise submit task to scheduler
+        self.request_thumbnail(path.clone(), _ctx.clone());
     }
 
-    pub fn request_thumbnail(&mut self, path: PathBuf, ctx: egui::Context) {
+    pub fn request_thumbnail(&mut self, path: PathBuf, _ctx: egui::Context) {
         if self.thumbnail_requests.contains(&path) {
             return;
         }
@@ -621,57 +645,11 @@ impl ImageViewerApp {
 
         self.thumbnail_requests.insert(path.clone());
 
-        let tx = self.loader_tx.clone();
-        let size = self.settings.thumbnail_size as u32;
-        let cache = Arc::clone(&self.image_cache);
-        let load_raw_full_size = self.settings.load_raw_full_size;
-
-        rayon::spawn(move || {
-            // Clone once for use in sends to avoid moving the original too early
-            let p = path.clone();
-
-            profiler::with_profiler(|p| p.start_timer("thumbnail_cache_lookup"));
-            let cache_hit = cache.get_thumbnail(&p).is_some();
-            profiler::with_profiler(|p| p.end_timer("thumbnail_cache_lookup"));
-
-            if cache_hit {
-                let thumb = cache.get_thumbnail(&p).unwrap();
-                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
-                ctx.request_repaint();
-                return;
-            }
-
-            profiler::with_profiler(|p| p.start_timer("thumbnail_generation"));
-            // If RAW files are configured to preview-only, try embedded thumbnail extraction first
-            // If that fails, fall back to generating a thumbnail via full RAW decode to ensure previews appear.
-            if image_loader::is_raw_file(&p) && !load_raw_full_size {
-                match image_loader::load_raw_embedded_thumbnail(&p, size) {
-                    Ok(thumb) => {
-                        let thumb_clone = thumb.clone();
-                        cache.insert_thumbnail(p.clone(), thumb_clone);
-                        let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
-                        ctx.request_repaint();
-                    }
-                    Err(_) => {
-                        log::warn!("No embedded thumbnail for {:?} — falling back to full decode for thumbnail", p);
-                        if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
-                            let thumb_clone = thumb.clone();
-                            cache.insert_thumbnail(p.clone(), thumb_clone);
-                            let _ =
-                                tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
-                            ctx.request_repaint();
-                        }
-                    }
-                }
-            } else if let Ok(thumb) = image_loader::load_thumbnail(&p, size) {
-                let thumb_clone = thumb.clone();
-                cache.insert_thumbnail(p.clone(), thumb_clone);
-                let _ = tx.send(super::LoaderMessage::ThumbnailLoaded(p.clone(), thumb));
-                ctx.request_repaint();
-            }
-            profiler::with_profiler(|p| p.end_timer("thumbnail_generation"));
-            // Notify main thread that this thumbnail request has completed (so it can clear in-flight flags)
-            let _ = tx.send(super::LoaderMessage::ThumbnailRequestComplete(p));
+        // Use task scheduler for thumbnail loading
+        self.task_scheduler.submit_task(crate::task_scheduler::ImageTask::LoadThumbnail {
+            path,
+            size: self.settings.thumbnail_size as u32,
+            priority: crate::task_scheduler::TaskPriority::Low,
         });
     }
 
@@ -681,5 +659,88 @@ impl ImageViewerApp {
         let spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         let idx = ((time * 10.0) as usize) % spinner_chars.len();
         spinner_chars[idx]
+    }
+
+    /// Handle task results from the task scheduler
+    pub fn handle_task_result_main(&mut self, result: crate::task_scheduler::TaskResult, ctx: &egui::Context) {
+        match result {
+            crate::task_scheduler::TaskResult::ImageLoaded { path, image } => {
+                crate::profiler::with_profiler(|p| p.increment_counter("images_loaded"));
+                if self.get_current_path().as_ref() == Some(&path) {
+                    self.showing_preview = false;
+                    self.set_current_image(&path, image.clone());
+                    self.pending_fit_to_window = true;
+                } else {
+                    self.image_cache.insert(path.clone(), image.clone());
+                }
+            }
+            crate::task_scheduler::TaskResult::ThumbnailLoaded { path, image } => {
+                crate::profiler::with_profiler(|p| p.increment_counter("thumbnails_loaded"));
+
+                // Apply adjustments to thumbnail if any exist for this image
+                let display_thumb = if let Some(adj) = self.metadata_db.get_adjustments(&path) {
+                    if !adj.is_default() {
+                        crate::image_loader::apply_adjustments_thumbnail(&image, &adj)
+                    } else {
+                        image
+                    }
+                } else {
+                    image
+                };
+
+                let size = [
+                    display_thumb.width() as usize,
+                    display_thumb.height() as usize,
+                ];
+                let rgba = display_thumb.to_rgba8();
+                let pixels = rgba.as_flat_samples();
+
+                let texture = ctx.load_texture(
+                    format!("thumb_{}", path.display()),
+                    egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice()),
+                    egui::TextureOptions::LINEAR,
+                );
+
+                self.thumbnail_textures.insert(path.clone(), texture);
+                self.thumbnail_requests.remove(&path);
+            }
+            crate::task_scheduler::TaskResult::ExifLoaded { path, exif } => {
+                crate::profiler::with_profiler(|p| p.increment_counter("exif_loaded"));
+                let exif_val = (*exif).clone();
+                self.compare_exifs.insert(path.clone(), exif_val.clone());
+                if self.get_current_path().as_ref() == Some(&path) {
+                    self.current_exif = Some(exif_val);
+                }
+            }
+            crate::task_scheduler::TaskResult::HistogramComputed { histogram } => {
+                self.histogram_data = Some(histogram);
+            }
+            crate::task_scheduler::TaskResult::AdjustmentsApplied { image } => {
+                self.current_image = Some(image);
+                self.is_loading = false;
+            }
+            crate::task_scheduler::TaskResult::Error { task, error } => {
+                match task {
+                    crate::task_scheduler::ImageTask::LoadImage { path, .. } => {
+                        crate::profiler::with_profiler(|p| p.increment_counter("load_errors"));
+                        log::error!("Failed to load {}: {}", path.display(), error);
+                        if self.get_current_path().as_ref() == Some(&path) {
+                            self.is_loading = false;
+                            self.load_error = Some(error);
+                        }
+                    }
+                    crate::task_scheduler::ImageTask::LoadThumbnail { path, .. } => {
+                        log::warn!("Thumbnail load failed for {:?}: {}", path, error);
+                        self.thumbnail_requests.remove(&path);
+                    }
+                    crate::task_scheduler::ImageTask::LoadExif { path, .. } => {
+                        log::warn!("EXIF load failed for {:?}: {}", path, error);
+                    }
+                    _ => {
+                        log::warn!("Task failed: {}", error);
+                    }
+                }
+            }
+        }
     }
 }
