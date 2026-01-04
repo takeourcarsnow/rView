@@ -1,4 +1,4 @@
-use eframe::egui::{self, Ui, Color32, RichText, Stroke, Vec2};
+use eframe::egui::{self, Color32, RichText, Stroke, Ui, Vec2};
 
 use crate::app::ImageViewerApp;
 use crate::catalog::CollectionType;
@@ -43,10 +43,11 @@ impl ImageViewerApp {
             } else {
                 ">"
             };
-            let triangle = egui::Button::new(RichText::new(symbol).size(8.0).color(LR_TEXT_SECONDARY))
-                .fill(Color32::TRANSPARENT)
-                .stroke(Stroke::NONE)
-                .min_size(Vec2::new(14.0, 14.0));
+            let triangle =
+                egui::Button::new(RichText::new(symbol).size(8.0).color(LR_TEXT_SECONDARY))
+                    .fill(Color32::TRANSPARENT)
+                    .stroke(Stroke::NONE)
+                    .min_size(Vec2::new(14.0, 14.0));
             if ui.add(triangle).clicked() {
                 self.catalog_collections_open = !self.catalog_collections_open;
             }
