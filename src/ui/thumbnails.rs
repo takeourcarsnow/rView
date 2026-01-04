@@ -129,7 +129,8 @@ impl ImageViewerApp {
                         // Clamp the scroll offset to prevent overscroll
                         let visible_width = ui.max_rect().width();
                         let max_offset = (total_width - visible_width).max(0.0);
-                        self.thumbnail_scroll_offset.x = self.thumbnail_scroll_offset.x.max(0.0).min(max_offset);
+                        self.thumbnail_scroll_offset.x =
+                            self.thumbnail_scroll_offset.x.max(0.0).min(max_offset);
                     }
                 }
             }
@@ -170,7 +171,8 @@ impl ImageViewerApp {
                         // Clamp the scroll offset to prevent overscroll
                         let visible_height = ui.max_rect().height();
                         let max_offset = (total_height - visible_height).max(0.0);
-                        self.thumbnail_scroll_offset.y = self.thumbnail_scroll_offset.y.max(0.0).min(max_offset);
+                        self.thumbnail_scroll_offset.y =
+                            self.thumbnail_scroll_offset.y.max(0.0).min(max_offset);
                     }
                 }
             }
