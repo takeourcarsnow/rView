@@ -126,6 +126,10 @@ impl ImageViewerApp {
                 if let Some(pos) = hover_pos {
                     if ui.max_rect().contains(pos) {
                         self.thumbnail_scroll_offset.x += -scroll_delta.y * 20.0;
+                        // Clamp the scroll offset to prevent overscroll
+                        let visible_width = ui.max_rect().width();
+                        let max_offset = (total_width - visible_width).max(0.0);
+                        self.thumbnail_scroll_offset.x = self.thumbnail_scroll_offset.x.max(0.0).min(max_offset);
                     }
                 }
             }
@@ -156,12 +160,28 @@ impl ImageViewerApp {
             let total_height = total_items as f32 * item_height;
             let content_size = Vec2::new(item_width, total_height);
 
+            // Handle mouse wheel for vertical scrolling
+            let scroll_delta = ui.input(|i| i.raw_scroll_delta);
+            if scroll_delta.y != 0.0 {
+                let hover_pos = ui.input(|i| i.pointer.hover_pos());
+                if let Some(pos) = hover_pos {
+                    if ui.max_rect().contains(pos) {
+                        self.thumbnail_scroll_offset.y += -scroll_delta.y * 20.0;
+                        // Clamp the scroll offset to prevent overscroll
+                        let visible_height = ui.max_rect().height();
+                        let max_offset = (total_height - visible_height).max(0.0);
+                        self.thumbnail_scroll_offset.y = self.thumbnail_scroll_offset.y.max(0.0).min(max_offset);
+                    }
+                }
+            }
+
             ui.vertical(|ui| {
-                egui::ScrollArea::vertical()
+                let output = egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .scroll_bar_visibility(
                         egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
                     )
+                    .scroll_offset(self.thumbnail_scroll_offset)
                     .show(ui, |ui| {
                         ui.allocate_space(content_size);
                         self.render_visible_thumbnails(
@@ -175,6 +195,7 @@ impl ImageViewerApp {
                             item_height,
                         );
                     });
+                self.thumbnail_scroll_offset = output.state.offset;
             });
         }
     }
