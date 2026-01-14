@@ -20,6 +20,7 @@ pub struct Settings {
     pub show_exif_overlay: bool,
     pub show_histogram: bool,
     pub show_adjustments: bool,
+    pub show_overlays: bool,
     pub show_toolbar: bool,
     pub show_statusbar: bool,
 
@@ -114,6 +115,7 @@ impl Default for Settings {
             show_exif_overlay: true,
             show_histogram: true,
             show_adjustments: true,
+            show_overlays: true,
             show_toolbar: true,
             show_statusbar: true,
 

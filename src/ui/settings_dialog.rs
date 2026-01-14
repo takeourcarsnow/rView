@@ -159,6 +159,7 @@ impl ImageViewerApp {
             &mut self.settings.show_adjustments,
             "Show adjustments panel",
         );
+        ui.checkbox(&mut self.settings.show_overlays, "Show overlays panel");
         ui.checkbox(&mut self.settings.show_toolbar, "Show toolbar");
         ui.checkbox(&mut self.settings.show_statusbar, "Show status bar");
     }
@@ -262,91 +263,7 @@ impl ImageViewerApp {
                 200..=255,
             ));
         });
-        ui.add_space(8.0);
-        ui.heading("Custom Overlays & Frames");
-        ui.add_space(4.0);
-
-        // Get available overlays
-        let overlay_dir = std::path::Path::new("src/images/overlays");
-        let available_overlays: Vec<String> = if overlay_dir.exists() {
-            std::fs::read_dir(overlay_dir)
-                .ok()
-                .map(|entries| {
-                    entries
-                        .filter_map(|entry| entry.ok())
-                        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "webp"))
-                        .filter_map(|entry| entry.file_name().to_str().map(|s| s.to_string()))
-                        .collect()
-                })
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-
-        ui.horizontal(|ui| {
-            ui.label("Overlay:");
-            egui::ComboBox::from_id_salt("overlay_select")
-                .selected_text(self.settings.selected_overlay.as_deref().unwrap_or("None"))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.settings.selected_overlay, None, "None");
-                    for overlay in &available_overlays {
-                        let selected = self.settings.selected_overlay.as_ref() == Some(overlay);
-                        if ui.selectable_label(selected, overlay).clicked() {
-                            self.settings.selected_overlay = Some(overlay.clone());
-                            // Reload overlay texture
-                            self.load_custom_overlay(ui.ctx());
-                        }
-                    }
-                });
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Overlay opacity:");
-            if ui.add(egui::Slider::new(&mut self.settings.overlay_opacity, 0.0..=1.0)).changed() {
-                // No need to reload texture, just opacity changed
-            }
-        });
-
-        // Get available frames
-        let frame_dir = std::path::Path::new("src/images/frames");
-        let available_frames: Vec<String> = if frame_dir.exists() {
-            std::fs::read_dir(frame_dir)
-                .ok()
-                .map(|entries| {
-                    entries
-                        .filter_map(|entry| entry.ok())
-                        .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "webp"))
-                        .filter_map(|entry| entry.file_name().to_str().map(|s| s.to_string()))
-                        .collect()
-                })
-                .unwrap_or_default()
-        } else {
-            Vec::new()
-        };
-
-        ui.horizontal(|ui| {
-            ui.label("Frame:");
-            egui::ComboBox::from_id_salt("frame_select")
-                .selected_text(self.settings.selected_frame.as_deref().unwrap_or("None"))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.settings.selected_frame, None, "None");
-                    for frame in &available_frames {
-                        let selected = self.settings.selected_frame.as_ref() == Some(frame);
-                        if ui.selectable_label(selected, frame).clicked() {
-                            self.settings.selected_frame = Some(frame.clone());
-                            // Reload frame texture
-                            self.load_frame(ui.ctx());
-                        }
-                    }
-                });
-        });
-
-        ui.horizontal(|ui| {
-            ui.label("Frame opacity:");
-            if ui.add(egui::Slider::new(&mut self.settings.frame_opacity, 0.0..=1.0)).changed() {
-                // No need to reload texture, just opacity changed
-            }
-        });    }
+    }
 
     fn render_cache_settings(&mut self, ui: &mut egui::Ui) {
         ui.heading("Cache");
