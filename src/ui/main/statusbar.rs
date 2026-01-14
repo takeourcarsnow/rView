@@ -1,5 +1,5 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, Margin, RichText, Vec2};
+use egui::{self, Color32, Margin, RichText};
 
 impl ImageViewerApp {
     pub(crate) fn render_statusbar(&mut self, ctx: &egui::Context) {
@@ -42,27 +42,6 @@ impl ImageViewerApp {
                                 RichText::new("[Preview]")
                                     .color(Color32::from_rgb(255, 200, 100))
                                     .size(11.0),
-                            );
-                        }
-
-                        // Rating
-                        let metadata = self.metadata_db.get(&path);
-                        if metadata.rating > 0 {
-                            ui.label(
-                                RichText::new("★".repeat(metadata.rating as usize))
-                                    .color(Color32::from_rgb(255, 200, 50))
-                                    .size(11.0),
-                            );
-                        }
-
-                        // Color label
-                        if metadata.color_label != crate::settings::ColorLabel::None {
-                            let (rect, _) =
-                                ui.allocate_exact_size(Vec2::new(12.0, 12.0), egui::Sense::hover());
-                            ui.painter().circle_filled(
-                                rect.center(),
-                                5.0,
-                                metadata.color_label.to_color(),
                             );
                         }
                     }

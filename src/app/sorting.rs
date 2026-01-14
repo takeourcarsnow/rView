@@ -62,12 +62,6 @@ impl ImageViewerApp {
             use rand::seq::SliceRandom;
             let mut rng = rand::thread_rng();
             self.image_list.shuffle(&mut rng);
-        } else if matches!(sort_mode, crate::settings::SortMode::Rating) {
-            self.image_list.sort_by(|a, b| {
-                let a_rating = self.metadata_db.get(a).rating;
-                let b_rating = self.metadata_db.get(b).rating;
-                b_rating.cmp(&a_rating)
-            });
         } else {
             self.image_list
                 .sort_by(|a, b| compare_paths_by_mode(a, b, sort_mode));

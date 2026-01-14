@@ -1,6 +1,5 @@
 use crate::image_loader;
 use crate::metadata::FileOperation;
-use crate::settings::ColorLabel;
 use image::GenericImageView;
 use std::path::PathBuf;
 
@@ -108,43 +107,9 @@ impl ImageViewerApp {
         self.crop_start_pos = None;
     }
 
-    // Slideshow
-    pub fn toggle_slideshow(&mut self) {
-        self.slideshow_active = !self.slideshow_active;
-        self.slideshow_timer = 0.0;
-    }
 
-    // Ratings
-    pub fn set_rating(&mut self, rating: u8) {
-        if let Some(path) = self.get_current_path() {
-            let previous_rating = self.metadata_db.get(&path).rating;
-            self.metadata_db.set_rating(path.clone(), rating);
-            self.metadata_db.save();
 
-            self.undo_history.push(FileOperation::Rate {
-                path: path.clone(),
-                rating,
-                previous_rating,
-            });
 
-            self.show_status(&format!("Rating: {}", "★".repeat(rating as usize)));
-        }
-    }
-
-    // Color labels
-    pub fn set_color_label(&mut self, color: ColorLabel) {
-        if let Some(path) = self.get_current_path() {
-            let previous_color_label = self.metadata_db.get(&path).color_label;
-            self.metadata_db.set_color_label(path.clone(), color);
-            self.metadata_db.save();
-
-            self.undo_history.push(FileOperation::Label {
-                path: path.clone(),
-                color_label: color,
-                previous_color_label,
-            });
-        }
-    }
 
     // File operations
     pub fn delete_current_image(&mut self) {
@@ -349,25 +314,6 @@ impl ImageViewerApp {
                     self.thumbnail_requests.remove(&path);
                     self.show_status("Undo: Adjustments reverted");
                 }
-                FileOperation::Rate {
-                    path,
-                    previous_rating,
-                    ..
-                } => {
-                    self.metadata_db.set_rating(path.clone(), previous_rating);
-                    self.metadata_db.save();
-                    self.show_status("Undo: Rating reverted");
-                }
-                FileOperation::Label {
-                    path,
-                    previous_color_label,
-                    ..
-                } => {
-                    self.metadata_db
-                        .set_color_label(path.clone(), previous_color_label);
-                    self.metadata_db.save();
-                    self.show_status("Undo: Label reverted");
-                }
                 FileOperation::Crop { .. } => {
                     // For now, just show that crop undo is not implemented
                     // In a full implementation, we'd need to store the original image
@@ -460,18 +406,6 @@ impl ImageViewerApp {
                     self.thumbnail_textures.remove(&path);
                     self.thumbnail_requests.remove(&path);
                     self.show_status("Redo: Adjustments reapplied");
-                }
-                FileOperation::Rate { path, rating, .. } => {
-                    self.metadata_db.set_rating(path.clone(), rating);
-                    self.metadata_db.save();
-                    self.show_status("Redo: Rating reapplied");
-                }
-                FileOperation::Label {
-                    path, color_label, ..
-                } => {
-                    self.metadata_db.set_color_label(path.clone(), color_label);
-                    self.metadata_db.save();
-                    self.show_status("Redo: Label reapplied");
                 }
                 FileOperation::Crop { .. } => {
                     // For now, just show that crop redo is not implemented

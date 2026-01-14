@@ -1,5 +1,4 @@
 use crate::app::ImageViewerApp;
-use crate::settings::ColorLabel;
 
 impl ImageViewerApp {
     pub fn handle_keyboard(&mut self, ctx: &egui::Context) {
@@ -44,7 +43,6 @@ impl ImageViewerApp {
             (&mut self.show_settings_dialog, "settings"),
             (&mut self.show_go_to_dialog, "go_to"),
             (&mut self.show_move_dialog, "move"),
-            (&mut self.batch_rename_state.show_dialog, "batch_rename"),
         ];
 
         for (flag, _) in dialogs {
@@ -52,11 +50,6 @@ impl ImageViewerApp {
                 *flag = false;
                 return;
             }
-        }
-
-        if self.slideshow_active {
-            self.slideshow_active = false;
-            return;
         }
 
         if self.search_visible {
@@ -170,9 +163,6 @@ impl ImageViewerApp {
         if alt && i.key_pressed(egui::Key::Z) {
             self.settings.show_zebras = !self.settings.show_zebras;
         }
-        if i.key_pressed(egui::Key::G) && !ctrl {
-            self.toggle_lightbox_mode();
-        }
         if ctrl && i.key_pressed(egui::Key::G) {
             self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
         }
@@ -191,9 +181,6 @@ impl ImageViewerApp {
 
         if i.key_pressed(egui::Key::Delete) {
             self.delete_current_image();
-        }
-        if i.key_pressed(egui::Key::F2) {
-            self.handle_batch_rename_key();
         }
         if ctrl && i.key_pressed(egui::Key::P) {
             self.command_palette_open = true;
@@ -226,48 +213,5 @@ impl ImageViewerApp {
         let ctrl = i.modifiers.ctrl;
         let alt = i.modifiers.alt;
 
-        // Ratings (with Alt modifier)
-        if alt {
-            if i.key_pressed(egui::Key::Num0) {
-                self.set_rating(0);
-            }
-            if i.key_pressed(egui::Key::Num1) {
-                self.set_rating(1);
-            }
-            if i.key_pressed(egui::Key::Num2) {
-                self.set_rating(2);
-            }
-            if i.key_pressed(egui::Key::Num3) {
-                self.set_rating(3);
-            }
-            if i.key_pressed(egui::Key::Num4) {
-                self.set_rating(4);
-            }
-            if i.key_pressed(egui::Key::Num5) {
-                self.set_rating(5);
-            }
-        }
-
-        // Color labels (with Ctrl modifier)
-        if ctrl {
-            if i.key_pressed(egui::Key::Num1) {
-                self.set_color_label(ColorLabel::Red);
-            }
-            if i.key_pressed(egui::Key::Num2) {
-                self.set_color_label(ColorLabel::Yellow);
-            }
-            if i.key_pressed(egui::Key::Num3) {
-                self.set_color_label(ColorLabel::Green);
-            }
-            if i.key_pressed(egui::Key::Num4) {
-                self.set_color_label(ColorLabel::Blue);
-            }
-            if i.key_pressed(egui::Key::Num5) {
-                self.set_color_label(ColorLabel::Purple);
-            }
-            if i.key_pressed(egui::Key::Num0) {
-                self.set_color_label(ColorLabel::None);
-            }
-        }
     }
 }

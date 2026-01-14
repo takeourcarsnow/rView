@@ -1,7 +1,6 @@
 use crate::app::ImageViewerApp;
-use crate::settings::{ColorLabel, ThumbnailPosition};
+use crate::settings::ThumbnailPosition;
 use egui::{self, Color32, CornerRadius, Margin, Rect, Vec2};
-use std::path::PathBuf;
 
 impl ImageViewerApp {
     /// Pre-fetch thumbnails for items near the current view
@@ -409,26 +408,6 @@ impl ImageViewerApp {
             ui.ctx().request_repaint();
         }
 
-        // Rating stars (bottom left)
-        if metadata.rating > 0 {
-            painter.text(
-                image_area.left_bottom() + Vec2::new(3.0, -3.0),
-                egui::Align2::LEFT_BOTTOM,
-                "★".repeat(metadata.rating as usize),
-                egui::FontId::proportional(8.0),
-                Color32::from_rgb(255, 200, 50),
-            );
-        }
-
-        // Color label dot (top right)
-        if metadata.color_label != ColorLabel::None {
-            painter.circle_filled(
-                image_area.right_top() + Vec2::new(-6.0, 6.0),
-                4.0,
-                metadata.color_label.to_color(),
-            );
-        }
-
         // Filename and resolution label under thumbnail (optional)
         if self.settings.show_thumbnail_labels {
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
@@ -509,73 +488,6 @@ impl ImageViewerApp {
                 self.delete_current_image();
                 ui.close_menu();
             }
-            ui.separator();
-
-            // Add to Collection submenu
-            if let Some(ref catalog_db) = self.catalog_db {
-                if let Ok(collections) = catalog_db.get_collections() {
-                    if !collections.is_empty() {
-                        ui.menu_button("Add to Collection", |ui| {
-                            for collection in collections {
-                                let label = format!("📁 {}", collection.name);
-                                if ui.button(&label).clicked() {
-                                    // Add all selected images to collection, or current image if none selected
-                                    if !self.selected_indices.is_empty() {
-                                        let mut added_count = 0;
-                                        // Collect paths first to avoid borrowing issues
-                                        let paths_to_add: Vec<PathBuf> = self
-                                            .selected_indices
-                                            .iter()
-                                            .filter_map(|&selected_idx| {
-                                                self.filtered_list.get(selected_idx).and_then(
-                                                    |&real_idx| {
-                                                        self.image_list.get(real_idx).cloned()
-                                                    },
-                                                )
-                                            })
-                                            .collect();
-
-                                        for path in paths_to_add {
-                                            if self
-                                                .add_path_to_collection(path, collection.id)
-                                                .is_ok()
-                                            {
-                                                added_count += 1;
-                                            }
-                                        }
-                                        if added_count > 0 {
-                                            self.set_status_message(format!(
-                                                "Added {} images to collection",
-                                                added_count
-                                            ));
-                                        }
-                                    } else {
-                                        self.current_index = display_idx;
-                                        self.add_current_to_collection(collection.id);
-                                    }
-                                    ui.close_menu();
-                                }
-                            }
-                        });
-                        ui.separator();
-                    }
-                }
-            }
-
-            ui.menu_button("Rating", |ui| {
-                for r in 0..=5 {
-                    let stars = if r == 0 {
-                        "None".to_string()
-                    } else {
-                        "★".repeat(r)
-                    };
-                    if ui.button(stars).clicked() {
-                        self.current_index = display_idx;
-                        self.set_rating(r as u8);
-                        ui.close_menu();
-                    }
-                }
-            });
         });
     }
 }

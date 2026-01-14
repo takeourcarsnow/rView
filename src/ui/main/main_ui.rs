@@ -42,9 +42,6 @@ impl eframe::App for ImageViewerApp {
         // Handle keyboard input
         self.handle_keyboard(ctx);
 
-        // Update slideshow
-        self.update_slideshow(ctx);
-
         // Animate zoom/pan
         self.animate_view(ctx);
 
@@ -77,12 +74,6 @@ impl eframe::App for ImageViewerApp {
                     self.render_sidebar(ctx);
                 }
                 self.render_main_view(ctx);
-            }
-            ViewMode::Lightbox => {
-                if self.settings.show_toolbar {
-                    self.render_toolbar(ctx);
-                }
-                self.render_lightbox(ctx);
             }
             ViewMode::Compare => {
                 if self.settings.show_toolbar {

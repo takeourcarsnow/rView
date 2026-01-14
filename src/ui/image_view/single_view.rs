@@ -9,7 +9,6 @@ impl ImageViewerApp {
             .show(ctx, |ui| {
                 match self.view_mode {
                     crate::app::ViewMode::Single => self.render_single_view(ui, ctx),
-                    crate::app::ViewMode::Lightbox => {} // Handled separately
                     crate::app::ViewMode::Compare => self.render_compare_view(ctx),
                 }
             });

@@ -1,5 +1,4 @@
 use crate::image_loader::ImageAdjustments;
-use crate::settings::ColorLabel;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -7,8 +6,6 @@ use std::path::PathBuf;
 /// Metadata stored for each image (ratings, labels, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ImageMetadata {
-    pub rating: u8, // 0-5 stars
-    pub color_label: ColorLabel,
     pub tags: Vec<String>,
     pub notes: String,
     pub flagged: bool,
@@ -58,18 +55,6 @@ impl MetadataDb {
 
     pub fn get<P: AsRef<std::path::Path>>(&self, path: P) -> ImageMetadata {
         self.images.get(path.as_ref()).cloned().unwrap_or_default()
-    }
-
-    pub fn set_rating<P: Into<PathBuf>>(&mut self, path: P, rating: u8) {
-        let path = path.into();
-        let entry = self.images.entry(path).or_default();
-        entry.rating = rating.min(5);
-    }
-
-    pub fn set_color_label<P: Into<PathBuf>>(&mut self, path: P, color: ColorLabel) {
-        let path = path.into();
-        let entry = self.images.entry(path).or_default();
-        entry.color_label = color;
     }
 
     #[allow(dead_code)]
@@ -168,16 +153,6 @@ pub enum FileOperation {
         path: PathBuf,
         adjustments: crate::image_loader::ImageAdjustments,
         previous_adjustments: Box<crate::image_loader::ImageAdjustments>,
-    },
-    Rate {
-        path: PathBuf,
-        rating: u8,
-        previous_rating: u8,
-    },
-    Label {
-        path: PathBuf,
-        color_label: crate::settings::ColorLabel,
-        previous_color_label: crate::settings::ColorLabel,
     },
 }
 
@@ -292,22 +267,6 @@ impl UndoHistory {
                         format!(
                             "Adjust {}",
                             path.file_name().unwrap_or_default().to_string_lossy()
-                        )
-                    }
-                    FileOperation::Rate { path, rating, .. } => {
-                        format!(
-                            "Rate {} with {} stars",
-                            path.file_name().unwrap_or_default().to_string_lossy(),
-                            rating
-                        )
-                    }
-                    FileOperation::Label {
-                        path, color_label, ..
-                    } => {
-                        format!(
-                            "Label {} with {}",
-                            path.file_name().unwrap_or_default().to_string_lossy(),
-                            color_label.name()
                         )
                     }
                 })

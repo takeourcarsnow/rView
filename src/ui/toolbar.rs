@@ -37,7 +37,6 @@ impl ImageViewerApp {
         let mut open_file = false;
         let mut show_move = false;
         let mut export_image = false;
-        let mut show_batch_processing = false;
         let mut go_prev = false;
         let mut go_next = false;
         let mut show_go_to = false;
@@ -51,7 +50,6 @@ impl ImageViewerApp {
         let mut toggle_crop_mode = false;
         let mut apply_crop = false;
         let mut set_view_single = false;
-        let mut toggle_lightbox = false;
         let mut toggle_focus_peaking = false;
         let mut toggle_zebras = false;
         let mut toggle_grid = false;
@@ -87,9 +85,6 @@ impl ImageViewerApp {
                     }
                     if icon_button(ui, lucide("download"), "Export image (Ctrl+S)").clicked() {
                         export_image = true;
-                    }
-                    if icon_button(ui, lucide("layers"), "Batch processing (Ctrl+B)").clicked() {
-                        show_batch_processing = true;
                     }
 
                     ui.add_space(8.0);
@@ -204,10 +199,6 @@ impl ImageViewerApp {
                         set_view_single = true;
                     }
 
-                    if toggle_button(ui, lucide("layout-grid"), "Grid view (G)", view_mode == ViewMode::Lightbox).clicked() {
-                        toggle_lightbox = true;
-                    }
-
                     ui.add_space(8.0);
                     toolbar_separator(ui);
                     ui.add_space(8.0);
@@ -284,9 +275,6 @@ impl ImageViewerApp {
         if export_image {
             self.export_image();
         }
-        if show_batch_processing {
-            self.batch_processing_dialog.open = true;
-        }
         if go_prev {
             self.previous_image();
         }
@@ -330,9 +318,6 @@ impl ImageViewerApp {
             self.view_mode = ViewMode::Single;
         }
 
-        if toggle_lightbox {
-            self.toggle_lightbox_mode();
-        }
         if toggle_focus_peaking {
             self.settings.show_focus_peaking = !self.settings.show_focus_peaking;
             if self.settings.show_focus_peaking {

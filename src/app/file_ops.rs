@@ -163,14 +163,6 @@ impl ImageViewerApp {
         }
     }
 
-    pub fn toggle_lightbox_mode(&mut self) {
-        if self.view_mode == super::ViewMode::Lightbox {
-            self.view_mode = super::ViewMode::Single;
-        } else {
-            self.view_mode = super::ViewMode::Lightbox;
-        }
-    }
-
     pub fn toggle_panels(&mut self) {
         self.panels_hidden = !self.panels_hidden;
         // Schedule a fit operation for the next frame after UI layout is updated

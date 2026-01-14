@@ -88,7 +88,6 @@ impl ImageViewerApp {
             ("Rotate Left", "L", "rotate_left"),
             ("Rotate Right", "R", "rotate_right"),
             ("Toggle Fullscreen", "F11", "fullscreen"),
-            ("Start Slideshow", "Space", "slideshow"),
             ("Toggle Focus Peaking", "Ctrl+F", "focus_peaking"),
             ("Toggle Zebras", "Alt+Z", "zebras"),
             ("Undo", "Ctrl+Z", "undo"),
@@ -99,13 +98,9 @@ impl ImageViewerApp {
             ("Toggle Thumbnails", "T", "thumbnails"),
             ("Toggle EXIF Info", "I", "exif"),
             ("Toggle Histogram", "H", "histogram"),
-            ("Grid View", "G", "lightbox"),
             ("Delete Image", "Del", "delete"),
             ("Set as Wallpaper", "", "wallpaper"),
             ("Settings", "", "settings"),
-            ("Import to Catalog", "", "catalog_import"),
-            ("View All Photos", "", "catalog_all"),
-            ("New Collection", "", "catalog_collection"),
         ];
 
         let query = self.command_palette_query.to_lowercase();
@@ -132,7 +127,6 @@ impl ImageViewerApp {
             "rotate_left" => self.rotate_left(),
             "rotate_right" => self.rotate_right(),
             "fullscreen" => self.is_fullscreen = !self.is_fullscreen,
-            "slideshow" => self.toggle_slideshow(),
             "focus_peaking" => self.settings.show_focus_peaking = !self.settings.show_focus_peaking,
             "zebras" => self.settings.show_zebras = !self.settings.show_zebras,
             "undo" => self.undo_last_operation(),
@@ -143,25 +137,9 @@ impl ImageViewerApp {
             "thumbnails" => self.settings.show_thumbnails = !self.settings.show_thumbnails,
             "exif" => self.settings.show_exif = !self.settings.show_exif,
             "histogram" => self.settings.show_histogram = !self.settings.show_histogram,
-
-            "lightbox" => self.toggle_lightbox_mode(),
             "delete" => self.delete_current_image(),
             "wallpaper" => self.set_as_wallpaper(),
             "settings" => self.show_settings_dialog = true,
-            "catalog_import" => {
-                if self.catalog_db.is_some() {
-                    self.catalog_show_import_dialog = true;
-                }
-            }
-            "catalog_all" => {
-                self.catalog_view_active = true;
-                self.load_catalog_all_photos();
-            }
-            "catalog_collection" => {
-                if self.catalog_db.is_some() {
-                    self.catalog_show_new_collection_dialog = true;
-                }
-            }
             _ => {}
         }
     }

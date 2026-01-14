@@ -34,10 +34,6 @@ pub struct Settings {
     pub fit_mode: FitMode,
     pub auto_rotate_exif: bool,
 
-    // Slideshow
-    pub slideshow_interval: f32,
-    pub slideshow_loop: bool,
-
     // Overlays
     pub show_focus_peaking: bool,
     pub focus_peaking_color: FocusPeakingColor,
@@ -123,9 +119,6 @@ impl Default for Settings {
 
             fit_mode: FitMode::Fit,
             auto_rotate_exif: true,
-
-            slideshow_interval: 3.0,
-            slideshow_loop: true,
 
             show_focus_peaking: false,
             focus_peaking_color: FocusPeakingColor::Red,

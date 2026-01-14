@@ -31,7 +31,6 @@ impl ImageViewerApp {
                         self.render_appearance_settings(ui);
                         self.render_view_settings(ui);
                         self.render_photography_tools_settings(ui);
-                        self.render_slideshow_settings(ui);
                         self.render_cache_settings(ui);
                         self.render_performance_settings(ui);
                         self.render_gpu_info(ui);
@@ -263,20 +262,6 @@ impl ImageViewerApp {
                 200..=255,
             ));
         });
-    }
-
-    fn render_slideshow_settings(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Slideshow");
-        ui.add_space(4.0);
-
-        ui.horizontal(|ui| {
-            ui.label("Interval:");
-            ui.add(
-                egui::Slider::new(&mut self.settings.slideshow_interval, 0.5..=30.0).suffix("s"),
-            );
-        });
-
-        ui.checkbox(&mut self.settings.slideshow_loop, "Loop slideshow");
     }
 
     fn render_cache_settings(&mut self, ui: &mut egui::Ui) {
