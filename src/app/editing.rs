@@ -1,4 +1,5 @@
 use crate::image_loader;
+use crate::image_loader::ImageAdjustments;
 use crate::metadata::FileOperation;
 use image::GenericImageView;
 use std::path::PathBuf;
@@ -356,63 +357,79 @@ impl ImageViewerApp {
         if let Some(op) = op {
             match op {
                 FileOperation::Delete { original_path, .. } => {
-                    // Re-delete the file
-                    if trash::delete(&original_path).is_ok() {
-                        if let Some(&idx) = self.filtered_list.get(self.current_index) {
-                            self.image_list.remove(idx);
-                        }
-                        self.apply_filter();
-                        self.show_status("Redo: File deleted again");
-                    }
+                    self.redo_delete_operation(original_path);
                 }
                 FileOperation::Move { from, to } => {
-                    if std::fs::rename(&to, &from).is_ok() {
-                        if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
-                            self.image_list[pos] = from.clone();
-                        }
-                        self.show_status("Redo: Move reapplied");
-                    }
+                    self.redo_move_operation(from, to);
                 }
                 FileOperation::Rename { from, to } => {
-                    if std::fs::rename(&from, &to).is_ok() {
-                        if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
-                            self.image_list[pos] = to.clone();
-                        }
-                        self.show_status("Redo: Rename reapplied");
-                    }
+                    self.redo_rename_operation(from, to);
                 }
                 FileOperation::Rotate { path, degrees, .. } => {
-                    if current_path.as_ref() == Some(&path) {
-                        self.rotation = (self.rotation + degrees as f32) % 360.0;
-
-                        if let Some(image) = &self.current_image {
-                            let rotated_image = image_loader::rotate_image(image, degrees);
-                            self.set_current_image(&path, rotated_image);
-                        }
-                    }
-                    self.show_status("Redo: Rotation reapplied");
+                    self.redo_rotate_operation(path, degrees, current_path);
                 }
-                FileOperation::Adjust {
-                    path, adjustments, ..
-                } => {
-                    if current_path.as_ref() == Some(&path) {
-                        self.adjustments = adjustments.clone();
-                        self.refresh_adjustments();
-                    }
-                    // Save the reapplied adjustments to metadata
-                    self.metadata_db.set_adjustments(path.clone(), &adjustments);
-                    self.metadata_db.save();
-                    // Invalidate thumbnail to regenerate with reapplied adjustments
-                    self.thumbnail_textures.remove(&path);
-                    self.thumbnail_requests.remove(&path);
-                    self.show_status("Redo: Adjustments reapplied");
+                FileOperation::Adjust { path, adjustments, .. } => {
+                    self.redo_adjust_operation(path, adjustments, current_path);
                 }
                 FileOperation::Crop { .. } => {
-                    // For now, just show that crop redo is not implemented
                     self.show_status("Redo: Crop cannot be reapplied (operation not reversible)");
                 }
             }
         }
+    }
+
+    fn redo_delete_operation(&mut self, original_path: PathBuf) {
+        if trash::delete(&original_path).is_ok() {
+            if let Some(&idx) = self.filtered_list.get(self.current_index) {
+                self.image_list.remove(idx);
+            }
+            self.apply_filter();
+            self.show_status("Redo: File deleted again");
+        }
+    }
+
+    fn redo_move_operation(&mut self, from: PathBuf, to: PathBuf) {
+        if std::fs::rename(&to, &from).is_ok() {
+            if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
+                self.image_list[pos] = from.clone();
+            }
+            self.show_status("Redo: Move reapplied");
+        }
+    }
+
+    fn redo_rename_operation(&mut self, from: PathBuf, to: PathBuf) {
+        if std::fs::rename(&from, &to).is_ok() {
+            if let Some(pos) = self.image_list.iter().position(|p| *p == from) {
+                self.image_list[pos] = to.clone();
+            }
+            self.show_status("Redo: Rename reapplied");
+        }
+    }
+
+    fn redo_rotate_operation(&mut self, path: PathBuf, degrees: i32, current_path: Option<PathBuf>) {
+        if current_path.as_ref() == Some(&path) {
+            self.rotation = (self.rotation + degrees as f32) % 360.0;
+
+            if let Some(image) = &self.current_image {
+                let rotated_image = image_loader::rotate_image(image, degrees);
+                self.set_current_image(&path, rotated_image);
+            }
+        }
+        self.show_status("Redo: Rotation reapplied");
+    }
+
+    fn redo_adjust_operation(&mut self, path: PathBuf, adjustments: ImageAdjustments, current_path: Option<PathBuf>) {
+        if current_path.as_ref() == Some(&path) {
+            self.adjustments = adjustments.clone();
+            self.refresh_adjustments();
+        }
+        // Save the reapplied adjustments to metadata
+        self.metadata_db.set_adjustments(path.clone(), &adjustments);
+        self.metadata_db.save();
+        // Invalidate thumbnail to regenerate with reapplied adjustments
+        self.thumbnail_textures.remove(&path);
+        self.thumbnail_requests.remove(&path);
+        self.show_status("Redo: Adjustments reapplied");
     }
 
     pub fn show_status(&mut self, message: &str) {

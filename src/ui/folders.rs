@@ -1,15 +1,10 @@
 use crate::app::ImageViewerApp;
-use egui::{self, Color32, CornerRadius, Rect, RichText, Stroke, Vec2};
+use crate::ui::common;
+use egui::{self, Color32, RichText, Stroke, Vec2};
 use std::path::PathBuf;
 
-const LR_BG_PANEL: Color32 = Color32::from_rgb(51, 51, 51);
-const LR_BORDER: Color32 = Color32::from_rgb(28, 28, 28);
-const LR_TEXT_PRIMARY: Color32 = Color32::from_rgb(200, 200, 200);
-const LR_TEXT_SECONDARY: Color32 = Color32::from_rgb(140, 140, 140);
-const LR_HEADER_BG: Color32 = Color32::from_rgb(45, 45, 45);
-
 pub fn render_folders_panel(app: &mut ImageViewerApp, ui: &mut egui::Ui) {
-    lr_collapsible_panel(ui, "Folders", true, |ui| {
+    common::lr_collapsible_panel(ui, "Folders", true, |ui| {
         egui::ScrollArea::vertical()
             .id_salt("folder_tree")
             .auto_shrink([false, true])
@@ -71,7 +66,7 @@ pub fn render_folder_node(
             let icon = if is_expanded { "▼" } else { "▶" };
             if ui
                 .add(
-                    egui::Button::new(RichText::new(icon).size(8.0).color(LR_TEXT_SECONDARY))
+                    egui::Button::new(RichText::new(icon).size(8.0).color(common::LR_TEXT_SECONDARY))
                         .fill(Color32::TRANSPARENT)
                         .stroke(Stroke::NONE)
                         .min_size(Vec2::new(14.0, 14.0)),
@@ -92,7 +87,7 @@ pub fn render_folder_node(
         let folder_color = if is_current_folder {
             Color32::from_rgb(200, 170, 100)
         } else {
-            LR_TEXT_SECONDARY
+            common::LR_TEXT_SECONDARY
         };
 
         let bg_color = if is_current_folder {
@@ -158,48 +153,4 @@ pub fn render_folder_node(
             }
         }
     }
-}
-
-fn lr_collapsible_panel<R>(
-    ui: &mut egui::Ui,
-    title: &str,
-    default_open: bool,
-    add_contents: impl FnOnce(&mut egui::Ui) -> R,
-) -> egui::CollapsingResponse<R> {
-    // Panel header background
-    let header_rect = ui.available_rect_before_wrap();
-    let header_rect = Rect::from_min_size(header_rect.min, Vec2::new(ui.available_width(), 24.0));
-
-    ui.painter()
-        .rect_filled(header_rect, CornerRadius::ZERO, LR_HEADER_BG);
-    ui.painter().hline(
-        header_rect.x_range(),
-        header_rect.bottom(),
-        Stroke::new(1.0, LR_BORDER),
-    );
-
-    let response = egui::CollapsingHeader::new(
-        RichText::new(title)
-            .size(11.0)
-            .color(LR_TEXT_PRIMARY)
-            .strong(),
-    )
-    .default_open(default_open)
-    .show(ui, |ui| {
-        ui.add_space(4.0);
-        egui::Frame::NONE
-            .fill(LR_BG_PANEL)
-            .inner_margin(egui::Margin::symmetric(8, 6))
-            .show(ui, |ui| add_contents(ui))
-            .inner
-    });
-
-    // Bottom border
-    ui.painter().hline(
-        ui.available_rect_before_wrap().x_range(),
-        ui.cursor().top(),
-        Stroke::new(1.0, LR_BORDER),
-    );
-
-    response
 }

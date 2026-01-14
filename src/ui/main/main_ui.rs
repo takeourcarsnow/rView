@@ -61,12 +61,7 @@ impl eframe::App for ImageViewerApp {
         // Render UI based on view mode
         match self.view_mode {
             ViewMode::Single => {
-                if self.settings.show_toolbar {
-                    self.render_toolbar(ctx);
-                }
-                if self.settings.show_statusbar {
-                    self.render_statusbar(ctx);
-                }
+                self.render_common_ui(ctx);
                 if !self.panels_hidden {
                     // Render thumbnail bar before side panels so it spans full width
                     self.render_thumbnail_bar(ctx);
@@ -76,12 +71,7 @@ impl eframe::App for ImageViewerApp {
                 self.render_main_view(ctx);
             }
             ViewMode::Compare => {
-                if self.settings.show_toolbar {
-                    self.render_toolbar(ctx);
-                }
-                if self.settings.show_statusbar {
-                    self.render_statusbar(ctx);
-                }
+                self.render_common_ui(ctx);
                 if !self.panels_hidden {
                     self.render_navigator_left_panel(ctx);
                     self.render_sidebar(ctx);
@@ -140,4 +130,16 @@ impl eframe::App for ImageViewerApp {
         self.settings.save();
         self.metadata_db.save();
     }
+}
+
+impl ImageViewerApp {
+    /// Render common UI elements shared between view modes
+    fn render_common_ui(&mut self, ctx: &egui::Context) {
+        if self.settings.show_toolbar {
+            self.render_toolbar(ctx);
+        }
+        if self.settings.show_statusbar {
+            self.render_statusbar(ctx);
+        }
+}
 }

@@ -2,6 +2,7 @@ use crate::app::LoaderMessage;
 
 mod adjustments;
 mod command_palette;
+mod common;
 mod dialogs;
 mod folders;
 mod histogram;
