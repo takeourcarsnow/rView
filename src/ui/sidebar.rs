@@ -101,6 +101,12 @@ impl ImageViewerApp {
         ui.collapsing("Overlays & Frames", |ui| {
             ui.add_space(4.0);
 
+            // Enable/disable checkboxes
+            ui.checkbox(&mut self.settings.show_custom_overlay, "Enable overlay");
+            ui.checkbox(&mut self.settings.show_frame, "Enable frame");
+
+            ui.add_space(8.0);
+
             // Get available overlays
             let overlay_dir = std::path::Path::new("src/images/overlays");
             let available_overlays: Vec<String> = if overlay_dir.exists() {
@@ -118,21 +124,53 @@ impl ImageViewerApp {
                 Vec::new()
             };
 
+            // Overlay selection with navigation
             ui.horizontal(|ui| {
                 ui.label("Overlay:");
-                egui::ComboBox::from_id_salt("sidebar_overlay_select")
-                    .selected_text(self.settings.selected_overlay.as_deref().unwrap_or("None"))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.settings.selected_overlay, None, "None");
-                        for overlay in &available_overlays {
-                            let selected = self.settings.selected_overlay.as_ref() == Some(overlay);
-                            if ui.selectable_label(selected, overlay).clicked() {
-                                self.settings.selected_overlay = Some(overlay.clone());
-                                // Reload overlay texture
+                let current_overlay = self.settings.selected_overlay.as_deref().unwrap_or("None");
+                ui.label(current_overlay);
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Previous overlay button
+                    if ui.button("◀").on_hover_text("Previous overlay").clicked() {
+                        if available_overlays.is_empty() {
+                            self.settings.selected_overlay = None;
+                        } else {
+                            let current_idx = self.settings.selected_overlay.as_ref()
+                                .and_then(|name| available_overlays.iter().position(|o| o == name))
+                                .unwrap_or(0);
+                            let prev_idx = if current_idx == 0 { available_overlays.len() } else { current_idx - 1 };
+                            self.settings.selected_overlay = if prev_idx == available_overlays.len() {
+                                None
+                            } else {
+                                Some(available_overlays[prev_idx].clone())
+                            };
+                            if self.settings.show_custom_overlay {
                                 self.load_custom_overlay(ui.ctx());
                             }
                         }
-                    });
+                    }
+
+                    // Next overlay button
+                    if ui.button("▶").on_hover_text("Next overlay").clicked() {
+                        if available_overlays.is_empty() {
+                            self.settings.selected_overlay = None;
+                        } else {
+                            let current_idx = self.settings.selected_overlay.as_ref()
+                                .and_then(|name| available_overlays.iter().position(|o| o == name))
+                                .unwrap_or(available_overlays.len());
+                            let next_idx = (current_idx + 1) % (available_overlays.len() + 1);
+                            self.settings.selected_overlay = if next_idx == available_overlays.len() {
+                                None
+                            } else {
+                                Some(available_overlays[next_idx].clone())
+                            };
+                            if self.settings.show_custom_overlay {
+                                self.load_custom_overlay(ui.ctx());
+                            }
+                        }
+                    }
+                });
             });
 
             ui.horizontal(|ui| {
@@ -161,21 +199,53 @@ impl ImageViewerApp {
                 Vec::new()
             };
 
+            // Frame selection with navigation
             ui.horizontal(|ui| {
                 ui.label("Frame:");
-                egui::ComboBox::from_id_salt("sidebar_frame_select")
-                    .selected_text(self.settings.selected_frame.as_deref().unwrap_or("None"))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut self.settings.selected_frame, None, "None");
-                        for frame in &available_frames {
-                            let selected = self.settings.selected_frame.as_ref() == Some(frame);
-                            if ui.selectable_label(selected, frame).clicked() {
-                                self.settings.selected_frame = Some(frame.clone());
-                                // Reload frame texture
+                let current_frame = self.settings.selected_frame.as_deref().unwrap_or("None");
+                ui.label(current_frame);
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Previous frame button
+                    if ui.button("◀").on_hover_text("Previous frame").clicked() {
+                        if available_frames.is_empty() {
+                            self.settings.selected_frame = None;
+                        } else {
+                            let current_idx = self.settings.selected_frame.as_ref()
+                                .and_then(|name| available_frames.iter().position(|f| f == name))
+                                .unwrap_or(0);
+                            let prev_idx = if current_idx == 0 { available_frames.len() } else { current_idx - 1 };
+                            self.settings.selected_frame = if prev_idx == available_frames.len() {
+                                None
+                            } else {
+                                Some(available_frames[prev_idx].clone())
+                            };
+                            if self.settings.show_frame {
                                 self.load_frame(ui.ctx());
                             }
                         }
-                    });
+                    }
+
+                    // Next frame button
+                    if ui.button("▶").on_hover_text("Next frame").clicked() {
+                        if available_frames.is_empty() {
+                            self.settings.selected_frame = None;
+                        } else {
+                            let current_idx = self.settings.selected_frame.as_ref()
+                                .and_then(|name| available_frames.iter().position(|f| f == name))
+                                .unwrap_or(available_frames.len());
+                            let next_idx = (current_idx + 1) % (available_frames.len() + 1);
+                            self.settings.selected_frame = if next_idx == available_frames.len() {
+                                None
+                            } else {
+                                Some(available_frames[next_idx].clone())
+                            };
+                            if self.settings.show_frame {
+                                self.load_frame(ui.ctx());
+                            }
+                        }
+                    }
+                });
             });
 
             ui.horizontal(|ui| {
@@ -183,6 +253,36 @@ impl ImageViewerApp {
                 if ui.add(egui::Slider::new(&mut self.settings.frame_opacity, 0.0..=1.0)).changed() {
                     // Opacity changed, no need to reload texture
                 }
+            });
+
+            ui.add_space(8.0);
+
+            // Film preset selection with navigation
+            ui.horizontal(|ui| {
+                ui.label("Film:");
+                ui.label(self.current_film_preset.name());
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Previous film button
+                    if ui.button("◀").on_hover_text("Previous film preset").clicked() {
+                        let all_presets = crate::image_loader::FilmPreset::all();
+                        let current_idx = all_presets.iter().position(|p| *p == self.current_film_preset).unwrap_or(0);
+                        let prev_idx = if current_idx == 0 { all_presets.len() - 1 } else { current_idx - 1 };
+                        self.current_film_preset = all_presets[prev_idx];
+                        self.adjustments.apply_preset(self.current_film_preset);
+                        self.mark_adjustments_dirty();
+                    }
+
+                    // Next film button
+                    if ui.button("▶").on_hover_text("Next film preset").clicked() {
+                        let all_presets = crate::image_loader::FilmPreset::all();
+                        let current_idx = all_presets.iter().position(|p| *p == self.current_film_preset).unwrap_or(0);
+                        let next_idx = (current_idx + 1) % all_presets.len();
+                        self.current_film_preset = all_presets[next_idx];
+                        self.adjustments.apply_preset(self.current_film_preset);
+                        self.mark_adjustments_dirty();
+                    }
+                });
             });
         });
     }
