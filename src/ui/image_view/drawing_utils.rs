@@ -28,6 +28,32 @@ impl ImageViewerApp {
             }
         }
 
+        // Custom overlay
+        if self.settings.show_custom_overlay {
+            if let Some(tex) = &self.custom_overlay_texture {
+                let alpha = (self.settings.overlay_opacity * 255.0) as u8;
+                ui.painter().image(
+                    tex.id(),
+                    image_rect,
+                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::from_rgba_unmultiplied(255, 255, 255, alpha),
+                );
+            }
+        }
+
+        // Frame (drawn after overlays so it appears on top)
+        if self.settings.show_frame {
+            if let Some(tex) = &self.frame_texture {
+                let alpha = (self.settings.frame_opacity * 255.0) as u8;
+                ui.painter().image(
+                    tex.id(),
+                    image_rect,
+                    Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::from_rgba_unmultiplied(255, 255, 255, alpha),
+                );
+            }
+        }
+
         // Crop overlay
         if self.crop_mode {
             self.draw_crop_overlay(ui, image_rect);

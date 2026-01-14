@@ -83,4 +83,68 @@ impl ImageViewerApp {
 
         self.zebra_texture = Some(texture);
     }
+
+    pub fn load_custom_overlay(&mut self, ctx: &egui::Context) {
+        if let Some(overlay_name) = &self.settings.selected_overlay {
+            let overlay_path = std::path::Path::new("src/images/overlays").join(overlay_name);
+            if overlay_path.exists() {
+                match image::open(&overlay_path) {
+                    Ok(img) => {
+                        let size = [img.width() as usize, img.height() as usize];
+                        let rgba = img.to_rgba8();
+                        let pixels: Vec<u8> = rgba.into_raw();
+
+                        let texture = ctx.load_texture(
+                            &format!("custom_overlay_{}", overlay_name),
+                            egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+                            egui::TextureOptions::LINEAR,
+                        );
+
+                        self.custom_overlay_texture = Some(texture);
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load overlay {}: {}", overlay_name, e);
+                        self.custom_overlay_texture = None;
+                    }
+                }
+            } else {
+                log::warn!("Overlay file not found: {}", overlay_name);
+                self.custom_overlay_texture = None;
+            }
+        } else {
+            self.custom_overlay_texture = None;
+        }
+    }
+
+    pub fn load_frame(&mut self, ctx: &egui::Context) {
+        if let Some(frame_name) = &self.settings.selected_frame {
+            let frame_path = std::path::Path::new("src/images/frames").join(frame_name);
+            if frame_path.exists() {
+                match image::open(&frame_path) {
+                    Ok(img) => {
+                        let size = [img.width() as usize, img.height() as usize];
+                        let rgba = img.to_rgba8();
+                        let pixels: Vec<u8> = rgba.into_raw();
+
+                        let texture = ctx.load_texture(
+                            &format!("frame_{}", frame_name),
+                            egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+                            egui::TextureOptions::LINEAR,
+                        );
+
+                        self.frame_texture = Some(texture);
+                    }
+                    Err(e) => {
+                        log::warn!("Failed to load frame {}: {}", frame_name, e);
+                        self.frame_texture = None;
+                    }
+                }
+            } else {
+                log::warn!("Frame file not found: {}", frame_name);
+                self.frame_texture = None;
+            }
+        } else {
+            self.frame_texture = None;
+        }
+    }
 }

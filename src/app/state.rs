@@ -74,6 +74,8 @@ pub struct ImageViewerApp {
     // Overlays
     pub focus_peaking_texture: Option<TextureHandle>,
     pub zebra_texture: Option<TextureHandle>,
+    pub custom_overlay_texture: Option<TextureHandle>,
+    pub frame_texture: Option<TextureHandle>,
 
     // View state
     pub zoom: f32,
@@ -308,6 +310,8 @@ impl ImageViewerApp {
             showing_preview: false,
             focus_peaking_texture: None,
             zebra_texture: None,
+            custom_overlay_texture: None,
+            frame_texture: None,
             compare_exifs: HashMap::new(),
             compare_large_preview_requests: HashSet::new(),
             zoom: 1.0,

@@ -29,6 +29,8 @@ impl ImageViewerApp {
         let show_focus_peaking = self.settings.show_focus_peaking;
         let show_zebras = self.settings.show_zebras;
         let show_grid_overlay = self.settings.show_grid_overlay;
+        let show_custom_overlay = self.settings.show_custom_overlay;
+        let show_frame = self.settings.show_frame;
         let loupe_enabled = self.settings.loupe_enabled;
         let load_raw_full_size = self.settings.load_raw_full_size;
 
@@ -53,6 +55,8 @@ impl ImageViewerApp {
         let mut toggle_focus_peaking = false;
         let mut toggle_zebras = false;
         let mut toggle_grid = false;
+        let mut toggle_custom_overlay = false;
+        let mut toggle_frame = false;
         let mut toggle_loupe = false;
         let mut toggle_panels = false;
         let mut toggle_fullscreen = false;
@@ -213,6 +217,12 @@ impl ImageViewerApp {
                     if toggle_button(ui, lucide("grid-3x3"), "Grid overlay", show_grid_overlay).clicked() {
                         toggle_grid = true;
                     }
+                    if toggle_button(ui, lucide("layers"), "Custom overlay", show_custom_overlay).clicked() {
+                        toggle_custom_overlay = true;
+                    }
+                    if toggle_button(ui, lucide("frame"), "Frame", show_frame).clicked() {
+                        toggle_frame = true;
+                    }
                     if toggle_button(ui, lucide("search"), "Loupe (Ctrl+L)", loupe_enabled).clicked() {
                         toggle_loupe = true;
                     }
@@ -336,6 +346,18 @@ impl ImageViewerApp {
         }
         if toggle_grid {
             self.settings.show_grid_overlay = !self.settings.show_grid_overlay;
+        }
+        if toggle_custom_overlay {
+            self.settings.show_custom_overlay = !self.settings.show_custom_overlay;
+            if self.settings.show_custom_overlay {
+                self.load_custom_overlay(ctx);
+            }
+        }
+        if toggle_frame {
+            self.settings.show_frame = !self.settings.show_frame;
+            if self.settings.show_frame {
+                self.load_frame(ctx);
+            }
         }
         if toggle_loupe {
             self.settings.loupe_enabled = !self.settings.loupe_enabled;

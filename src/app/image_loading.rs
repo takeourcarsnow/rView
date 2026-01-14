@@ -373,6 +373,14 @@ impl ImageViewerApp {
         if self.settings.show_zebras {
             self.generate_zebra_overlay(image, ctx);
         }
+
+        if self.settings.show_custom_overlay {
+            self.load_custom_overlay(ctx);
+        }
+
+        if self.settings.show_frame {
+            self.load_frame(ctx);
+        }
     }
 
     /// Fast version of set_current_image that skips histogram and overlay generation.

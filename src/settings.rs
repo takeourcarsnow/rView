@@ -43,6 +43,12 @@ pub struct Settings {
     pub zebra_low_threshold: u8,
     pub show_grid_overlay: bool,
     pub grid_type: GridType,
+    pub show_custom_overlay: bool,
+    pub selected_overlay: Option<String>,
+    pub overlay_opacity: f32,
+    pub show_frame: bool,
+    pub selected_frame: Option<String>,
+    pub frame_opacity: f32,
 
     // Sorting and filtering
     pub sort_mode: SortMode,
@@ -128,6 +134,12 @@ impl Default for Settings {
             zebra_low_threshold: 5,
             show_grid_overlay: false,
             grid_type: GridType::RuleOfThirds,
+            show_custom_overlay: false,
+            selected_overlay: None,
+            overlay_opacity: 0.5,
+            show_frame: false,
+            selected_frame: None,
+            frame_opacity: 1.0,
 
             sort_mode: SortMode::Name,
             sort_order: SortOrder::Ascending,
